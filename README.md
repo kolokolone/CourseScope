@@ -33,7 +33,7 @@ Depuis le dossier du projet:
 Ce script:
 - cree/active `.venv`
 - installe `requirements.txt`
-- lance Streamlit sur `app.py`
+ - lance Streamlit sur `CourseScope.py`
 
 ### Linux/macOS
 
@@ -77,7 +77,7 @@ Installer et lancer:
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+streamlit run CourseScope.py
 ```
 
 
@@ -119,7 +119,7 @@ Ces tests utilisent les fichiers demo:
 
 ```
 CourseScope/
-  app.py
+  CourseScope.py
   run_win.bat
   run_linux.sh
   requirements.txt
