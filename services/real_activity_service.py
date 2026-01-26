@@ -233,12 +233,14 @@ def compute_garmin_stats(
     *,
     moving_mask: pd.Series,
     gap_series: pd.Series | None,
+    grade_series: pd.Series | None = None,
     params: RealRunParams,
 ) -> dict[str, Any]:
     return compute_garmin_like_stats(
         df,
         moving_mask=moving_mask,
         gap_series=gap_series,
+        grade_series=grade_series,
         hr_max=params.hr_max,
         hr_rest=params.hr_rest if params.use_hrr else None,
         use_hrr=params.use_hrr,
@@ -280,6 +282,7 @@ def analyze_real_activity(
         df,
         moving_mask=base.derived.moving_mask,
         gap_series=base.derived.gap_series,
+        grade_series=base.derived.grade_series,
         params=params,
     )
 

@@ -22,6 +22,7 @@ def _get_garmin_stats(
     df,
     moving_mask,
     gap_series,
+    grade_series,
     hr_max,
     hr_rest,
     use_hrr,
@@ -43,6 +44,7 @@ def _get_garmin_stats(
         df,
         moving_mask=moving_mask,
         gap_series=gap_series,
+        grade_series=grade_series,
         params=params,
     )
 
@@ -160,6 +162,7 @@ def render(df) -> None:
         df,
         moving_mask,
         gap_series,
+        grade_series,
         hr_max,
         hr_rest if use_hrr else None,
         use_hrr,
@@ -182,12 +185,49 @@ def render(df) -> None:
     col_g4.metric("Vitesse moyenne", f"{speed_used:.1f} km/h" if speed_used == speed_used else "-")
 
     extra_metrics = []
+    if summary.get("max_speed_kmh") == summary.get("max_speed_kmh"):
+        extra_metrics.append(("Vitesse max", f"{summary['max_speed_kmh']:.1f} km/h"))
+    if summary.get("best_pace_s_per_km") == summary.get("best_pace_s_per_km"):
+        extra_metrics.append(("Best pace", seconds_to_mmss(summary["best_pace_s_per_km"])))
+
+    if summary.get("pace_median_s_per_km") == summary.get("pace_median_s_per_km"):
+        extra_metrics.append(("Allure mediane", seconds_to_mmss(summary["pace_median_s_per_km"])))
+    if summary.get("pace_p10_s_per_km") == summary.get("pace_p10_s_per_km"):
+        extra_metrics.append(("Allure p10", seconds_to_mmss(summary["pace_p10_s_per_km"])))
+    if summary.get("pace_p90_s_per_km") == summary.get("pace_p90_s_per_km"):
+        extra_metrics.append(("Allure p90", seconds_to_mmss(summary["pace_p90_s_per_km"])))
+
     if summary.get("gap_mean_s_per_km") == summary.get("gap_mean_s_per_km"):
         extra_metrics.append(("GAP moyen", seconds_to_mmss(summary["gap_mean_s_per_km"])))
     if summary.get("elevation_gain_m") == summary.get("elevation_gain_m"):
         extra_metrics.append(("D+", f"{summary['elevation_gain_m']:.0f} m"))
     if summary.get("elevation_loss_m") == summary.get("elevation_loss_m"):
         extra_metrics.append(("D-", f"{summary['elevation_loss_m']:.0f} m"))
+
+    elev_min = summary.get("elevation_min_m")
+    elev_max = summary.get("elevation_max_m")
+    if elev_min == elev_min and elev_max == elev_max:
+        extra_metrics.append(("Altitude min/max", f"{elev_min:.0f} / {elev_max:.0f} m"))
+    elif elev_min == elev_min:
+        extra_metrics.append(("Altitude min", f"{elev_min:.0f} m"))
+    elif elev_max == elev_max:
+        extra_metrics.append(("Altitude max", f"{elev_max:.0f} m"))
+
+    grade_mean = summary.get("grade_mean_pct")
+    grade_min = summary.get("grade_min_pct")
+    grade_max = summary.get("grade_max_pct")
+    if grade_mean == grade_mean:
+        extra_metrics.append(("Pente moyenne", f"{grade_mean:.1f} %"))
+    if grade_min == grade_min and grade_max == grade_max:
+        extra_metrics.append(("Pente min/max", f"{grade_min:.1f} / {grade_max:.1f} %"))
+
+    if summary.get("vam_m_h") == summary.get("vam_m_h"):
+        extra_metrics.append(("VAM", f"{summary['vam_m_h']:.0f} m/h"))
+
+    if summary.get("steps_total") == summary.get("steps_total"):
+        extra_metrics.append(("Pas totaux", f"{summary['steps_total']:.0f}"))
+    if summary.get("step_length_est_m") == summary.get("step_length_est_m"):
+        extra_metrics.append(("Longueur pas (est.)", f"{summary['step_length_est_m']:.2f} m"))
 
     hr_stats = garmin_stats.get("heart_rate")
     if hr_stats:
@@ -278,6 +318,43 @@ def render(df) -> None:
                 ftp_note = " (estime)" if power_stats.get("ftp_estimated") else ""
                 st.caption(f"FTP utilise : {power_stats['ftp_w']:.0f} W{ftp_note}")
             st.dataframe(format_zone_table(power_stats["zones"]), width="stretch", hide_index=True)
+
+    running_dynamics = garmin_stats.get("running_dynamics")
+    if running_dynamics and any(
+        running_dynamics.get(k) == running_dynamics.get(k)
+        for k in [
+            "stride_length_mean_m",
+            "vertical_oscillation_mean_cm",
+            "vertical_ratio_mean_pct",
+            "ground_contact_time_mean_ms",
+            "gct_balance_mean_pct",
+        ]
+    ):
+        with st.expander("Running dynamics", expanded=False):
+            cols_rd1, cols_rd2, cols_rd3 = st.columns(3)
+            sl = running_dynamics.get("stride_length_mean_m")
+            vo = running_dynamics.get("vertical_oscillation_mean_cm")
+            vr = running_dynamics.get("vertical_ratio_mean_pct")
+            cols_rd1.metric("Stride length", f"{sl:.2f} m" if sl == sl else "-")
+            cols_rd2.metric("Vertical oscillation", f"{vo:.1f} cm" if vo == vo else "-")
+            cols_rd3.metric("Vertical ratio", f"{vr:.1f} %" if vr == vr else "-")
+
+            cols_rd4, cols_rd5 = st.columns(2)
+            gct = running_dynamics.get("ground_contact_time_mean_ms")
+            bal = running_dynamics.get("gct_balance_mean_pct")
+            cols_rd4.metric("Ground contact time", f"{gct:.0f} ms" if gct == gct else "-")
+            cols_rd5.metric("GCT balance", f"{bal:.1f} %" if bal == bal else "-")
+
+    power_adv = garmin_stats.get("power_advanced")
+    if power_adv and any(power_adv.get(k) == power_adv.get(k) for k in ["normalized_power_w", "tss"]):
+        with st.expander("Puissance avancée", expanded=False):
+            np_w = power_adv.get("normalized_power_w")
+            if_val = power_adv.get("intensity_factor")
+            tss = power_adv.get("tss")
+            col_pa1, col_pa2, col_pa3 = st.columns(3)
+            col_pa1.metric("NP", f"{np_w:.0f} W" if np_w == np_w else "-")
+            col_pa2.metric("IF", f"{if_val:.2f}" if if_val == if_val else "-")
+            col_pa3.metric("TSS", f"{tss:.0f}" if tss == tss else "-")
 
     best_df = base.best_efforts
     climb_markers = base.climbs

@@ -30,10 +30,29 @@ def smoke_loaders() -> None:
     assert gpx.name == GPX_PATH.name
     assert not gpx.df.empty, "GPX dataframe is empty"
 
+    for col in [
+        "stride_length_m",
+        "vertical_oscillation_cm",
+        "vertical_ratio_pct",
+        "ground_contact_time_ms",
+        "gct_balance_pct",
+    ]:
+        assert col in gpx.df.columns
+        assert gpx.df[col].isna().all(), f"GPX column {col} should be NaN"
+
     fit = activity_service.load_activity_from_bytes(fit_bytes, FIT_PATH.name)
     assert fit.track_count >= 0
     assert fit.name == FIT_PATH.name
     assert not fit.df.empty, "FIT dataframe is empty"
+
+    for col in [
+        "stride_length_m",
+        "vertical_oscillation_cm",
+        "vertical_ratio_pct",
+        "ground_contact_time_ms",
+        "gct_balance_pct",
+    ]:
+        assert col in fit.df.columns
 
 
 def smoke_real_pipeline() -> None:
@@ -51,9 +70,27 @@ def smoke_real_pipeline() -> None:
         df,
         moving_mask=base.derived.moving_mask,
         gap_series=base.derived.gap_series,
+        grade_series=base.derived.grade_series,
         params=RealRunParams(use_moving_time=True),
     )
     assert "summary" in garmin
+
+    summary = garmin["summary"]
+    for key in [
+        "max_speed_kmh",
+        "best_pace_s_per_km",
+        "elevation_min_m",
+        "elevation_max_m",
+        "grade_mean_pct",
+        "grade_min_pct",
+        "grade_max_pct",
+        "vam_m_h",
+        "steps_total",
+        "step_length_est_m",
+    ]:
+        assert key in summary
+    assert "running_dynamics" in garmin
+    assert "power_advanced" in garmin
 
     cap = float(min(max(base.default_cap_min_per_km, 2.0), 15.0))
     pace_series = real_activity_service.compute_pace_series(
@@ -78,6 +115,22 @@ def smoke_real_pipeline() -> None:
         pauses=base.pauses,
         map_color_mode="pace",
     )
+
+    # Minimal FIT run (ensures FIT-only metrics don't crash)
+    fit_bytes = _require_file(FIT_PATH)
+    loaded_fit = activity_service.load_activity_from_bytes(fit_bytes, FIT_PATH.name)
+    df_fit = loaded_fit.df
+    base_fit = real_activity_service.prepare_base(df_fit)
+    garmin_fit = real_activity_service.compute_garmin_stats(
+        df_fit,
+        moving_mask=base_fit.derived.moving_mask,
+        gap_series=base_fit.derived.gap_series,
+        grade_series=base_fit.derived.grade_series,
+        params=RealRunParams(use_moving_time=True),
+    )
+    assert "summary" in garmin_fit
+    assert "running_dynamics" in garmin_fit
+    assert "power_advanced" in garmin_fit
 
 
 def smoke_theoretical_pipeline() -> None:
