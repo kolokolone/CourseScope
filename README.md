@@ -1,2 +1,171 @@
-# CourseScope
-CourseScope est une app Streamlit locale pour analyser des traces running GPX/FIT (carte, graphes, splits, zones type Garmin, GAP/pente) et estimer un temps théorique sur un trace selon une allure de base et la pente. Backend Python préparé pour une future API.
+# CourseScope (v1.1)
+
+CourseScope est une app Streamlit locale pour analyser des traces running GPX/FIT (carte, graphes, splits, zones type Garmin, GAP/pente) et estimer un temps theorique sur un trace selon une allure de base et la pente. Backend Python prepare pour une future API.
+
+La v1.1 est une refacto interne (aucune feature supprimee) qui separe:
+- `core/` (pur Python)
+- `services/` (orchestration, pur Python)
+- `ui/` (Streamlit, rendu uniquement)
+
+
+## Prerequis
+
+- Python 3.11+ (recommande)
+- Acces internet au premier lancement (installation pip)
+
+Dependances principales (voir `requirements.txt`):
+- streamlit
+- gpxpy
+- fitparse
+- pandas, numpy
+- plotly
+- pydeck
+
+
+## Lancer l'application
+
+### Windows (recommande)
+
+Depuis le dossier du projet:
+
+1) Double-clique: `run_win.bat`
+
+Ce script:
+- cree/active `.venv`
+- installe `requirements.txt`
+- lance Streamlit sur `app.py`
+
+### Linux/macOS
+
+Depuis le dossier du projet:
+
+```bash
+./run_linux.sh
+```
+
+### Manuel
+
+Creer un venv puis installer les dependances.
+
+Creer le venv:
+
+```bash
+python -m venv .venv
+```
+
+Activer le venv:
+
+Windows (cmd):
+
+```bat
+.venv\Scripts\activate
+```
+
+Windows (PowerShell):
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+Linux/macOS:
+
+```bash
+source .venv/bin/activate
+```
+
+Installer et lancer:
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+
+## Utilisation
+
+1) Ouvrir l'app dans le navigateur (URL affichee par Streamlit).
+2) Uploader un fichier `.gpx` ou `.fit`.
+3) Choisir la vue:
+   - "Donnees de la course realisee"
+   - "Donnees theoriques (prevision)"
+
+Notes:
+- L'historique est stocke en session (sidebar) et permet de recharger rapidement un fichier.
+- Les allures sont affichees en min/km.
+
+
+## Tests (smoke tests)
+
+La v1.1 fournit des smoke tests minimalistes (sans framework) pour eviter les regressions.
+
+Sous Windows (avec le venv cree par `run_win.bat`):
+
+```bat
+.venv\Scripts\python.exe tests\smoke_test.py
+```
+
+Sous Linux/macOS:
+
+```bash
+.venv/bin/python tests/smoke_test.py
+```
+
+Ces tests utilisent les fichiers demo:
+- `course.gpx`
+- `course.fit`
+
+
+## Structure du projet (v1.1)
+
+```
+CourseScope/
+  app.py
+  run_win.bat
+  run_linux.sh
+  requirements.txt
+  grade_table.py
+  pro_pace_vs_grade.csv
+  core/
+  services/
+  ui/
+  tests/
+```
+
+### Core (pur Python)
+- `core/gpx_loader.py`, `core/fit_loader.py`: parsing -> DataFrame canonique
+- `core/real_run_analysis.py`: calculs + figures Plotly (reel)
+- `core/metrics.py`: stats style Garmin + zones
+- `core/theoretical_model.py`: modele theorique + figures Plotly
+- `core/formatting.py`, `core/parsing.py`: helpers partages
+- `core/grade_table.py`: correction d'allure selon la pente (canonical)
+
+### Services (backend applicatif, pur Python)
+- `services/activity_service.py`: chargement + type detection + stats sidebar
+- `services/real_activity_service.py`: orchestration analyse reel
+- `services/theoretical_service.py`: orchestration prevision
+- `services/history_service.py`: helpers d'historique (pure functions)
+- `services/models.py`: dataclasses (contrats)
+- `services/cache.py`: cache portable (preparation migration API)
+
+### UI (Streamlit)
+- `ui/layout.py`: navigation + uploader + historique
+- `ui/real_run_view.py`: widgets + rendu reel
+- `ui/theoretical_view.py`: widgets + rendu theorique
+
+
+## Notes pour developpement / contributions
+
+Regle principale v1.1:
+- `core/` et `services/` ne doivent pas importer Streamlit.
+- Streamlit reste confine a `ui/`.
+
+Si tu ajoutes une nouvelle fonctionnalite:
+1) Implementer le calcul dans `core/`.
+2) Orchestrer dans `services/` (structures de retour stables).
+3) Ajouter les widgets/rendu dans `ui/`.
+4) Ajouter/etendre `tests/smoke_test.py` si pertinent.
+
+
+## Changelog
+
+Voir `change_log.txt`.

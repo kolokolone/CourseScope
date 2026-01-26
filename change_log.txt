@@ -1,0 +1,155 @@
+CHANGE LOG
+Version: v1.0 -> v1.1
+Date: 2026-01-26
+
+Objectif v1.1
+- Conserver Streamlit (meme UX / meme fonctionnalites).
+- Sortir la logique metier des vues Streamlit.
+- Rendre le backend Python reutilisable pour une future API (ex: FastAPI).
+
+
+Resume
+- Release de refacto interne (aucune feature supprimee).
+- Introduction d'une separation claire en 3 couches:
+  - core/     : pur Python (parsing + calculs + figures Plotly)
+  - services/ : pur Python (use-cases / orchestration / contrats)
+  - ui/       : Streamlit (widgets + rendu)
+- Ajout de smoke tests pour limiter le risque de regression.
+
+
+Nouveautes (structure / architecture)
+
+1) Couche services (nouveau backend applicatif)
+- Nouveau dossier `services/` (Streamlit-free)
+- Encapsule les use-cases:
+  - chargement activite + type detection
+  - analyse course reelle
+  - prevision theorique (base + passages + simulation avancee)
+
+2) Centralisation des helpers (formatage / parsing)
+- `core/formatting.py`:
+  - format_duration_compact(seconds): style layout (ex: 3h05m02s)
+  - format_duration_clock(seconds): style vues (ex: 1:02:03)
+  - format_time_of_day(value): HH:MM:SS
+- `core/parsing.py`:
+  - parse_km_list(raw): parse "5,10,21.1" etc.
+
+3) Stabilisation de grade_table (preparation packaging)
+- `core/grade_table.py` devient l'emplacement canonical.
+- `grade_table.py` (racine) devient un shim de compat (re-export).
+- `core/real_run_analysis.py` et `core/theoretical_model.py` importent maintenant `grade_factor` depuis `core.grade_table`.
+
+4) Packaging
+- Ajout de `__init__.py` dans `core/`, `services/`, `ui/`.
+
+5) Tests
+- Ajout de `tests/smoke_test.py`.
+
+
+Changements par zone
+
+UI (Streamlit)
+
+- ui/layout.py
+  - _load_activity_from_bytes() devient un wrapper UI (st.cache_data) qui appelle services.activity_service.load_activity_from_bytes().
+  - _compute_sidebar_stats() delegue a services.activity_service.compute_sidebar_stats().
+  - _add_to_history() delegue a services.history_service.upsert_history().
+  - _format_duration() delegue a core.formatting.format_duration_compact().
+  - L'UI conserve: uploader, navigation, st.session_state, sidebar, selection de vue.
+
+- ui/real_run_view.py
+  - Cache UI:
+    - _get_cached_base(): st.cache_data -> services.real_activity_service.prepare_base().
+    - _get_garmin_stats(): st.cache_data -> services.real_activity_service.compute_garmin_stats().
+  - La logique metier extraite vers services.real_activity_service:
+    - derivatives (grade/moving/GAP)
+    - summary
+    - best_efforts / climbs / pauses / splits
+    - calcul de la serie d'allure (mode temps reel vs temps mouvement + lissage + cap)
+    - construction figures Plotly
+    - preparation "map-ready" (color/labels/climb points/pause points)
+  - L'UI conserve: widgets, layout, st.plotly_chart, st.pydeck_chart, tables.
+
+- ui/theoretical_view.py
+  - Cache UI:
+    - _get_cached_theoretical(): st.cache_data -> services.theoretical_service.prepare_base().
+  - La logique metier extraite vers services.theoretical_service:
+    - construction df_display (lissage + cap)
+    - passages + markers
+    - splits
+    - meteo + split bias + cap avance
+    - simulation avancee + pacing categories + export CSV
+  - L'UI conserve: widgets, layout, st.plotly_chart, st.pydeck_chart, download_button.
+
+Core (pur Python)
+
+- core/formatting.py (nouveau)
+- core/parsing.py (nouveau)
+- core/grade_table.py (nouveau, canonical)
+- grade_table.py (racine): shim de compat
+- core/real_run_analysis.py: import `grade_factor` depuis `core.grade_table`
+- core/theoretical_model.py: import `grade_factor` depuis `core.grade_table`
+
+Services (pur Python)
+
+- services/models.py
+  - dataclasses: LoadedActivity, SidebarStats, RealRunBase, RealRunResult, Theoretical*.
+- services/activity_service.py
+  - chargement GPX/FIT depuis bytes + detection type + track_count.
+  - stats sidebar.
+- services/history_service.py
+  - upsert_history(history, entry, max_items).
+- services/real_activity_service.py
+  - fonctions d'orchestration (prepare_base, compute_garmin_stats, compute_pace_series, build_figures, build_map_payload, build_highlights).
+- services/theoretical_service.py
+  - fonctions d'orchestration (prepare_base, compute_display_df, compute_passages, compute_splits, compute_weather_factor, compute_advanced, etc.).
+- services/cache.py
+  - MemoryCache (LRU) + DiskCache (pickle) + helpers.
+  - Brique prete pour une migration API, pas obligatoire pour l'UI actuelle.
+
+
+Compatibilite
+- Aucun comportement utilisateur volontairement modifie.
+- `grade_table.py` a la racine reste importable (shim).
+- La couche services reste Streamlit-free.
+
+
+Verification / validation v1.1
+
+1) Lancer l'app
+- Windows: run_win.bat
+- Linux/macOS: run_linux.sh
+- Manuel: streamlit run app.py
+
+2) Smoke tests (recommande via venv)
+- Windows: .venv/Scripts/python.exe tests/smoke_test.py
+- Linux/macOS: .venv/bin/python tests/smoke_test.py
+
+3) Compilation
+- Windows: .venv/Scripts/python.exe -m compileall -q core services ui tests app.py grade_table.py
+
+
+Fichiers ajoutes (principaux)
+- core/__init__.py
+- core/formatting.py
+- core/parsing.py
+- core/grade_table.py
+- services/__init__.py
+- services/models.py
+- services/activity_service.py
+- services/history_service.py
+- services/real_activity_service.py
+- services/theoretical_service.py
+- services/cache.py
+- tests/smoke_test.py
+- README.md
+- change_log.txt
+- cahier_des_charges.txt (mis a jour)
+
+Fichiers modifies (principaux)
+- ui/layout.py
+- ui/real_run_view.py
+- ui/theoretical_view.py
+- core/real_run_analysis.py
+- core/theoretical_model.py
+- grade_table.py

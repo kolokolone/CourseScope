@@ -1,0 +1,384 @@
+1. Contexte general (v1.1)
+
+Application web locale en Python (Streamlit) pour analyser et preparer des courses a pied a partir de traces GPX/FIT.
+
+Deux cas d'usage principaux :
+
+1) Analyse "reelle" (course effectuee)
+   - Charge un fichier GPX ou FIT (Strava/Garmin).
+   - Calcule des statistiques (distance, temps total, temps de mouvement, allure, vitesse, D+).
+   - Affiche une carte (pydeck) et plusieurs graphes Plotly.
+   - Calcule des zones (FC / allure / puissance) style Garmin et des indicateurs de regularite.
+   - Fournit des analyses avancees (allure vs pente, heatmap, residus vs pente, etc.).
+
+2) Prevision "theorique" (trace future)
+   - Charge un trace GPX (ou FIT) et choisit une allure de base (s/km).
+   - Estime un temps final et un profil d'allure en fonction de la pente (grade correction).
+   - Optionnel: heure de depart + points de passage (km) pour calculer les heures de passage.
+   - Optionnel: simulation avancee (meteo + split positif/negatif + clip d'allure) + plan de pacing par terrain.
+   - Export CSV de la simulation avancee.
+
+Objectif v1.1 (refacto interne) :
+- Aucune fonctionnalite supprimee.
+- Stabilite: le comportement utilisateur reste identique.
+- Separation des responsabilites: la logique metier ne vit plus dans les vues Streamlit.
+- Preparatif migration API: le backend (core + services) ne depend pas de Streamlit.
+
+
+2. Stack technique
+
+- Python: 3.11+ (scripts de lancement creent un .venv).
+- Bibliotheques runtime: streamlit, gpxpy, fitparse, pandas, numpy, plotly, pydeck.
+- requirements.txt reference les dependances.
+
+
+3. Lancement / execution
+
+3.1 Windows
+- run_win.bat
+  - cree/active .venv
+  - installe requirements.txt
+  - lance: python -m streamlit run app.py
+
+3.2 Linux/macOS
+- run_linux.sh
+  - cree/active .venv
+  - installe requirements.txt
+  - lance: streamlit run app.py
+
+3.3 Manuel
+- creer un venv (.venv)
+- pip install -r requirements.txt
+- streamlit run app.py
+
+
+4. Conventions et unites
+
+- Allure interne: secondes par km (s/km) pour les series.
+- Affichage: min/km (mm:ss / km).
+- Distance: metres (distance_m) et km (distance_km).
+- Pente: pourcentage (grade_percent).
+- Temps: time (timestamp), delta_time_s, elapsed_time_s.
+
+
+5. Architecture v1.1 (3 couches)
+
+5.1 Core (pur Python, Streamlit-free)
+Contient:
+- Loaders: parsing GPX/FIT -> DataFrame canonique.
+- Calculs: derives (pente, moving_mask, GAP), stats, splits, best efforts, modele theorique.
+- Plots Plotly: construits dans core/* (toujours Streamlit-free).
+- Utilitaires: conversions mm:ss, formatage (duree, time-of-day), parsing de listes.
+
+5.2 Service layer (backend applicatif, Streamlit-free)
+Contient:
+- Orchestration des use-cases: "charger activite", "analyser course reelle", "calculer prevision".
+- Structures de retour stables (dataclasses) pour l'UI.
+- Cache portable (LRU + disque optionnel) pret pour une future API.
+
+5.3 UI Streamlit (frontend)
+Contient:
+- Widgets, layout, rendu (st.*), cartes (pydeck), affichage de figures (Plotly).
+- Appels a la couche services.
+- Cache Streamlit (st.cache_data) conserve uniquement au niveau UI.
+
+
+6. Arborescence v1.1 (fichiers importants)
+
+app.py
+run_win.bat
+run_linux.sh
+requirements.txt
+grade_table.py                # shim compat -> re-export depuis core/grade_table.py
+pro_pace_vs_grade.csv         # table reference "coureur pro" pour allure vs pente
+course.gpx / course.fit       # fichiers demo pour smoke tests
+cahier_des_charges.txt
+nouvelles_fonctions           # idees futures (non implemente)
+
+core/
+  __init__.py
+  gpx_loader.py
+  fit_loader.py
+  real_run_analysis.py
+  theoretical_model.py
+  metrics.py
+  utils.py
+  formatting.py               # NEW v1.1
+  parsing.py                  # NEW v1.1
+  grade_table.py              # NEW v1.1 (canonical)
+
+services/
+  __init__.py
+  models.py                   # dataclasses (contrats)
+  cache.py                    # cache portable (LRU + disque optionnel)
+  activity_service.py         # chargement + type detection + sidebar stats
+  history_service.py          # manipulation historique (pure)
+  real_activity_service.py    # orchestration "course reelle"
+  theoretical_service.py      # orchestration "prevision"
+
+ui/
+  __init__.py
+  layout.py
+  real_run_view.py
+  theoretical_view.py
+
+tests/
+  smoke_test.py               # NEW v1.1
+
+
+7. Donnees (schemas DataFrame)
+
+7.1 DataFrame canonique (sortie loaders)
+Colonnes definies par core/gpx_loader.py::COLUMNS (egalement utilise par fit_loader):
+- lat, lon: float (degres)
+- elevation: float (m)
+- time: datetime (peut etre NaT)
+- distance_m: float (cumul)
+- delta_distance_m: float
+- elapsed_time_s: float
+- delta_time_s: float
+- speed_m_s: float (peut etre NaN si invalide)
+- pace_s_per_km: float (s/km)
+- heart_rate: float
+- cadence: float
+- power: float
+
+7.2 Series derivees (course reelle)
+- grade_series: pente (%) lisse
+- moving_mask: booleen (True = en mouvement)
+- gap_series: "grade adjusted pace" (s/km), estime via grade_table
+
+7.3 DataFrame theorique (core/theoretical_model.py)
+compute_theoretical_timing() renvoie un DataFrame par segment:
+- distance_km_cumulative
+- segment_distance_km
+- segment_grade_percent
+- segment_pace_s_per_km
+- segment_time_s
+- cumulative_time_s
+- elevation_m
+- passage_datetime (optionnel)
+
+
+8. Modules Core (details)
+
+8.1 core/gpx_loader.py
+- load_gpx(file: IO[bytes]) -> gpxpy.gpx.GPX
+  - decode bytes (utf-8/latin-1 fallback).
+- gpx_to_dataframe(gpx) -> DataFrame canonique
+  - parcours track/segment/points
+  - cumule distance_3d
+  - calcule delta_time, elapsed_time, speed, pace
+  - filtre vitesses hors [MIN_SPEED_M_S ; MAX_SPEED_M_S]
+  - extrait extensions: heart_rate, cadence, power
+- detect_gpx_type(df) -> {type, confidence}
+  - score sur delta_time_s "regulier" et vitesses > MIN_SPEED
+
+8.2 core/fit_loader.py
+- load_fit(file: IO[bytes]) -> FitFile
+- fit_to_dataframe(fitfile) -> DataFrame canonique
+  - conversion semicircle -> deg
+  - distance: utilise distance record si fiable sinon haversine/3D
+  - calcule delta_time, elapsed_time
+  - calcule speed (delta ou enhanced_speed/speed)
+  - filtre vitesses hors [MIN_SPEED_M_S ; MAX_SPEED_M_S]
+- detect_fit_type(df) -> detect_gpx_type(df)
+
+8.3 core/real_run_analysis.py
+Responsabilites:
+- Derives et nettoyage:
+  - compute_grade_percent_series()
+  - compute_gap_series()
+  - compute_derived_series() -> {grade_series, moving_mask, gap_series}
+- Mouvement / pauses:
+  - compute_moving_mask() (mediane glissante vitesse + seuil + duree min pause)
+  - compute_pause_markers() (marqueurs carte)
+- Stats et decoupages:
+  - compute_summary_stats()
+  - compute_splits()
+  - compute_best_efforts() (1k/5k/10k/semi/marathon)
+  - compute_climbs() (top 3 montees)
+- Plots Plotly:
+  - build_pace_elevation_plot()
+  - build_distribution_plots()
+  - build_pace_vs_grade_plot() (inclut courbe pro si pro_pace_vs_grade.csv present)
+  - build_pace_grade_scatter()
+  - build_pace_grade_heatmap()
+  - build_residuals_vs_grade()
+- Ressource:
+  - pro_pace_vs_grade.csv charge via DEFAULT_PRO_PACE_PATH (Path(__file__).parents[1])
+
+8.4 core/metrics.py
+- estimate_zone_inputs(df, moving_mask) -> defaults (hr_max, cadence target, ftp estime, pace seuil estime)
+- compute_garmin_like_stats(df, moving_mask, gap_series, hr_max, hr_rest, use_hrr, pace_threshold, ftp, cadence_target, use_moving_time)
+  - resume: temps total/mouvement, distance, allure/vitesse, GAP, elevation gain/loss, plus longue pause
+  - zones: FC, allure, puissance (tables)
+  - pacing: split pace delta, drift, stabilite, derive cardiaque (2 methodes)
+- format_zone_table(df) -> DataFrame affiche (Temps en mm:ss, %)
+
+8.5 core/theoretical_model.py
+- compute_theoretical_timing(df, base_pace_s_per_km, start_datetime=None)
+  - calcule grade segment, applique grade_factor, obtient temps cumul
+- compute_theoretical_summary(df_theoretical)
+- compute_theoretical_splits(df_theoretical, split_distance_km, start_datetime)
+- compute_passage_at_distances(df_theoretical, distances_km, start_datetime)
+- build_theoretical_plot(df_theoretical, markers=None)
+  - allure (min/km) + altitude + markers optionnels
+
+8.6 core/utils.py
+- mmss_to_seconds("M:SS")
+- seconds_to_mmss(seconds)
+- conversions de pace (m/s, mile)
+
+8.7 core/formatting.py (NEW v1.1)
+- format_duration_compact(seconds) -> "3h05m02s" / "5m02s" / "-" (layout)
+- format_duration_clock(seconds) -> "1:02:03" / "5:02" / "-" (views)
+- format_time_of_day(value) -> "HH:MM:SS" / "-"
+
+8.8 core/parsing.py (NEW v1.1)
+- parse_km_list("5, 10, 21.1") -> [5.0, 10.0, 21.1]
+
+8.9 core/grade_table.py (NEW v1.1 canonical)
+- GRADE_FACTORS (0..10%)
+- MIN_DOWNHILL_FACTOR
+- grade_factor(grade_percent)
+- adjust_pace(pace_s_per_km, grade_percent)
+- pace_to_mmss(pace_s_per_km)
+
+8.10 grade_table.py (root)
+- shim compat: re-export des symboles depuis core/grade_table.py
+- but: conserver `from grade_table import grade_factor`.
+
+
+9. Service layer (details)
+
+9.1 services/models.py
+Dataclasses (contrats internes) :
+- ActivityTypeDetection, LoadedActivity, SidebarStats
+- RealRunParams, RealRunViewParams, RealRunBase, RealRunResult
+- TheoreticalBase, TheoreticalPassages, TheoreticalAdvanced, TheoreticalResult
+
+9.2 services/activity_service.py
+- load_activity_from_bytes(data: bytes, name: str) -> LoadedActivity
+  - selection loader selon extension (.fit vs autres)
+  - detection type + confidence
+- compute_sidebar_stats(df) -> SidebarStats
+- suggest_default_view(ActivityTypeDetection) -> "real"|"theoretical"
+
+9.3 services/history_service.py
+- upsert_history(history, entry, max_items=0)
+  - dedupe par name, insert en tete, trim optionnel
+
+9.4 services/real_activity_service.py
+- prepare_base(df) -> RealRunBase
+  - derived_series + summary + zone defaults + best efforts + climbs + pauses + splits
+- compute_garmin_stats(df, moving_mask, gap_series, params) -> dict
+- compute_pace_series(df, derived, pace_mode, smoothing_points, cap_min_per_km) -> Series
+- build_map_payload(df, derived, climbs, pauses, map_color_mode) -> RealRunMapPayload
+- build_figures(df, pace_series, grade_series) -> RealRunFigures
+- build_highlights(best_df, climbs, garmin_summary) -> list[str]
+- analyze_real_activity(df, base=None, params=None, view=None) -> RealRunResult
+
+9.5 services/theoretical_service.py
+- prepare_base(df, base_pace_s_per_km) -> (df_base, summary_base)
+- compute_display_df(df_base, smoothing_segments, cap_min_per_km) -> (df_display, default_cap_min, used_cap_min)
+- compute_passages(df_base, start_datetime, target_distances_km) -> TheoreticalPassages
+- build_base_figure(df_display, markers) -> Plotly figure
+- compute_splits(df_calc, start_datetime, split_distance_km=1.0) -> DataFrame
+- compute_weather_factor(enabled, temp_c, humidity_pct, wind_ms) -> float
+- compute_adv_cap_default(df_calc, weather_factor, split_bias) -> float
+- compute_advanced(df_calc, weather_factor, split_bias, smoothing_segments, cap_adv_min_per_km) -> TheoreticalAdvanced
+- analyze_theoretical_activity(...) -> TheoreticalResult (disponible, non requis par l'UI)
+
+9.6 services/cache.py
+Cache portable (Streamlit-free) :
+- MemoryCache (LRU simple)
+- DiskCache (pickle)
+- helpers: sha256_bytes, stable_json_dumps, make_key
+Note: v1.1 conserve st.cache_data au niveau UI. services/cache.py est une brique prete pour v2 (API).
+
+
+10. UI Streamlit (details)
+
+10.1 ui/layout.py
+- Uploader GPX/FIT
+- Sidebar: historique session (gpx_history), separation reels/theoriques, purge
+- Chargement:
+  - _load_activity_from_bytes() est un wrapper st.cache_data qui appelle services/activity_service.py
+  - _compute_sidebar_stats() appelle services/activity_service.py
+  - _add_to_history() appelle services/history_service.py
+- Stocke df + gpx_type dans st.session_state
+- Choix de vue: real_run_view.render(df) ou theoretical_view.render(df)
+
+10.2 ui/real_run_view.py
+- Cache UI:
+  - _get_cached_base(df): st.cache_data -> services.real_activity_service.prepare_base
+  - _get_garmin_stats(...): st.cache_data -> services.real_activity_service.compute_garmin_stats
+- Widgets:
+  - toggle "Stats en temps de mouvement"
+  - expander parametres zones (HR max/rest/HRR, allure seuil, FTP, cadence cible)
+  - radio carte: couleur par allure/pente/GAP
+  - radio allure: temps reel vs temps mouvement
+  - sliders: lissage allure (points), cap allure max (min/km)
+  - checkbox: afficher splits
+- Rendu:
+  - metriques (distance/temps/allure/vitesse/D+)
+  - resume Garmin + zones
+  - highlights
+  - carte enrichie (trace + points + climbs + pauses)
+  - graphes Plotly: allure+altitude, distributions, allure vs pente, residus, scatter, heatmap
+
+10.3 ui/theoretical_view.py
+- Cache UI:
+  - _get_cached_theoretical(df, base_pace): st.cache_data -> services.theoretical_service.prepare_base
+- Widgets:
+  - select_slider allure de base
+  - sliders: lissage segments, cap allure max
+  - checkbox: activer heure de depart
+  - input: points de passage (km)
+  - checkbox: afficher tableau des segments
+  - simulation avancee: meteo (temp/humid/wind), split bias, cap avance
+- Orchestration:
+  - compute_display_df() pour df_display
+  - compute_passages() pour df_calc + passages + markers
+  - compute_splits() pour tableau segments
+  - compute_weather_factor / compute_adv_cap_default / compute_advanced
+- Rendu:
+  - resume base
+  - carte trace
+  - graphe base + markers
+  - table passages (si start_datetime)
+  - table splits
+  - graphe avance + resume compare
+  - pacing par terrain
+  - export CSV
+
+
+11. Tests / validation (v1.1)
+
+11.1 Smoke tests
+- tests/smoke_test.py
+  - charge course.gpx et course.fit
+  - verifie loaders
+  - verifie pipeline "real" (base + garmin + figures + map payload)
+  - verifie pipeline "theoretical" (base + display + passages + advanced)
+
+Execution recommande (venv):
+- .venv/Scripts/python.exe tests/smoke_test.py
+
+11.2 Compilation
+- .venv/Scripts/python.exe -m compileall -q core services ui tests app.py grade_table.py
+
+
+12. Notes / limites
+
+- Detection type (real_run vs theoretical_route) est heuristique et fournit un champ confidence.
+- Caches Streamlit reduisent les recomputes lors des interactions.
+- services/cache.py existe mais n'est pas encore branche partout (prevu pour une future migration API).
+
+
+13. Roadmap migration (API + front)
+
+- Reutiliser services/* comme "backend applicatif" pour une API FastAPI.
+- Remplacer progressivement st.cache_data par un cache portable base sur hash(bytes)+params.
+- Definir des schemas de serialisation (DataFrame -> json/parquet) si passage HTTP.
