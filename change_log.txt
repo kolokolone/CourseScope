@@ -1,4 +1,22 @@
 CHANGE LOG
+Unreleased (post-v1.1)
+Date: 2026-01-26
+
+Objectif
+- Ajouter des metriques supplementaires (style Garmin) principalement depuis FIT, sans casser GPX.
+
+Nouveautes
+- Extension du schema DataFrame canonique (colonnes toujours presentes; GPX -> NaN):
+  - stride_length_m
+  - vertical_oscillation_cm
+  - vertical_ratio_pct
+  - ground_contact_time_ms
+  - gct_balance_pct
+- Extraction FIT (optionnelle) des running dynamics + normalisation d'unites.
+- Stats resume enrichies: vitesse max, best pace, min/max altitude, stats de pente (mean/min/max), VAM.
+- Bloc power avancee (si power dispo): normalized power (NP), intensity factor (IF), TSS.
+
+
 Version: v1.0 -> v1.1
 Date: 2026-01-26
 
@@ -119,14 +137,14 @@ Verification / validation v1.1
 1) Lancer l'app
 - Windows: run_win.bat
 - Linux/macOS: run_linux.sh
-- Manuel: streamlit run app.py
+- Manuel: streamlit run CourseScope.py
 
 2) Smoke tests (recommande via venv)
 - Windows: .venv/Scripts/python.exe tests/smoke_test.py
 - Linux/macOS: .venv/bin/python tests/smoke_test.py
 
 3) Compilation
-- Windows: .venv/Scripts/python.exe -m compileall -q core services ui tests app.py grade_table.py
+- Windows: .venv/Scripts/python.exe -m compileall -q core services ui tests CourseScope.py grade_table.py
 
 
 Fichiers ajoutes (principaux)

@@ -38,18 +38,18 @@ Objectif v1.1 (refacto interne) :
 - run_win.bat
   - cree/active .venv
   - installe requirements.txt
-  - lance: python -m streamlit run app.py
+  - lance: python -m streamlit run CourseScope.py
 
 3.2 Linux/macOS
 - run_linux.sh
   - cree/active .venv
   - installe requirements.txt
-  - lance: streamlit run app.py
+  - lance: streamlit run CourseScope.py
 
 3.3 Manuel
 - creer un venv (.venv)
 - pip install -r requirements.txt
-- streamlit run app.py
+- streamlit run CourseScope.py
 
 
 4. Conventions et unites
@@ -85,7 +85,7 @@ Contient:
 
 6. Arborescence v1.1 (fichiers importants)
 
-app.py
+CourseScope.py
 run_win.bat
 run_linux.sh
 requirements.txt
@@ -142,6 +142,11 @@ Colonnes definies par core/gpx_loader.py::COLUMNS (egalement utilise par fit_loa
 - heart_rate: float
 - cadence: float
 - power: float
+- stride_length_m: float (m) (NaN si absent)
+- vertical_oscillation_cm: float (cm) (NaN si absent)
+- vertical_ratio_pct: float (%) (NaN si absent)
+- ground_contact_time_ms: float (ms) (NaN si absent)
+- gct_balance_pct: float (%) (NaN si absent)
 
 7.2 Series derivees (course reelle)
 - grade_series: pente (%) lisse
@@ -182,6 +187,10 @@ compute_theoretical_timing() renvoie un DataFrame par segment:
   - calcule delta_time, elapsed_time
   - calcule speed (delta ou enhanced_speed/speed)
   - filtre vitesses hors [MIN_SPEED_M_S ; MAX_SPEED_M_S]
+  - extrait (si presents) les champs "running dynamics" depuis les records FIT:
+    - stride_length_m, vertical_oscillation_cm, vertical_ratio_pct,
+      ground_contact_time_ms, gct_balance_pct
+  - normalise les unites (cm, ms, %, m) et applique des heuristiques si les units FIT sont absentes
 - detect_fit_type(df) -> detect_gpx_type(df)
 
 8.3 core/real_run_analysis.py
@@ -210,10 +219,30 @@ Responsabilites:
 
 8.4 core/metrics.py
 - estimate_zone_inputs(df, moving_mask) -> defaults (hr_max, cadence target, ftp estime, pace seuil estime)
-- compute_garmin_like_stats(df, moving_mask, gap_series, hr_max, hr_rest, use_hrr, pace_threshold, ftp, cadence_target, use_moving_time)
-  - resume: temps total/mouvement, distance, allure/vitesse, GAP, elevation gain/loss, plus longue pause
+- compute_garmin_like_stats(df, moving_mask, gap_series, grade_series=None, hr_max, hr_rest, use_hrr, pace_threshold, ftp, cadence_target, use_moving_time)
+  - resume (summary):
+    - temps total/mouvement/pause, distances
+    - allure/vitesse moyenne
+    - max_speed_kmh
+    - best_pace_s_per_km (robuste anti-spike, rolling 30s + percentile)
+    - pace_median / pace_p10 / pace_p90
+    - altitude min/max
+    - grade_mean/min/max (pondere moving)
+    - VAM (m/h)
+    - steps_total + step_length_est_m (si cadence dispo)
+    - elevation gain/loss + gain/loss filtres (optionnel, non destructif)
   - zones: FC, allure, puissance (tables)
   - pacing: split pace delta, drift, stabilite, derive cardiaque (2 methodes)
+  - running_dynamics (bloc optionnel si champs presentes dans le DF):
+    - stride_length_mean_m (ou estimation via speed/cadence)
+    - vertical_oscillation_mean_cm
+    - vertical_ratio_mean_pct (ou calcule si VO + stride dispo)
+    - ground_contact_time_mean_ms
+    - gct_balance_mean_pct
+  - power_advanced (bloc optionnel si power dispo):
+    - normalized_power_w (NP)
+    - intensity_factor (NP/FTP)
+    - tss
 - format_zone_table(df) -> DataFrame affiche (Temps en mm:ss, %)
 
 8.5 core/theoretical_model.py
@@ -272,7 +301,7 @@ Dataclasses (contrats internes) :
 9.4 services/real_activity_service.py
 - prepare_base(df) -> RealRunBase
   - derived_series + summary + zone defaults + best efforts + climbs + pauses + splits
-- compute_garmin_stats(df, moving_mask, gap_series, params) -> dict
+- compute_garmin_stats(df, moving_mask, gap_series, grade_series=None, params) -> dict
 - compute_pace_series(df, derived, pace_mode, smoothing_points, cap_min_per_km) -> Series
 - build_map_payload(df, derived, climbs, pauses, map_color_mode) -> RealRunMapPayload
 - build_figures(df, pace_series, grade_series) -> RealRunFigures
@@ -323,7 +352,8 @@ Note: v1.1 conserve st.cache_data au niveau UI. services/cache.py est une brique
   - checkbox: afficher splits
 - Rendu:
   - metriques (distance/temps/allure/vitesse/D+)
-  - resume Garmin + zones
+  - resume Garmin + zones (inclut metriques avancees si disponibles: vitesse max, best pace, altitude min/max, pente, VAM, steps, etc.)
+  - expanders conditionnels: Running dynamics (si present) et Puissance avancee (NP/IF/TSS)
   - highlights
   - carte enrichie (trace + points + climbs + pauses)
   - graphes Plotly: allure+altitude, distributions, allure vs pente, residus, scatter, heatmap
@@ -367,7 +397,7 @@ Execution recommande (venv):
 - .venv/Scripts/python.exe tests/smoke_test.py
 
 11.2 Compilation
-- .venv/Scripts/python.exe -m compileall -q core services ui tests app.py grade_table.py
+- .venv/Scripts/python.exe -m compileall -q core services ui tests CourseScope.py grade_table.py
 
 
 12. Notes / limites

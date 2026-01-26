@@ -33,7 +33,7 @@ Depuis le dossier du projet:
 Ce script:
 - cree/active `.venv`
 - installe `requirements.txt`
- - lance Streamlit sur `CourseScope.py`
+- lance Streamlit sur `CourseScope.py`
 
 ### Linux/macOS
 
@@ -92,6 +92,17 @@ streamlit run CourseScope.py
 Notes:
 - L'historique est stocke en session (sidebar) et permet de recharger rapidement un fichier.
 - Les allures sont affichees en min/km.
+
+
+## Metriques FIT (optionnelles)
+
+Quand le fichier `.fit` contient les champs, l'app calcule/affiche des metriques supplementaires (style Garmin), par ex:
+- Running dynamics: `stride_length_m`, `vertical_oscillation_cm`, `vertical_ratio_pct`, `ground_contact_time_ms`, `gct_balance_pct`
+- Puissance avancee (si power dispo): `normalized_power_w` (NP), `intensity_factor`, `tss`
+
+Compatibilite:
+- GPX reste supporte: ces colonnes existent dans le DataFrame canonique mais restent `NaN`.
+- Si une metrique FIT est absente: valeur `NaN`/`None` et l'UI masque les panneaux associes.
 
 
 ## Tests (smoke tests)
