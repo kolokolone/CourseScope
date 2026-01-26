@@ -6,6 +6,7 @@ from typing import Any, Dict
 import numpy as np
 import pandas as pd
 
+from core.gpx_loader import MIN_DISTANCE_FOR_SPEED_M
 from core.utils import seconds_to_mmss
 
 HR_ZONES = [
@@ -95,6 +96,129 @@ def _pace_from_deltas(delta_time_s: np.ndarray, delta_distance_m: np.ndarray) ->
     np.divide(delta_time_s, delta_distance_m, out=pace, where=delta_distance_m > 0)
     pace *= 1000.0
     return pace
+
+
+def _safe_percentile(values: np.ndarray, q: float) -> float:
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return math.nan
+    return float(np.nanpercentile(values, q))
+
+
+def _rolling_pace_s_per_km(
+    delta_time_s: np.ndarray, delta_distance_m: np.ndarray, window_s: float
+) -> np.ndarray:
+    """Compute rolling pace (s/km) over a moving-time window.
+
+    Inputs must already be filtered to moving segments with dt>0.
+    """
+
+    n = int(len(delta_time_s))
+    if n == 0:
+        return np.array([], dtype=float)
+
+    dt = np.where(delta_time_s > 0, delta_time_s, 0.0)
+    dd = np.where(delta_distance_m > 0, delta_distance_m, 0.0)
+
+    cum_t = np.concatenate(([0.0], np.cumsum(dt)))
+    cum_d = np.concatenate(([0.0], np.cumsum(dd)))
+
+    pace = np.full(n, np.nan, dtype=float)
+    j = 0
+    for i in range(n):
+        end_t = cum_t[i + 1]
+        while j < i and end_t - cum_t[j + 1] >= window_s:
+            j += 1
+        time_win = end_t - cum_t[j]
+        dist_win = cum_d[i + 1] - cum_d[j]
+        if time_win >= window_s and dist_win > 0:
+            pace[i] = time_win / (dist_win / 1000.0)
+    return pace
+
+
+def _robust_best_pace_s_per_km(
+    delta_time_s: np.ndarray,
+    delta_distance_m: np.ndarray,
+    moving_mask: np.ndarray,
+    *,
+    window_s: float = 30.0,
+) -> float:
+    """Robust best pace based on rolling-window pace percentile (anti-spike)."""
+
+    dt = np.where(delta_time_s > 0, delta_time_s, 0.0)
+    dd = np.where(delta_distance_m > 0, delta_distance_m, 0.0)
+
+    valid = (dt > 0) & (dd >= MIN_DISTANCE_FOR_SPEED_M) & moving_mask
+    dt_m = dt[valid]
+    dd_m = dd[valid]
+    if dt_m.size == 0 or dd_m.size == 0:
+        return math.nan
+
+    pace_roll = _rolling_pace_s_per_km(dt_m, dd_m, window_s=window_s)
+    pace_roll = pace_roll[np.isfinite(pace_roll)]
+    pace_roll = pace_roll[(pace_roll >= 120.0) & (pace_roll <= 1800.0)]
+    if pace_roll.size == 0:
+        pace_inst = _pace_from_deltas(dt_m, dd_m)
+        pace_inst = pace_inst[np.isfinite(pace_inst)]
+        pace_inst = pace_inst[(pace_inst >= 120.0) & (pace_inst <= 1800.0)]
+        return _safe_percentile(pace_inst, 1)
+
+    return _safe_percentile(pace_roll, 1)
+
+
+def _compute_grade_percent_from_elevation(
+    elevation_m: np.ndarray, delta_distance_m: np.ndarray
+) -> np.ndarray:
+    grade = np.full(len(elevation_m), np.nan, dtype=float)
+    if len(elevation_m) < 2:
+        return grade
+
+    delta_elev = np.diff(elevation_m, prepend=np.nan)
+    dist = np.where(delta_distance_m > 0, delta_distance_m, np.nan)
+    np.divide(delta_elev, dist, out=grade, where=np.isfinite(delta_elev) & np.isfinite(dist) & (dist > 0))
+    grade *= 100.0
+    return grade
+
+
+def _normalized_power_w(
+    power_w: np.ndarray,
+    delta_time_s: np.ndarray,
+    mask: np.ndarray,
+    *,
+    rolling_window_s: int = 30,
+) -> float:
+    """Compute Normalized Power (NP) using 1 Hz resampling + 30s rolling mean."""
+
+    if power_w.size == 0:
+        return math.nan
+
+    dt = np.where(delta_time_s > 0, delta_time_s, 0.0)
+    dt = np.where(mask, dt, 0.0)
+    elapsed_s = np.cumsum(dt)
+
+    valid = mask & (dt > 0) & np.isfinite(power_w)
+    if int(valid.sum()) < rolling_window_s:
+        return math.nan
+
+    idx = pd.to_timedelta(elapsed_s[valid], unit="s")
+    s = pd.Series(power_w[valid], index=idx).sort_index()
+    if s.empty:
+        return math.nan
+
+    s = s.groupby(level=0).mean()
+    p1 = s.resample("1s").mean().ffill(limit=5)
+    if int(p1.dropna().shape[0]) < rolling_window_s:
+        return math.nan
+
+    roll = p1.rolling(window=rolling_window_s, min_periods=rolling_window_s).mean().dropna()
+    if roll.empty:
+        return math.nan
+
+    values = roll.to_numpy(dtype=float)
+    mean_fourth = float(np.mean(np.power(values, 4)))
+    if not np.isfinite(mean_fourth) or mean_fourth <= 0:
+        return math.nan
+    return float(np.power(mean_fourth, 0.25))
 
 
 def _negative_split(
@@ -194,6 +318,7 @@ def compute_garmin_like_stats(
     df: pd.DataFrame,
     moving_mask: pd.Series,
     gap_series: pd.Series | None = None,
+    grade_series: pd.Series | None = None,
     hr_max: float | None = None,
     hr_rest: float | None = None,
     use_hrr: bool = False,
@@ -209,6 +334,8 @@ def compute_garmin_like_stats(
             "cadence": None,
             "power": None,
             "pace_zones": None,
+            "running_dynamics": None,
+            "power_advanced": None,
             "pacing": {},
         }
 
@@ -231,6 +358,14 @@ def compute_garmin_like_stats(
     pace = np.where(mask, pace, np.nan)
     pace_mask = np.isfinite(pace) & (weights > 0)
 
+    speed_m_s = np.full_like(delta_time, np.nan, dtype=float)
+    valid_speed = (delta_time > 0) & (delta_dist >= MIN_DISTANCE_FOR_SPEED_M) & mask
+    np.divide(delta_dist, delta_time, out=speed_m_s, where=valid_speed)
+    speed_m_s = np.where(mask, speed_m_s, np.nan)
+    max_speed_kmh = float(np.nanmax(speed_m_s) * 3.6) if np.isfinite(speed_m_s).any() else math.nan
+
+    best_pace_s_per_km = _robust_best_pace_s_per_km(delta_time, delta_dist, mask, window_s=30.0)
+
     avg_pace = moving_time_s / (moving_distance_m / 1000.0) if moving_distance_m > 0 else math.nan
     avg_speed = (moving_distance_m / 1000.0) / (moving_time_s / 3600.0) if moving_time_s > 0 else math.nan
 
@@ -241,14 +376,33 @@ def compute_garmin_like_stats(
         gap_mean = _weighted_mean(gap_values, weights)
         pace_for_ratio = np.where(np.isfinite(gap_values), gap_values, pace)
 
+    elevation = None
     elevation_gain_m = 0.0
     elevation_loss_m = 0.0
+    elevation_gain_filtered_m = math.nan
+    elevation_loss_filtered_m = math.nan
+    elevation_min_m = math.nan
+    elevation_max_m = math.nan
     if "elevation" in df:
         elevation = df["elevation"].ffill().bfill().to_numpy(dtype=float)
+        if np.isfinite(elevation).any():
+            elevation_min_m = float(np.nanmin(elevation))
+            elevation_max_m = float(np.nanmax(elevation))
         if len(elevation) > 1:
             diffs = np.diff(elevation)
             elevation_gain_m = float(np.clip(diffs, 0, None).sum())
             elevation_loss_m = float(np.abs(np.clip(diffs, None, 0)).sum())
+
+            elev_smoothed = (
+                pd.Series(elevation)
+                .rolling(window=5, center=True, min_periods=1)
+                .median()
+                .to_numpy(dtype=float)
+            )
+            diffs_s = np.diff(elev_smoothed)
+            diffs_s = np.where(np.abs(diffs_s) < 0.5, 0.0, diffs_s)
+            elevation_gain_filtered_m = float(np.clip(diffs_s, 0, None).sum())
+            elevation_loss_filtered_m = float(np.abs(np.clip(diffs_s, None, 0)).sum())
 
     pace_median = float(np.nanmedian(pace[pace_mask])) if pace_mask.any() else math.nan
     pace_p10 = float(np.nanpercentile(pace[pace_mask], 10)) if pace_mask.any() else math.nan
@@ -284,6 +438,88 @@ def compute_garmin_like_stats(
         if mask_gap.any():
             gap_residual = float(np.nanmedian(pace[mask_gap] - gap_values[mask_gap]))
 
+    vam_m_h = elevation_gain_m / (moving_time_s / 3600.0) if moving_time_s > 0 else math.nan
+
+    grade_values = None
+    if grade_series is not None:
+        grade_values = grade_series.to_numpy(dtype=float)
+    elif elevation is not None:
+        grade_values = _compute_grade_percent_from_elevation(elevation, delta_dist)
+        grade_values = (
+            pd.Series(grade_values)
+            .rolling(window=5, center=True, min_periods=1)
+            .median()
+            .to_numpy(dtype=float)
+        )
+    else:
+        grade_values = np.full(len(df), np.nan, dtype=float)
+
+    grade_values = np.where(mask, grade_values, np.nan)
+    grade_weights = delta_dist * mask
+    grade_mean_pct = _weighted_mean(grade_values, grade_weights)
+    grade_clip = np.clip(grade_values, -30.0, 30.0)
+    grade_valid = np.isfinite(grade_clip) & (grade_weights > 0)
+    grade_min_pct = _safe_percentile(grade_clip[grade_valid], 1)
+    grade_max_pct = _safe_percentile(grade_clip[grade_valid], 99)
+
+    steps_total = math.nan
+    step_length_est_m = math.nan
+    if "cadence" in df and df["cadence"].notna().any():
+        cad_values = df["cadence"].to_numpy(dtype=float)
+        cad_valid = np.isfinite(cad_values) & (weights > 0) & (cad_values > 0)
+        if cad_valid.any():
+            steps_total = float(np.nansum(cad_values[cad_valid] * weights[cad_valid] / 60.0))
+            step_len = np.full_like(cad_values, np.nan, dtype=float)
+            valid_step_len = cad_valid & np.isfinite(speed_m_s) & (speed_m_s > 0)
+            step_len[valid_step_len] = (speed_m_s[valid_step_len] * 60.0) / cad_values[valid_step_len]
+            step_length_est_m = _weighted_mean(step_len, weights)
+
+    running_dynamics = None
+    stride_length_mean_m = math.nan
+    vertical_oscillation_mean_cm = math.nan
+    vertical_ratio_mean_pct = math.nan
+    ground_contact_time_mean_ms = math.nan
+    gct_balance_mean_pct = math.nan
+
+    if "stride_length_m" in df and df["stride_length_m"].notna().any():
+        stride_length_mean_m = _weighted_mean(df["stride_length_m"].to_numpy(dtype=float), weights)
+    if stride_length_mean_m != stride_length_mean_m and step_length_est_m == step_length_est_m:
+        stride_length_mean_m = float(step_length_est_m)
+
+    if "vertical_oscillation_cm" in df and df["vertical_oscillation_cm"].notna().any():
+        vertical_oscillation_mean_cm = _weighted_mean(df["vertical_oscillation_cm"].to_numpy(dtype=float), weights)
+
+    if "vertical_ratio_pct" in df and df["vertical_ratio_pct"].notna().any():
+        vertical_ratio_mean_pct = _weighted_mean(df["vertical_ratio_pct"].to_numpy(dtype=float), weights)
+    elif (
+        vertical_oscillation_mean_cm == vertical_oscillation_mean_cm
+        and stride_length_mean_m == stride_length_mean_m
+        and stride_length_mean_m > 0
+    ):
+        # vertical_ratio_pct ~= vertical_oscillation_cm / stride_length_m
+        vertical_ratio_mean_pct = float(vertical_oscillation_mean_cm / stride_length_mean_m)
+
+    if "ground_contact_time_ms" in df and df["ground_contact_time_ms"].notna().any():
+        ground_contact_time_mean_ms = _weighted_mean(df["ground_contact_time_ms"].to_numpy(dtype=float), weights)
+
+    if "gct_balance_pct" in df and df["gct_balance_pct"].notna().any():
+        gct_balance_mean_pct = _weighted_mean(df["gct_balance_pct"].to_numpy(dtype=float), weights)
+
+    if (
+        stride_length_mean_m == stride_length_mean_m
+        or vertical_oscillation_mean_cm == vertical_oscillation_mean_cm
+        or vertical_ratio_mean_pct == vertical_ratio_mean_pct
+        or ground_contact_time_mean_ms == ground_contact_time_mean_ms
+        or gct_balance_mean_pct == gct_balance_mean_pct
+    ):
+        running_dynamics = {
+            "stride_length_mean_m": float(stride_length_mean_m),
+            "vertical_oscillation_mean_cm": float(vertical_oscillation_mean_cm),
+            "vertical_ratio_mean_pct": float(vertical_ratio_mean_pct),
+            "ground_contact_time_mean_ms": float(ground_contact_time_mean_ms),
+            "gct_balance_mean_pct": float(gct_balance_mean_pct),
+        }
+
     summary = {
         "total_time_s": float(total_time_s),
         "moving_time_s": float(moving_time_s),
@@ -292,12 +528,27 @@ def compute_garmin_like_stats(
         "moving_distance_km": float(moving_distance_m / 1000.0) if moving_distance_m > 0 else 0.0,
         "average_pace_s_per_km": float(avg_pace),
         "average_speed_kmh": float(avg_speed),
+        "max_speed_kmh": float(max_speed_kmh),
+        "best_pace_s_per_km": float(best_pace_s_per_km),
         "gap_mean_s_per_km": float(gap_mean),
+        "pace_median": float(pace_median),
+        "pace_p10": float(pace_p10),
+        "pace_p90": float(pace_p90),
         "pace_median_s_per_km": float(pace_median),
         "pace_p10_s_per_km": float(pace_p10),
         "pace_p90_s_per_km": float(pace_p90),
         "elevation_gain_m": float(elevation_gain_m),
         "elevation_loss_m": float(elevation_loss_m),
+        "elevation_gain_filtered_m": float(elevation_gain_filtered_m),
+        "elevation_loss_filtered_m": float(elevation_loss_filtered_m),
+        "elevation_min_m": float(elevation_min_m),
+        "elevation_max_m": float(elevation_max_m),
+        "grade_mean_pct": float(grade_mean_pct),
+        "grade_min_pct": float(grade_min_pct),
+        "grade_max_pct": float(grade_max_pct),
+        "vam_m_h": float(vam_m_h),
+        "steps_total": float(steps_total),
+        "step_length_est_m": float(step_length_est_m),
         "longest_pause_s": compute_longest_pause(delta_time, moving_mask.to_numpy(dtype=bool))
         if moving_mask is not None
         else math.nan,
@@ -374,6 +625,8 @@ def compute_garmin_like_stats(
         }
 
     power = None
+    ftp_used = math.nan
+    power_advanced = None
     if "power" in df and df["power"].notna().any():
         power_values = df["power"].to_numpy(dtype=float)
         power_mean = _weighted_mean(power_values, weights)
@@ -400,6 +653,27 @@ def compute_garmin_like_stats(
             "ftp_w": float(ftp_used),
             "ftp_estimated": ftp_estimated,
             "zones": power_zones,
+        }
+
+        normalized_power_w = _normalized_power_w(power_values, delta_time, mask)
+        intensity_factor = (
+            float(normalized_power_w / ftp_used)
+            if normalized_power_w == normalized_power_w and ftp_used == ftp_used and ftp_used > 0
+            else math.nan
+        )
+        tss = (
+            (moving_time_s * normalized_power_w * intensity_factor) / (ftp_used * 3600.0) * 100.0
+            if normalized_power_w == normalized_power_w
+            and intensity_factor == intensity_factor
+            and ftp_used == ftp_used
+            and ftp_used > 0
+            and moving_time_s > 0
+            else math.nan
+        )
+        power_advanced = {
+            "normalized_power_w": float(normalized_power_w),
+            "intensity_factor": float(intensity_factor),
+            "tss": float(tss),
         }
 
     pace_zones = None
@@ -436,6 +710,8 @@ def compute_garmin_like_stats(
         "cadence": cadence,
         "power": power,
         "pace_zones": pace_zones,
+        "running_dynamics": running_dynamics,
+        "power_advanced": power_advanced,
         "pacing": pacing,
     }
 

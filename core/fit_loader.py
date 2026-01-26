@@ -14,6 +14,114 @@ from core.gpx_loader import COLUMNS, MIN_DISTANCE_FOR_SPEED_M, MIN_SPEED_M_S, MA
 SEMICIRCLE_TO_DEG = 180.0 / (2**31)
 
 
+def _field_value_and_units(record, name: str) -> tuple[float, str | None]:
+    """Return (value, units) for a FIT record field, converted to float when possible."""
+
+    field = None
+    try:
+        for f in record.fields:
+            if getattr(f, "name", None) == name:
+                field = f
+                break
+    except Exception:
+        field = None
+
+    raw = None
+    units = None
+    if field is not None:
+        raw = getattr(field, "value", None)
+        units = getattr(field, "units", None)
+    else:
+        try:
+            raw = record.get_value(name)
+        except Exception:
+            raw = None
+
+    if raw is None:
+        return math.nan, units
+    try:
+        return float(raw), units
+    except (TypeError, ValueError):
+        return math.nan, units
+
+
+def _convert_stride_length_m(value: float, units: str | None) -> float:
+    if not np.isfinite(value):
+        return math.nan
+    u = (units or "").lower()
+    if u in {"m", "meter", "meters"}:
+        return float(value)
+    if u in {"cm", "centimeter", "centimeters"}:
+        return float(value) / 100.0
+    # Heuristic: values > 3 are likely centimeters
+    if value > 3:
+        return float(value) / 100.0
+    return float(value)
+
+
+def _convert_vertical_oscillation_cm(value: float, units: str | None) -> float:
+    if not np.isfinite(value):
+        return math.nan
+    u = (units or "").lower()
+    if u in {"cm", "centimeter", "centimeters"}:
+        return float(value)
+    if u in {"mm", "millimeter", "millimeters"}:
+        return float(value) / 10.0
+    if u in {"m", "meter", "meters"}:
+        return float(value) * 100.0
+    # Heuristic: typical VO is ~5-15 cm; large numbers are often mm
+    if value > 40:
+        return float(value) / 10.0
+    if 0 < value < 1:
+        return float(value) * 100.0
+    return float(value)
+
+
+def _convert_vertical_ratio_pct(value: float, units: str | None) -> float:
+    if not np.isfinite(value):
+        return math.nan
+    u = (units or "").lower()
+    if "%" in u or "percent" in u:
+        return float(value)
+    # Heuristic: 0-1 ratio -> %
+    if 0 <= value <= 1.0:
+        return float(value) * 100.0
+    return float(value)
+
+
+def _convert_ground_contact_time_ms(value: float, units: str | None) -> float:
+    if not np.isfinite(value):
+        return math.nan
+    u = (units or "").lower()
+    if u in {"ms", "millisecond", "milliseconds"}:
+        return float(value)
+    if u in {"s", "sec", "second", "seconds"}:
+        return float(value) * 1000.0
+    # Heuristic: 0.2-0.4 seconds vs 200-400 ms
+    if value < 10:
+        return float(value) * 1000.0
+    return float(value)
+
+
+def _convert_gct_balance_pct(value: float, units: str | None) -> float:
+    if not np.isfinite(value):
+        return math.nan
+    u = (units or "").lower()
+    if "%" in u or "percent" in u:
+        return float(value)
+    if 0 <= value <= 1.0:
+        return float(value) * 100.0
+    return float(value)
+
+
+def _first_value_and_units(record, names: list[str]) -> tuple[float, str | None]:
+    for name in names:
+        value, units = _field_value_and_units(record, name)
+        if np.isfinite(value):
+            return value, units
+    return math.nan, None
+
+
 def _semicircle_to_deg(value: float | int | None) -> float:
     if value is None:
         return math.nan
@@ -124,6 +232,23 @@ def fit_to_dataframe(fitfile: FitFile) -> pd.DataFrame:
 
         pace_s_per_km = 1000.0 / speed_m_s if speed_m_s and speed_m_s > 0 else math.nan
 
+        stride_value, stride_units = _first_value_and_units(record, ["stride_length", "enhanced_stride_length"])
+        stride_length_m = _convert_stride_length_m(stride_value, stride_units)
+
+        vo_value, vo_units = _first_value_and_units(
+            record, ["vertical_oscillation", "enhanced_vertical_oscillation"]
+        )
+        vertical_oscillation_cm = _convert_vertical_oscillation_cm(vo_value, vo_units)
+
+        vr_value, vr_units = _first_value_and_units(record, ["vertical_ratio"])
+        vertical_ratio_pct = _convert_vertical_ratio_pct(vr_value, vr_units)
+
+        gct_value, gct_units = _first_value_and_units(record, ["ground_contact_time"])
+        ground_contact_time_ms = _convert_ground_contact_time_ms(gct_value, gct_units)
+
+        gctb_value, gctb_units = _first_value_and_units(record, ["ground_contact_time_balance"])
+        gct_balance_pct = _convert_gct_balance_pct(gctb_value, gctb_units)
+
         rows.append(
             {
                 "lat": lat,
@@ -139,6 +264,11 @@ def fit_to_dataframe(fitfile: FitFile) -> pd.DataFrame:
                 "heart_rate": record.get_value("heart_rate"),
                 "cadence": record.get_value("cadence"),
                 "power": record.get_value("power"),
+                "stride_length_m": stride_length_m,
+                "vertical_oscillation_cm": vertical_oscillation_cm,
+                "vertical_ratio_pct": vertical_ratio_pct,
+                "ground_contact_time_ms": ground_contact_time_ms,
+                "gct_balance_pct": gct_balance_pct,
             }
         )
 

@@ -21,6 +21,11 @@ COLUMNS = [
     "heart_rate",
     "cadence",
     "power",
+    "stride_length_m",
+    "vertical_oscillation_cm",
+    "vertical_ratio_pct",
+    "ground_contact_time_ms",
+    "gct_balance_pct",
 ]
 
 MIN_SPEED_M_S = 0.5  # ~33 min/km
