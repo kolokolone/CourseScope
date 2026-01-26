@@ -1,0 +1,7 @@
+streamlit
+gpxpy
+fitparse
+pandas
+numpy
+plotly
+pydeck
