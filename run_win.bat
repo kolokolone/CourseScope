@@ -33,7 +33,7 @@ if exist "%PROJECT_DIR%requirements.txt" (
 )
 
 echo [INFO] Lancement de l'application Streamlit...
-python -m streamlit run app.py
+python -m streamlit run CourseScope.py
 
 echo.
 echo [INFO] Fin de l'application. Appuie sur une touche pour fermer.
