@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Real activity (actual run) orchestration (Streamlit-free)."""
+"""Orchestration activite reelle (sans Streamlit)."""
 
 import math
 from typing import Any
@@ -46,9 +46,9 @@ def _default_cap_min_per_km(summary: dict[str, Any]) -> float:
 def prepare_base(df: pd.DataFrame) -> RealRunBase:
     derived_raw = compute_derived_series(df)
     derived = RealRunDerived(
-        grade_series=derived_raw["grade_series"],
-        moving_mask=derived_raw["moving_mask"],
-        gap_series=derived_raw["gap_series"],
+        grade_series=derived_raw.grade_series,
+        moving_mask=derived_raw.moving_mask,
+        gap_series=derived_raw.gap_series,
     )
 
     summary = compute_summary_stats(df, moving_mask=derived.moving_mask)
@@ -290,29 +290,16 @@ def analyze_real_activity(
     pace_series = _compute_pace_series(df, derived=base.derived, view=view, cap_min_per_km=cap_min_per_km)
 
     splits = base.splits
-    figures = RealRunFigures(
-        pace_elevation=build_pace_elevation_plot(df, pace_series=pace_series),
-        distributions=build_distribution_plots(df, pace_series=pace_series, grade_series=base.derived.grade_series),
-        pace_vs_grade=build_pace_vs_grade_plot(df, pace_series=pace_series, grade_series=base.derived.grade_series),
-        residuals_vs_grade=build_residuals_vs_grade(
-            df, pace_series=pace_series, grade_series=base.derived.grade_series
-        ),
-        pace_grade_scatter=build_pace_grade_scatter(
-            df, pace_series=pace_series, grade_series=base.derived.grade_series
-        ),
-        pace_grade_heatmap=build_pace_grade_heatmap(
-            df, pace_series=pace_series, grade_series=base.derived.grade_series
-        ),
-    )
+    figures = build_figures(df, pace_series=pace_series, grade_series=base.derived.grade_series)
 
-    map_payload = _build_map_payload(
+    map_payload = build_map_payload(
         df,
         derived=base.derived,
         climbs=base.climbs,
         pauses=base.pauses,
         map_color_mode=view.map_color_mode,
     )
-    highlights = _build_highlights(base.best_efforts, base.climbs, garmin.get("summary", {}))
+    highlights = build_highlights(base.best_efforts, base.climbs, garmin.get("summary", {}))
 
     return RealRunResult(
         derived=base.derived,

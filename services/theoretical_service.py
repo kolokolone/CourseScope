@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Theoretical activity (prediction) orchestration (Streamlit-free)."""
+"""Orchestration activite theorique (prediction) (sans Streamlit)."""
 
 import math
 from datetime import datetime
@@ -133,12 +133,11 @@ def compute_advanced(
     smoothing_segments: int,
     cap_adv_min_per_km: float | None,
 ) -> tuple[TheoreticalAdvanced, float]:
-    pace_adjusted = df_calc["segment_pace_s_per_km"].replace([np.inf, -np.inf], np.nan)
-    total_distance = float(df_calc["distance_km_cumulative"].iloc[-1]) if not df_calc.empty else 0.0
-    progress = (df_calc["distance_km_cumulative"] / total_distance) if total_distance > 0 else 0.0
-    pace_adjusted = pace_adjusted * float(weather_factor)
-    split_factor = 1 - (split_bias / 100.0) * (progress - 0.5) * 2
-    pace_adjusted = pace_adjusted * split_factor
+    pace_adjusted = _compute_adjusted_pace_base(
+        df_calc,
+        weather_factor=weather_factor,
+        split_bias=split_bias,
+    )
 
     cap_adv_default = (
         (pace_adjusted.dropna().mean() / 60.0) * 1.4 if len(pace_adjusted.dropna()) else 8.0
@@ -208,16 +207,34 @@ def compute_adv_cap_default(
     weather_factor: float,
     split_bias: float,
 ) -> float:
+    pace_adjusted = _compute_adjusted_pace_base(
+        df_calc,
+        weather_factor=weather_factor,
+        split_bias=split_bias,
+    )
+    cap_adv_default = (
+        (pace_adjusted.dropna().mean() / 60.0) * 1.4 if len(pace_adjusted.dropna()) else 8.0
+    )
+    return float(cap_adv_default)
+
+
+def _compute_adjusted_pace_base(
+    df_calc: pd.DataFrame,
+    *,
+    weather_factor: float,
+    split_bias: float,
+) -> pd.Series:
+    """Base adjusted pace series before clipping/smoothing.
+
+    This is shared between compute_adv_cap_default() and compute_advanced().
+    """
+
     pace_adjusted = df_calc["segment_pace_s_per_km"].replace([np.inf, -np.inf], np.nan)
     total_distance = float(df_calc["distance_km_cumulative"].iloc[-1]) if not df_calc.empty else 0.0
     progress = (df_calc["distance_km_cumulative"] / total_distance) if total_distance > 0 else 0.0
     pace_adjusted = pace_adjusted * float(weather_factor)
     split_factor = 1 - (split_bias / 100.0) * (progress - 0.5) * 2
-    pace_adjusted = pace_adjusted * split_factor
-    cap_adv_default = (
-        (pace_adjusted.dropna().mean() / 60.0) * 1.4 if len(pace_adjusted.dropna()) else 8.0
-    )
-    return float(cap_adv_default)
+    return pace_adjusted * split_factor
 
 
 def analyze_theoretical_activity(

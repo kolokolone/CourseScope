@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-"""History manipulation helpers (pure functions).
+"""Helpers de manipulation d'historique (fonctions pures).
 
-Storage remains a UI concern in v1.1 (e.g., Streamlit session_state).
+Le stockage reste un sujet UI en v1.1 (ex: Streamlit session_state).
 """
 
 from typing import Any
 
 
 def upsert_history(history: list[dict[str, Any]], entry: dict[str, Any], max_items: int = 0) -> None:
-    """Insert an entry at the front, dedupe by name, optionally trim."""
+    """Insere une entree en tete, dedupe par nom, et tronque optionnellement."""
 
     name = entry.get("name")
     if name is not None:

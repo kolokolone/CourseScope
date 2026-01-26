@@ -7,6 +7,12 @@ La v1.1 est une refacto interne (aucune feature supprimee) qui separe:
 - `services/` (orchestration, pur Python)
 - `ui/` (Streamlit, rendu uniquement)
 
+Depuis v1.1, le backend est durci pour preparer une migration FastAPI/React:
+- contrat DataFrame canonique (validation/coercion)
+- cache portable injectable
+- serialisation JSON
+- batterie de tests unitaires
+
 
 ## Prerequis
 
@@ -105,9 +111,13 @@ Compatibilite:
 - Si une metrique FIT est absente: valeur `NaN`/`None` et l'UI masque les panneaux associes.
 
 
-## Tests (smoke tests)
+## Tests
 
-La v1.1 fournit des smoke tests minimalistes (sans framework) pour eviter les regressions.
+La v1.1+ fournit:
+- des smoke tests minimalistes (sans framework) pour eviter les regressions
+- des tests unitaires (unittest) pour valider les fonctions de base apres refacto
+
+### Smoke tests
 
 Sous Windows (avec le venv cree par `run_win.bat`):
 
@@ -124,6 +134,20 @@ Sous Linux/macOS:
 Ces tests utilisent les fichiers demo:
 - `course.gpx`
 - `course.fit`
+
+### Tests unitaires
+
+Depuis le dossier du projet (avec le venv actif):
+
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+### Compilation (sanity check)
+
+```bash
+python -m compileall -q core services ui tests CourseScope.py grade_table.py
+```
 
 
 ## Structure du projet (v1.1)
@@ -144,6 +168,10 @@ CourseScope/
 
 ### Core (pur Python)
 - `core/gpx_loader.py`, `core/fit_loader.py`: parsing -> DataFrame canonique
+- `core/contracts/activity_df_contract.py`: contrat/validation DF canonique
+- `core/constants.py`: constantes partagees (seuils, defaults)
+- `core/stats/basic_stats.py`: stats de base unifiees
+- `core/derived.py`: bundle de series derivees
 - `core/real_run_analysis.py`: calculs + figures Plotly (reel)
 - `core/metrics.py`: stats style Garmin + zones
 - `core/theoretical_model.py`: modele theorique + figures Plotly
@@ -157,6 +185,8 @@ CourseScope/
 - `services/history_service.py`: helpers d'historique (pure functions)
 - `services/models.py`: dataclasses (contrats)
 - `services/cache.py`: cache portable (preparation migration API)
+- `services/serialization.py`: conversion en structures JSON-serialisables
+- `services/analysis_service.py`: points d'entree backend de haut niveau (cache injectable)
 
 ### UI (Streamlit)
 - `ui/layout.py`: navigation + uploader + historique
@@ -169,6 +199,10 @@ CourseScope/
 Regle principale v1.1:
 - `core/` et `services/` ne doivent pas importer Streamlit.
 - Streamlit reste confine a `ui/`.
+
+Regle v1.1+ (prepa API):
+- valider le DataFrame canonique a la frontiere service (voir services/activity_service.py)
+- pour une future API, utiliser services/analysis_service.py + services/serialization.py
 
 Si tu ajoutes une nouvelle fonctionnalite:
 1) Implementer le calcul dans `core/`.

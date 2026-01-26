@@ -6,7 +6,8 @@ from typing import Any, Dict
 import numpy as np
 import pandas as pd
 
-from core.gpx_loader import MIN_DISTANCE_FOR_SPEED_M
+from core.constants import MIN_DISTANCE_FOR_SPEED_M
+from core.stats.basic_stats import compute_basic_stats
 from core.utils import seconds_to_mmss
 
 HR_ZONES = [
@@ -77,18 +78,8 @@ def _build_zone_table(
 
 
 def _time_and_distance(df: pd.DataFrame) -> tuple[float, float]:
-    distance_series = df["distance_m"].dropna() if "distance_m" in df else pd.Series(dtype=float)
-    total_distance_m = float(distance_series.max()) if not distance_series.empty else 0.0
-
-    times = df["time"].dropna() if "time" in df else pd.Series(dtype="datetime64[ns]")
-    if len(times) >= 2:
-        total_time_s = (times.iloc[-1] - times.iloc[0]).total_seconds()
-    else:
-        elapsed = df["elapsed_time_s"].dropna() if "elapsed_time_s" in df else pd.Series(dtype=float)
-        total_time_s = float(elapsed.max()) if not elapsed.empty else 0.0
-        if total_time_s == 0.0 and "delta_time_s" in df:
-            total_time_s = float(df["delta_time_s"].fillna(0).clip(lower=0).sum())
-    return total_time_s, total_distance_m
+    stats = compute_basic_stats(df)
+    return float(stats.total_time_s), float(stats.distance_m)
 
 
 def _pace_from_deltas(delta_time_s: np.ndarray, delta_distance_m: np.ndarray) -> np.ndarray:
@@ -108,9 +99,9 @@ def _safe_percentile(values: np.ndarray, q: float) -> float:
 def _rolling_pace_s_per_km(
     delta_time_s: np.ndarray, delta_distance_m: np.ndarray, window_s: float
 ) -> np.ndarray:
-    """Compute rolling pace (s/km) over a moving-time window.
+    """Calcule une allure glissante (s/km) sur une fenetre de temps en mouvement.
 
-    Inputs must already be filtered to moving segments with dt>0.
+    Les entrees doivent deja etre filtrees sur des segments "en mouvement" avec dt>0.
     """
 
     n = int(len(delta_time_s))
@@ -143,7 +134,7 @@ def _robust_best_pace_s_per_km(
     *,
     window_s: float = 30.0,
 ) -> float:
-    """Robust best pace based on rolling-window pace percentile (anti-spike)."""
+    """Meilleure allure robuste basee sur un percentile d'allure glissante (anti-pics)."""
 
     dt = np.where(delta_time_s > 0, delta_time_s, 0.0)
     dd = np.where(delta_distance_m > 0, delta_distance_m, 0.0)
@@ -187,7 +178,7 @@ def _normalized_power_w(
     *,
     rolling_window_s: int = 30,
 ) -> float:
-    """Compute Normalized Power (NP) using 1 Hz resampling + 30s rolling mean."""
+    """Calcule la Normalized Power (NP) via resampling 1 Hz + moyenne glissante 30s."""
 
     if power_w.size == 0:
         return math.nan

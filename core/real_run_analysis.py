@@ -2,11 +2,20 @@ import math
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
+from functools import lru_cache
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from core.grade_table import grade_factor
+from core.derived import DerivedSeries
 from core.utils import seconds_to_mmss
+from core.stats.basic_stats import compute_basic_stats
+from core.constants import (
+    DEFAULT_GRADE_SMOOTH_WINDOW,
+    DEFAULT_MIN_PAUSE_DURATION_S,
+    MOVING_SPEED_THRESHOLD_M_S,
+)
 
 DEFAULT_PRO_PACE_PATH = Path(__file__).resolve().parents[1] / "pro_pace_vs_grade.csv"
 MIN_GRADE_DISTANCE_M = 1.0
@@ -14,6 +23,12 @@ MIN_GRADE_DISTANCE_M = 1.0
 
 def _load_pro_pace_vs_grade(csv_path: str | Path = DEFAULT_PRO_PACE_PATH) -> pd.DataFrame:
     """Charge une table de reference allure vs pente si disponible."""
+
+    return _load_pro_pace_vs_grade_cached(str(Path(csv_path)))
+
+
+@lru_cache(maxsize=4)
+def _load_pro_pace_vs_grade_cached(csv_path: str) -> pd.DataFrame:
     try:
         df = pd.read_csv(Path(csv_path))
     except FileNotFoundError:
@@ -26,7 +41,9 @@ def _load_pro_pace_vs_grade(csv_path: str | Path = DEFAULT_PRO_PACE_PATH) -> pd.
 
 
 def compute_moving_mask(
-    df: pd.DataFrame, pause_threshold_m_s: float = 0.5, min_pause_duration_s: float = 5.0
+    df: pd.DataFrame,
+    pause_threshold_m_s: float = MOVING_SPEED_THRESHOLD_M_S,
+    min_pause_duration_s: float = DEFAULT_MIN_PAUSE_DURATION_S,
 ) -> pd.Series:
     """
     Approche type Strava :
@@ -38,26 +55,34 @@ def compute_moving_mask(
     delta_time = df["delta_time_s"].fillna(0).to_numpy()
     speed_med = speed.rolling(window=3, center=True, min_periods=1).median().to_numpy()
 
+    dt = np.where(delta_time > 0, delta_time, 0.0)
     moving = np.ones(len(df), dtype=bool)
-    low_start = None
-    low_accum = 0.0
 
-    for i, (dt, sp) in enumerate(zip(delta_time, speed_med)):
-        if dt <= 0:
-            continue
-        if sp < pause_threshold_m_s:
-            if low_start is None:
-                low_start = i
-                low_accum = 0.0
-            low_accum += dt
-        else:
-            if low_start is not None and low_accum >= min_pause_duration_s:
-                moving[low_start : i + 1] = False
-            low_start = None
-            low_accum = 0.0
-
-    if low_start is not None and low_accum >= min_pause_duration_s:
-        moving[low_start:] = False
+    # Preserve le comportement historique :
+    # - l'accumulation de pause ne considere que les indices avec dt>0
+    # - quand une pause se termine, le premier index apres la pause est aussi marque comme non-mouvant
+    active = np.flatnonzero(dt > 0)
+    if active.size:
+        low_active = speed_med[active] < float(pause_threshold_m_s)
+        if low_active.any():
+            # Run-length encode contiguous low-speed runs in the active index space.
+            starts = np.flatnonzero(
+                np.concatenate(([low_active[0]], low_active[1:] & ~low_active[:-1]))
+            )
+            ends = np.flatnonzero(
+                np.concatenate((low_active[:-1] & ~low_active[1:], [low_active[-1]]))
+            )
+            for s_pos, e_pos in zip(starts, ends):
+                if not low_active[s_pos]:
+                    continue
+                duration = float(dt[active[s_pos : e_pos + 1]].sum())
+                if duration >= float(min_pause_duration_s):
+                    start_idx = int(active[s_pos])
+                    if (e_pos + 1) < active.size:
+                        stop_idx = int(active[e_pos + 1])
+                    else:
+                        stop_idx = int(len(df) - 1)
+                    moving[start_idx : stop_idx + 1] = False
 
     return pd.Series(moving, index=df.index)
 
@@ -65,10 +90,10 @@ def compute_moving_mask(
 def compute_derived_series(
     df: pd.DataFrame,
     pace_series: pd.Series | None = None,
-    grade_smooth_window: int = 5,
-    pause_threshold_m_s: float = 0.5,
-    min_pause_duration_s: float = 5.0,
-) -> Dict[str, pd.Series]:
+    grade_smooth_window: int = DEFAULT_GRADE_SMOOTH_WINDOW,
+    pause_threshold_m_s: float = MOVING_SPEED_THRESHOLD_M_S,
+    min_pause_duration_s: float = DEFAULT_MIN_PAUSE_DURATION_S,
+) -> DerivedSeries:
     """Calcule un ensemble de derives reutilisables (pente, moving mask, GAP)."""
     grade_series = compute_grade_percent_series(df, smooth_window=grade_smooth_window)
     moving_mask = compute_moving_mask(
@@ -76,42 +101,24 @@ def compute_derived_series(
     )
     pace_series = pace_series if pace_series is not None else df["pace_s_per_km"]
     gap_series = compute_gap_series(df, pace_series=pace_series, grade_series=grade_series)
-    return {
-        "grade_series": grade_series,
-        "moving_mask": moving_mask,
-        "gap_series": gap_series,
-    }
+    return DerivedSeries(grade_series=grade_series, moving_mask=moving_mask, gap_series=gap_series)
 
 
 def compute_summary_stats(df: pd.DataFrame, moving_mask: pd.Series | None = None) -> Dict[str, float]:
     """Calcule les statistiques principales d'une sortie reelle."""
-    distance_m_series = df["distance_m"].dropna()
-    total_distance_m = distance_m_series.max() if not distance_m_series.empty else 0.0
-    total_distance_km = total_distance_m / 1000.0
-
-    times = df["time"].dropna()
-    if len(times) >= 2:
-        total_time_s = (times.iloc[-1] - times.iloc[0]).total_seconds()
-    else:
-        elapsed = df["elapsed_time_s"].dropna()
-        total_time_s = elapsed.max() if not elapsed.empty else 0.0
-
     moving_mask = moving_mask if moving_mask is not None else compute_moving_mask(df)
-    moving_time_s = float(df.loc[moving_mask, "delta_time_s"].fillna(0).sum()) if not df.empty else 0.0
+    stats = compute_basic_stats(df, moving_mask=moving_mask)
 
-    average_pace_s_per_km = total_time_s / total_distance_km if total_distance_km > 0 else math.nan
-    average_speed_kmh = (total_distance_km) / (total_time_s / 3600.0) if total_time_s > 0 else math.nan
-
-    elevation = df["elevation"].dropna().to_numpy()
-    elevation_gain_m = float(np.clip(np.diff(elevation), 0, None).sum()) if len(elevation) > 1 else 0.0
+    average_pace_s_per_km = stats.total_time_s / stats.distance_km if stats.distance_km > 0 else math.nan
+    average_speed_kmh = (stats.distance_km) / (stats.total_time_s / 3600.0) if stats.total_time_s > 0 else math.nan
 
     return {
-        "distance_km": total_distance_km,
-        "total_time_s": total_time_s,
-        "moving_time_s": moving_time_s,
+        "distance_km": stats.distance_km,
+        "total_time_s": stats.total_time_s,
+        "moving_time_s": stats.moving_time_s,
         "average_pace_s_per_km": average_pace_s_per_km,
         "average_speed_kmh": average_speed_kmh,
-        "elevation_gain_m": elevation_gain_m,
+        "elevation_gain_m": stats.elevation_gain_m,
     }
 
 
@@ -308,7 +315,7 @@ def build_pace_vs_grade_plot(
     df: pd.DataFrame, pace_series: pd.Series | None = None, grade_series: pd.Series | None = None
 ) -> go.Figure:
     """Courbe allure (min/km) en fonction de la pente (%) lissée par binning."""
-    mask_moving = (df["speed_m_s"] > 0.5) & (df["delta_time_s"].fillna(0) > 0)
+    mask_moving = (df["speed_m_s"] > MOVING_SPEED_THRESHOLD_M_S) & (df["delta_time_s"].fillna(0) > 0)
     df_filtered = df[mask_moving]
     pace_series = pace_series.loc[df_filtered.index] if pace_series is not None else df_filtered["pace_s_per_km"]
 
@@ -466,7 +473,7 @@ def build_pace_grade_scatter(
     df: pd.DataFrame, pace_series: pd.Series | None = None, grade_series: pd.Series | None = None
 ) -> go.Figure:
     """Nuage de points allure vs pente, couleur distance (ou FC si dispo)."""
-    mask = (df["speed_m_s"] > 0.5) & (df["delta_time_s"].fillna(0) > 0)
+    mask = (df["speed_m_s"] > MOVING_SPEED_THRESHOLD_M_S) & (df["delta_time_s"].fillna(0) > 0)
     subset = df[mask].copy()
     if subset.empty:
         return go.Figure()
@@ -553,7 +560,7 @@ def build_residuals_vs_grade(
     df: pd.DataFrame, pace_series: pd.Series | None = None, grade_series: pd.Series | None = None
 ) -> go.Figure:
     """Courbe des résidus allure réelle - allure attendue (via grade_table) par pente."""
-    mask = (df["speed_m_s"] > 0.5) & (df["delta_time_s"].fillna(0) > 0)
+    mask = (df["speed_m_s"] > MOVING_SPEED_THRESHOLD_M_S) & (df["delta_time_s"].fillna(0) > 0)
     subset = df[mask]
     if subset.empty:
         return go.Figure()

@@ -80,7 +80,9 @@ def render_app() -> None:
             if hasattr(st, "rerun"):
                 st.rerun()
             else:
-                st.experimental_rerun()
+                rerun = getattr(st, "experimental_rerun", None)
+                if callable(rerun):
+                    rerun()
         real_hist = [h for h in gpx_history if h["type"] == "real_run"]
         theo_hist = [h for h in gpx_history if h["type"] == "theoretical_route"]
         if not gpx_history:
@@ -106,16 +108,16 @@ def render_app() -> None:
 
     uploaded_file = st.file_uploader("Fichier GPX/FIT", type=["gpx", "fit"])
 
-    selected_name = None
-    selected_bytes = None
-    source = None
+    selected_name: str | None = None
+    selected_bytes: bytes | None = None
+    source: str | None = None
 
     if selected_history_entry:
-        selected_name = selected_history_entry["name"]
+        selected_name = str(selected_history_entry["name"])
         selected_bytes = selected_history_entry["data"]
         source = "history"
     elif uploaded_file:
-        selected_name = uploaded_file.name
+        selected_name = str(uploaded_file.name)
         selected_bytes = uploaded_file.getvalue()
         source = "upload"
 
@@ -127,7 +129,15 @@ def render_app() -> None:
         )
         return
 
-    loaded = _load_activity_from_bytes(selected_bytes, selected_name)
+    if selected_name is None:
+        st.error("Fichier invalide: nom manquant")
+        return
+
+    try:
+        loaded = _load_activity_from_bytes(selected_bytes, selected_name)
+    except Exception as e:
+        st.error(f"Erreur lors du chargement/analyse du fichier: {e}")
+        return
     df = loaded["df"]
     gpx_type = loaded["gpx_type"]
     track_count = loaded["track_count"]

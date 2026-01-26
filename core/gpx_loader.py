@@ -7,6 +7,8 @@ from xml.etree import ElementTree as ET
 import gpxpy
 import pandas as pd
 
+from core.constants import MAX_SPEED_M_S, MIN_DISTANCE_FOR_SPEED_M, MIN_SPEED_M_S
+
 COLUMNS = [
     "lat",
     "lon",
@@ -27,10 +29,6 @@ COLUMNS = [
     "ground_contact_time_ms",
     "gct_balance_pct",
 ]
-
-MIN_SPEED_M_S = 0.5  # ~33 min/km
-MAX_SPEED_M_S = 8.0  # ~2:05 min/km
-MIN_DISTANCE_FOR_SPEED_M = 0.5
 
 HR_TAGS = {"hr", "heart_rate", "heartrate"}
 CAD_TAGS = {"cad", "cadence"}

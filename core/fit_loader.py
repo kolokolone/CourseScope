@@ -8,14 +8,15 @@ import pandas as pd
 from fitparse import FitFile
 from gpxpy import geo as gpx_geo
 
-from core.gpx_loader import COLUMNS, MIN_DISTANCE_FOR_SPEED_M, MIN_SPEED_M_S, MAX_SPEED_M_S
+from core.constants import MAX_SPEED_M_S, MIN_DISTANCE_FOR_SPEED_M, MIN_SPEED_M_S
+from core.gpx_loader import COLUMNS
 
 
 SEMICIRCLE_TO_DEG = 180.0 / (2**31)
 
 
 def _field_value_and_units(record, name: str) -> tuple[float, str | None]:
-    """Return (value, units) for a FIT record field, converted to float when possible."""
+    """Retourne (valeur, unites) pour un champ FIT, converti en float si possible."""
 
     field = None
     try:
@@ -53,7 +54,7 @@ def _convert_stride_length_m(value: float, units: str | None) -> float:
         return float(value)
     if u in {"cm", "centimeter", "centimeters"}:
         return float(value) / 100.0
-    # Heuristic: values > 3 are likely centimeters
+    # Heuristique: des valeurs > 3 sont probablement en centimetres
     if value > 3:
         return float(value) / 100.0
     return float(value)
@@ -69,7 +70,7 @@ def _convert_vertical_oscillation_cm(value: float, units: str | None) -> float:
         return float(value) / 10.0
     if u in {"m", "meter", "meters"}:
         return float(value) * 100.0
-    # Heuristic: typical VO is ~5-15 cm; large numbers are often mm
+    # Heuristique: VO typique ~5-15 cm; des grandes valeurs sont souvent en mm
     if value > 40:
         return float(value) / 10.0
     if 0 < value < 1:
@@ -83,7 +84,7 @@ def _convert_vertical_ratio_pct(value: float, units: str | None) -> float:
     u = (units or "").lower()
     if "%" in u or "percent" in u:
         return float(value)
-    # Heuristic: 0-1 ratio -> %
+    # Heuristique: ratio 0-1 -> %
     if 0 <= value <= 1.0:
         return float(value) * 100.0
     return float(value)
@@ -97,7 +98,7 @@ def _convert_ground_contact_time_ms(value: float, units: str | None) -> float:
         return float(value)
     if u in {"s", "sec", "second", "seconds"}:
         return float(value) * 1000.0
-    # Heuristic: 0.2-0.4 seconds vs 200-400 ms
+    # Heuristique: 0.2-0.4 secondes vs 200-400 ms
     if value < 10:
         return float(value) * 1000.0
     return float(value)

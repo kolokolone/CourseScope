@@ -16,6 +16,36 @@ Nouveautes
 - Stats resume enrichies: vitesse max, best pace, min/max altitude, stats de pente (mean/min/max), VAM.
 - Bloc power avancee (si power dispo): normalized power (NP), intensity factor (IF), TSS.
 
+Durcissement backend / preparation API
+Date: 2026-01-27
+
+Objectif
+- Unifier/fiabiliser le backend pour une reutilisation future (FastAPI/React), sans casser l'UI Streamlit.
+
+Nouveautes
+- Contrat DataFrame canonique:
+  - core/contracts/activity_df_contract.py (coercion + validation + messages d'erreur explicites).
+  - Validation branchee dans services/activity_service.load_activity_from_bytes().
+- Stats de base unifiees:
+  - core/stats/basic_stats.py + refacto des duplications dans services/activity_service.py, core/real_run_analysis.py, core/metrics.py.
+- Constantes centralisees:
+  - core/constants.py (seuils vitesse, moving threshold, valeurs par defaut).
+- Dedup/DRY:
+  - compute_derived_series() retourne un objet (core/derived.py) au lieu d'un dict.
+  - services/real_activity_service.analyze_real_activity() reutilise build_figures/build_map_payload/build_highlights.
+  - services/theoretical_service factorise le calcul d'allure ajustee (_compute_adjusted_pace_base).
+- Serialisation JSON + entree API:
+  - services/serialization.py (to_jsonable) pour convertir dataclasses/pandas/numpy/plotly en JSON.
+  - services/analysis_service.py (points d'entree de haut niveau, cache injectable).
+- Cache portable et stable:
+  - services/cache.py etendu (KeyValueCache, InMemoryCache TTL, NullCache, make_cache_key).
+- Perf:
+  - Memoization du chargement pro_pace_vs_grade.csv (lru_cache).
+  - Optimisation de compute_moving_mask() (comportement conserve).
+- Tests:
+  - Ajout d'une suite unittest: tests/unit/test_*.py.
+  - Commande: python -m unittest discover -s tests -p "test_*.py" -v
+
 
 Version: v1.0 -> v1.1
 Date: 2026-01-26
