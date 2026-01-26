@@ -224,9 +224,9 @@ def _compute_adjusted_pace_base(
     weather_factor: float,
     split_bias: float,
 ) -> pd.Series:
-    """Base adjusted pace series before clipping/smoothing.
+    """Serie d'allure ajustee de base avant clip/lissage.
 
-    This is shared between compute_adv_cap_default() and compute_advanced().
+    Partage entre compute_adv_cap_default() et compute_advanced().
     """
 
     pace_adjusted = df_calc["segment_pace_s_per_km"].replace([np.inf, -np.inf], np.nan)

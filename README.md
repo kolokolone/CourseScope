@@ -1,4 +1,4 @@
-# CourseScope (v1.1)
+# CourseScope (v1.1.1)
 
 CourseScope est une app Streamlit locale pour analyser des traces running GPX/FIT (carte, graphes, splits, zones type Garmin, GAP/pente) et estimer un temps theorique sur un trace selon une allure de base et la pente. Backend Python prepare pour une future API.
 
@@ -7,7 +7,9 @@ La v1.1 est une refacto interne (aucune feature supprimee) qui separe:
 - `services/` (orchestration, pur Python)
 - `ui/` (Streamlit, rendu uniquement)
 
-Depuis v1.1, le backend est durci pour preparer une migration FastAPI/React:
+Version courante: v1.1.1 (patch de v1.1)
+
+Depuis v1.1.1, le backend est durci pour preparer une migration FastAPI/React:
 - contrat DataFrame canonique (validation/coercion)
 - cache portable injectable
 - serialisation JSON
@@ -113,7 +115,7 @@ Compatibilite:
 
 ## Tests
 
-La v1.1+ fournit:
+La v1.1.1 fournit:
 - des smoke tests minimalistes (sans framework) pour eviter les regressions
 - des tests unitaires (unittest) pour valider les fonctions de base apres refacto
 
@@ -132,8 +134,8 @@ Sous Linux/macOS:
 ```
 
 Ces tests utilisent les fichiers demo:
-- `course.gpx`
-- `course.fit`
+- `tests/course.gpx`
+- `tests/course.fit`
 
 ### Tests unitaires
 
@@ -150,7 +152,7 @@ python -m compileall -q core services ui tests CourseScope.py grade_table.py
 ```
 
 
-## Structure du projet (v1.1)
+## Structure du projet (v1.1.1)
 
 ```
 CourseScope/
@@ -196,11 +198,11 @@ CourseScope/
 
 ## Notes pour developpement / contributions
 
-Regle principale v1.1:
+Regle principale v1.1.1:
 - `core/` et `services/` ne doivent pas importer Streamlit.
 - Streamlit reste confine a `ui/`.
 
-Regle v1.1+ (prepa API):
+Regle v1.1.1 (prepa API):
 - valider le DataFrame canonique a la frontiere service (voir services/activity_service.py)
 - pour une future API, utiliser services/analysis_service.py + services/serialization.py
 

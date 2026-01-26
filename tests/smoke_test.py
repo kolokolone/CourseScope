@@ -4,18 +4,19 @@ import sys
 from pathlib import Path
 
 
-PROJECT_DIR = Path(__file__).resolve().parents[1]
-GPX_PATH = PROJECT_DIR / "course.gpx"
-FIT_PATH = PROJECT_DIR / "course.fit"
+TESTS_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = TESTS_DIR.parent
+GPX_PATH = TESTS_DIR / "course.gpx"
+FIT_PATH = TESTS_DIR / "course.fit"
 
-# Allow running as: `python tests/smoke_test.py`
+# Execution possible via: `python tests/smoke_test.py`
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
 
 def _require_file(path: Path) -> bytes:
     if not path.exists():
-        raise SystemExit(f"Missing required test file: {path}")
+        raise SystemExit(f"Fichier de test requis manquant: {path}")
     return path.read_bytes()
 
 
@@ -28,7 +29,7 @@ def smoke_loaders() -> None:
     gpx = activity_service.load_activity_from_bytes(gpx_bytes, GPX_PATH.name)
     assert gpx.track_count >= 0
     assert gpx.name == GPX_PATH.name
-    assert not gpx.df.empty, "GPX dataframe is empty"
+    assert not gpx.df.empty, "DataFrame GPX vide"
 
     for col in [
         "stride_length_m",
@@ -38,12 +39,12 @@ def smoke_loaders() -> None:
         "gct_balance_pct",
     ]:
         assert col in gpx.df.columns
-        assert gpx.df[col].isna().all(), f"GPX column {col} should be NaN"
+        assert bool(gpx.df[col].isna().all()), f"La colonne GPX {col} devrait etre NaN"
 
     fit = activity_service.load_activity_from_bytes(fit_bytes, FIT_PATH.name)
     assert fit.track_count >= 0
     assert fit.name == FIT_PATH.name
-    assert not fit.df.empty, "FIT dataframe is empty"
+    assert not fit.df.empty, "DataFrame FIT vide"
 
     for col in [
         "stride_length_m",
@@ -116,7 +117,7 @@ def smoke_real_pipeline() -> None:
         map_color_mode="pace",
     )
 
-    # Minimal FIT run (ensures FIT-only metrics don't crash)
+    # Cas minimal FIT (verifie que les metriques FIT-only ne plantent pas)
     fit_bytes = _require_file(FIT_PATH)
     loaded_fit = activity_service.load_activity_from_bytes(fit_bytes, FIT_PATH.name)
     df_fit = loaded_fit.df
@@ -196,5 +197,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        print(f"FAILED: {exc}", file=sys.stderr)
+        print(f"ECHEC: {exc}", file=sys.stderr)
         raise

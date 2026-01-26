@@ -45,7 +45,7 @@ class TestActivityDfContract(unittest.TestCase):
         from services import activity_service
 
         project_dir = Path(__file__).resolve().parents[2]
-        gpx_path = project_dir / "course.gpx"
+        gpx_path = project_dir / "tests" / "course.gpx"
         data = gpx_path.read_bytes()
         loaded = activity_service.load_activity_from_bytes(data, gpx_path.name)
         self.assertFalse(loaded.df.empty)

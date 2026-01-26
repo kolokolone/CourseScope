@@ -17,7 +17,7 @@ class TestAnalysisService(unittest.TestCase):
         from services.serialization import to_jsonable
 
         project_dir = Path(__file__).resolve().parents[2]
-        fit_path = project_dir / "course.fit"
+        fit_path = project_dir / "tests" / "course.fit"
         cache = InMemoryCache(max_items=8)
 
         loaded1 = load_activity(data=fit_path.read_bytes(), name=fit_path.name, cache=cache)

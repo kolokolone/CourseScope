@@ -23,7 +23,7 @@ class TestMovingMask(unittest.TestCase):
         )
         mask = compute_moving_mask(df, pause_threshold_m_s=0.5, min_pause_duration_s=5.0)
         self.assertEqual(len(mask), len(df))
-        # Middle segment should be marked as not moving.
+        # Le segment central doit etre marque comme "pas en mouvement".
         self.assertTrue(mask.iloc[0])
         self.assertFalse(mask.iloc[4])
         # Comportement historique: le premier point apres la pause est aussi marque.
@@ -52,7 +52,7 @@ class TestMovingMask(unittest.TestCase):
             }
         )
         mask = compute_moving_mask(df, pause_threshold_m_s=0.5, min_pause_duration_s=5.0)
-        # Pause duration = 2 + 3 = 5, should be detected and include the first index after.
+        # Duree de pause = 2 + 3 = 5, doit etre detectee et inclure le premier index apres.
         self.assertTrue(mask.iloc[0])
         self.assertFalse(mask.iloc[1])
         self.assertFalse(mask.iloc[2])

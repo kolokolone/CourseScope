@@ -1,5 +1,5 @@
 CHANGE LOG
-Unreleased (post-v1.1)
+Unreleased (post-v1.1.1)
 Date: 2026-01-26
 
 Objectif
@@ -16,7 +16,7 @@ Nouveautes
 - Stats resume enrichies: vitesse max, best pace, min/max altitude, stats de pente (mean/min/max), VAM.
 - Bloc power avancee (si power dispo): normalized power (NP), intensity factor (IF), TSS.
 
-Durcissement backend / preparation API
+Version: v1.1 -> v1.1.1
 Date: 2026-01-27
 
 Objectif
@@ -45,6 +45,8 @@ Nouveautes
 - Tests:
   - Ajout d'une suite unittest: tests/unit/test_*.py.
   - Commande: python -m unittest discover -s tests -p "test_*.py" -v
+- Tests (donnees):
+  - Deplacement des fichiers demo vers tests/ (tests/course.gpx, tests/course.fit).
 
 
 Version: v1.0 -> v1.1

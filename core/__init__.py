@@ -1,5 +1,5 @@
-"""Core package (pure Python).
+"""Package core (pur Python).
 
-This package contains parsing and computation code that should remain reusable
-outside of Streamlit (e.g., future FastAPI migration).
+Contient le parsing et les calculs qui doivent rester reutilisables en dehors de
+Streamlit (ex: future migration FastAPI).
 """

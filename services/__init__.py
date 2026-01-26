@@ -1,5 +1,5 @@
-"""Service layer (backend applicatif).
+"""Couche services (backend applicatif).
 
-Orchestrates core computations into UI/endpoint-friendly results.
-This package must stay Streamlit-free.
+Orchestre les calculs core en resultats exploitables par l'UI et une future API.
+Ce package doit rester sans Streamlit.
 """
