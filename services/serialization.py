@@ -45,11 +45,14 @@ def df_to_records(df: pd.DataFrame, *, limit: int | None = None) -> list[dict[st
     if limit is not None:
         df = df.head(int(limit))
     # Remplace NaN/NaT par None pour JSON.
-    safe = df.where(pd.notna(df), None)
+    # IMPORTANT: cast en object pour conserver None dans les colonnes numeriques.
+    safe = df.copy().astype(object)
+    safe = safe.where(pd.notna(safe), None)
+
     # Convertit les timestamps en chaines ISO.
-    for col in safe.columns:
-        if pd.api.types.is_datetime64_any_dtype(safe[col]):
-            safe[col] = safe[col].apply(lambda v: _dt_to_iso(v))
+    dt_cols = [c for c in df.columns if pd.api.types.is_datetime64_any_dtype(df[c])]
+    for col in dt_cols:
+        safe[col] = safe[col].apply(lambda v: _dt_to_iso(v))
     return safe.to_dict(orient="records")
 
 
