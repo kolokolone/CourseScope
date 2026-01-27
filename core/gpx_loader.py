@@ -8,27 +8,7 @@ import gpxpy
 import pandas as pd
 
 from core.constants import MAX_SPEED_M_S, MIN_DISTANCE_FOR_SPEED_M, MIN_SPEED_M_S
-
-COLUMNS = [
-    "lat",
-    "lon",
-    "elevation",
-    "time",
-    "distance_m",
-    "delta_distance_m",
-    "elapsed_time_s",
-    "delta_time_s",
-    "speed_m_s",
-    "pace_s_per_km",
-    "heart_rate",
-    "cadence",
-    "power",
-    "stride_length_m",
-    "vertical_oscillation_cm",
-    "vertical_ratio_pct",
-    "ground_contact_time_ms",
-    "gct_balance_pct",
-]
+from core.contracts.activity_df_contract import COLUMNS
 
 HR_TAGS = {"hr", "heart_rate", "heartrate"}
 CAD_TAGS = {"cad", "cadence"}
@@ -59,10 +39,64 @@ def _extract_extension_value(extensions: list[ET.Element] | None, targets: set[s
             local = _local_tag(elem.tag)
             if local in targets:
                 try:
-                    return float(elem.text)
+                    text = elem.text
+                    if text is None:
+                        continue
+                    return float(text)
                 except (TypeError, ValueError):
                     continue
     return math.nan
+
+
+def _extract_extension_values(extensions: list[ET.Element] | None) -> tuple[float, float, float]:
+    """Extrait en un seul passage (hr, cadence, power) depuis les extensions."""
+
+    if not extensions:
+        return math.nan, math.nan, math.nan
+
+    hr = math.nan
+    cad = math.nan
+    power = math.nan
+
+    hr_set = False
+    cad_set = False
+    power_set = False
+
+    for ext in extensions:
+        for elem in ext.iter():
+            local = _local_tag(elem.tag)
+            target = None
+            if (not hr_set) and (local in HR_TAGS):
+                target = "hr"
+            elif (not cad_set) and (local in CAD_TAGS):
+                target = "cad"
+            elif (not power_set) and (local in POWER_TAGS):
+                target = "power"
+            else:
+                continue
+
+            try:
+                text = elem.text
+                if text is None:
+                    continue
+                val = float(text)
+            except (TypeError, ValueError):
+                continue
+
+            if target == "hr":
+                hr = val
+                hr_set = True
+            elif target == "cad":
+                cad = val
+                cad_set = True
+            else:
+                power = val
+                power_set = True
+
+            if hr_set and cad_set and power_set:
+                return hr, cad, power
+
+    return hr, cad, power
 
 
 def load_gpx(file: IO[bytes]) -> gpxpy.gpx.GPX:
@@ -126,9 +160,7 @@ def gpx_to_dataframe(gpx: gpxpy.gpx.GPX) -> pd.DataFrame:
 
                 pace_s_per_km = 1000.0 / speed_m_s if speed_m_s and speed_m_s > 0 else math.nan
 
-                heart_rate = _extract_extension_value(point.extensions, HR_TAGS)
-                cadence = _extract_extension_value(point.extensions, CAD_TAGS)
-                power = _extract_extension_value(point.extensions, POWER_TAGS)
+                heart_rate, cadence, power = _extract_extension_values(point.extensions)
 
                 rows.append(
                     {

@@ -9,34 +9,54 @@ from fitparse import FitFile
 from gpxpy import geo as gpx_geo
 
 from core.constants import MAX_SPEED_M_S, MIN_DISTANCE_FOR_SPEED_M, MIN_SPEED_M_S
-from core.gpx_loader import COLUMNS
+from core.contracts.activity_df_contract import COLUMNS
 
 
 SEMICIRCLE_TO_DEG = 180.0 / (2**31)
 
 
-def _field_value_and_units(record, name: str) -> tuple[float, str | None]:
-    """Retourne (valeur, unites) pour un champ FIT, converti en float si possible."""
-
-    field = None
+def _build_field_lookup(record) -> dict[str, tuple[Any, str | None]]:
+    lookup: dict[str, tuple[Any, str | None]] = {}
     try:
-        for f in record.fields:
-            if getattr(f, "name", None) == name:
-                field = f
-                break
+        fields = getattr(record, "fields", None)
     except Exception:
-        field = None
+        fields = None
+    if not fields:
+        return lookup
+    try:
+        for f in fields:
+            fname = getattr(f, "name", None)
+            if not fname:
+                continue
+            lookup[str(fname)] = (getattr(f, "value", None), getattr(f, "units", None))
+    except Exception:
+        return lookup
+    return lookup
+
+
+def _get_value(record, name: str, lookup: dict[str, tuple[Any, str | None]] | None) -> Any:
+    if lookup is not None and name in lookup:
+        return lookup[name][0]
+    try:
+        return record.get_value(name)
+    except Exception:
+        return None
+
+
+def _field_value_and_units(
+    record,
+    name: str,
+    *,
+    lookup: dict[str, tuple[Any, str | None]] | None = None,
+) -> tuple[float, str | None]:
+    """Retourne (valeur, unites) pour un champ FIT, converti en float si possible."""
 
     raw = None
     units = None
-    if field is not None:
-        raw = getattr(field, "value", None)
-        units = getattr(field, "units", None)
+    if lookup is not None and name in lookup:
+        raw, units = lookup[name]
     else:
-        try:
-            raw = record.get_value(name)
-        except Exception:
-            raw = None
+        raw = _get_value(record, name, lookup)
 
     if raw is None:
         return math.nan, units
@@ -115,9 +135,14 @@ def _convert_gct_balance_pct(value: float, units: str | None) -> float:
     return float(value)
 
 
-def _first_value_and_units(record, names: list[str]) -> tuple[float, str | None]:
+def _first_value_and_units(
+    record,
+    names: list[str],
+    *,
+    lookup: dict[str, tuple[Any, str | None]] | None = None,
+) -> tuple[float, str | None]:
     for name in names:
-        value, units = _field_value_and_units(record, name)
+        value, units = _field_value_and_units(record, name, lookup=lookup)
         if np.isfinite(value):
             return value, units
     return math.nan, None
@@ -172,16 +197,18 @@ def fit_to_dataframe(fitfile: FitFile) -> pd.DataFrame:
     prev_distance = None
 
     for record in fitfile.get_messages("record"):
-        lat_raw = record.get_value("position_lat")
-        lon_raw = record.get_value("position_long")
+        lookup = _build_field_lookup(record)
+
+        lat_raw = _get_value(record, "position_lat", lookup)
+        lon_raw = _get_value(record, "position_long", lookup)
         lat = _semicircle_to_deg(lat_raw)
         lon = _semicircle_to_deg(lon_raw)
 
-        elev = record.get_value("enhanced_altitude")
+        elev = _get_value(record, "enhanced_altitude", lookup)
         if elev is None:
-            elev = record.get_value("altitude")
+            elev = _get_value(record, "altitude", lookup)
 
-        current_time = record.get_value("timestamp")
+        current_time = _get_value(record, "timestamp", lookup)
         if start_time is None and current_time is not None:
             start_time = current_time
 
@@ -198,7 +225,7 @@ def fit_to_dataframe(fitfile: FitFile) -> pd.DataFrame:
             else math.nan
         )
 
-        distance_m = record.get_value("distance")
+        distance_m = _get_value(record, "distance", lookup)
         use_geo = False
         if distance_m is None or not np.isfinite(distance_m):
             use_geo = True
@@ -221,9 +248,9 @@ def fit_to_dataframe(fitfile: FitFile) -> pd.DataFrame:
             speed_m_s = delta_distance / delta_time
             speed_from_delta = True
         if speed_m_s != speed_m_s:
-            speed_m_s = record.get_value("enhanced_speed")
+            speed_m_s = _get_value(record, "enhanced_speed", lookup)
             if speed_m_s is None:
-                speed_m_s = record.get_value("speed")
+                speed_m_s = _get_value(record, "speed", lookup)
 
         if speed_from_delta and delta_distance < MIN_DISTANCE_FOR_SPEED_M:
             speed_m_s = math.nan
@@ -233,21 +260,27 @@ def fit_to_dataframe(fitfile: FitFile) -> pd.DataFrame:
 
         pace_s_per_km = 1000.0 / speed_m_s if speed_m_s and speed_m_s > 0 else math.nan
 
-        stride_value, stride_units = _first_value_and_units(record, ["stride_length", "enhanced_stride_length"])
+        stride_value, stride_units = _first_value_and_units(
+            record,
+            ["stride_length", "enhanced_stride_length"],
+            lookup=lookup,
+        )
         stride_length_m = _convert_stride_length_m(stride_value, stride_units)
 
         vo_value, vo_units = _first_value_and_units(
-            record, ["vertical_oscillation", "enhanced_vertical_oscillation"]
+            record,
+            ["vertical_oscillation", "enhanced_vertical_oscillation"],
+            lookup=lookup,
         )
         vertical_oscillation_cm = _convert_vertical_oscillation_cm(vo_value, vo_units)
 
-        vr_value, vr_units = _first_value_and_units(record, ["vertical_ratio"])
+        vr_value, vr_units = _first_value_and_units(record, ["vertical_ratio"], lookup=lookup)
         vertical_ratio_pct = _convert_vertical_ratio_pct(vr_value, vr_units)
 
-        gct_value, gct_units = _first_value_and_units(record, ["ground_contact_time"])
+        gct_value, gct_units = _first_value_and_units(record, ["ground_contact_time"], lookup=lookup)
         ground_contact_time_ms = _convert_ground_contact_time_ms(gct_value, gct_units)
 
-        gctb_value, gctb_units = _first_value_and_units(record, ["ground_contact_time_balance"])
+        gctb_value, gctb_units = _first_value_and_units(record, ["ground_contact_time_balance"], lookup=lookup)
         gct_balance_pct = _convert_gct_balance_pct(gctb_value, gctb_units)
 
         rows.append(
@@ -262,9 +295,9 @@ def fit_to_dataframe(fitfile: FitFile) -> pd.DataFrame:
                 "delta_time_s": delta_time,
                 "speed_m_s": speed_m_s,
                 "pace_s_per_km": pace_s_per_km,
-                "heart_rate": record.get_value("heart_rate"),
-                "cadence": record.get_value("cadence"),
-                "power": record.get_value("power"),
+                "heart_rate": _get_value(record, "heart_rate", lookup),
+                "cadence": _get_value(record, "cadence", lookup),
+                "power": _get_value(record, "power", lookup),
                 "stride_length_m": stride_length_m,
                 "vertical_oscillation_cm": vertical_oscillation_cm,
                 "vertical_ratio_pct": vertical_ratio_pct,
