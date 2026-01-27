@@ -9,11 +9,16 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from core.grade_table import grade_factor
+from core.transform_report import TransformReport
 from core.utils import seconds_to_mmss
 
 
 def compute_theoretical_timing(
-    df: pd.DataFrame, base_pace_s_per_km: float, start_datetime: datetime | None = None
+    df: pd.DataFrame,
+    base_pace_s_per_km: float,
+    start_datetime: datetime | None = None,
+    *,
+    report: TransformReport | None = None,
 ) -> pd.DataFrame:
     """
     Calcule les temps théoriques sur un tracé GPX selon l'allure de base.
@@ -28,7 +33,17 @@ def compute_theoretical_timing(
         "cumulative_time_s",
         "elevation_m",
     ]
-    if len(df) < 2:
+    points_in = int(len(df))
+    segments_in = max(0, points_in - 1)
+    if report is not None:
+        report.add(
+            "theoretical:point_to_segment",
+            rows_in=points_in,
+            rows_out=segments_in,
+            reason="point df -> segment arrays (n-1)",
+        )
+
+    if points_in < 2:
         result = pd.DataFrame(columns=columns)
         if not result.empty and start_datetime is not None:
             start_ts = pd.to_datetime(start_datetime)
@@ -42,6 +57,13 @@ def compute_theoretical_timing(
     segment_distance_m = dist_next - dist_current
 
     valid = np.isfinite(dist_current) & np.isfinite(dist_next) & (segment_distance_m > 0)
+    if report is not None:
+        report.add(
+            "theoretical:valid_segments",
+            rows_in=segments_in,
+            rows_out=int(valid.sum()),
+            reason="keep segments with finite distance and positive delta",
+        )
     if not valid.any():
         result = pd.DataFrame(columns=columns)
         if not result.empty and start_datetime is not None:
