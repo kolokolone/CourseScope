@@ -1,15 +1,12 @@
 import math
-import os
-from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
-
-from functools import lru_cache
-from importlib import resources
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from core.grade_table import grade_factor
+from core.ref_data import get_pro_pace_vs_grade_df
+from core.transform_report import TransformReport
 from core.derived import DerivedSeries
 from core.utils import seconds_to_mmss
 from core.stats.basic_stats import compute_basic_stats
@@ -19,92 +16,7 @@ from core.constants import (
     MOVING_SPEED_THRESHOLD_M_S,
 )
 
-PRO_PACE_VS_GRADE_ENV_VAR = "COURSESCOPE_PRO_PACE_VS_GRADE_PATH"
-PRO_PACE_VS_GRADE_RESOURCE_PACKAGE = "core.resources"
-PRO_PACE_VS_GRADE_RESOURCE_NAME = "pro_pace_vs_grade.csv"
 MIN_GRADE_DISTANCE_M = 1.0
-
-
-def _empty_pro_pace_vs_grade_df() -> pd.DataFrame:
-    return pd.DataFrame(columns=["grade_percent", "pace_s_per_km_pro"])
-
-
-def _load_pro_pace_vs_grade(csv_path: str | Path | None = None) -> pd.DataFrame:
-    """Charge une table de reference allure vs pente.
-
-    Source:
-    - si csv_path est fourni: charge ce fichier
-    - sinon, si la variable d'environnement COURSESCOPE_PRO_PACE_VS_GRADE_PATH pointe vers
-      un fichier existant: charge ce fichier (modifiable par l'utilisateur)
-    - sinon: charge la ressource embarquee dans core/resources/pro_pace_vs_grade.csv
-
-    Retourne un DataFrame avec colonnes grade_percent, pace_s_per_km_pro (peut etre vide).
-    """
-
-    if csv_path is not None:
-        path = Path(csv_path).expanduser()
-        if not path.is_absolute():
-            path = (Path.cwd() / path)
-        try:
-            resolved = path.resolve()
-        except Exception:
-            resolved = path
-        try:
-            mtime_ns = resolved.stat().st_mtime_ns
-        except OSError:
-            mtime_ns = None
-        return _load_pro_pace_vs_grade_from_file(str(resolved), mtime_ns)
-
-    override = os.environ.get(PRO_PACE_VS_GRADE_ENV_VAR)
-    if override:
-        path = Path(override).expanduser()
-        if not path.is_absolute():
-            path = (Path.cwd() / path)
-        try:
-            resolved = path.resolve()
-        except Exception:
-            resolved = path
-        if resolved.exists():
-            try:
-                mtime_ns = resolved.stat().st_mtime_ns
-            except OSError:
-                mtime_ns = None
-            return _load_pro_pace_vs_grade_from_file(str(resolved), mtime_ns)
-
-    return _load_pro_pace_vs_grade_from_package()
-
-
-@lru_cache(maxsize=8)
-def _load_pro_pace_vs_grade_from_file(csv_path: str, mtime_ns: int | None) -> pd.DataFrame:
-    _ = mtime_ns  # participe a la cle de cache
-    try:
-        df = pd.read_csv(Path(csv_path))
-    except FileNotFoundError:
-        return _empty_pro_pace_vs_grade_df()
-    except Exception:
-        return _empty_pro_pace_vs_grade_df()
-
-    expected_cols = {"grade_percent", "pace_s_per_km_pro"}
-    if not expected_cols.issubset(df.columns):
-        return _empty_pro_pace_vs_grade_df()
-    return df.dropna(subset=["grade_percent", "pace_s_per_km_pro"])
-
-
-@lru_cache(maxsize=1)
-def _load_pro_pace_vs_grade_from_package() -> pd.DataFrame:
-    try:
-        file = resources.files(PRO_PACE_VS_GRADE_RESOURCE_PACKAGE).joinpath(PRO_PACE_VS_GRADE_RESOURCE_NAME)
-        with file.open("rb") as f:
-            df = pd.read_csv(f)
-    except (FileNotFoundError, ModuleNotFoundError):
-        return _empty_pro_pace_vs_grade_df()
-    except Exception:
-        return _empty_pro_pace_vs_grade_df()
-
-    expected_cols = {"grade_percent", "pace_s_per_km_pro"}
-    if not expected_cols.issubset(df.columns):
-        return _empty_pro_pace_vs_grade_df()
-    return df.dropna(subset=["grade_percent", "pace_s_per_km_pro"])
 
 
 def compute_moving_mask(
@@ -378,38 +290,70 @@ def build_distribution_plots(
     return figs
 
 
-def build_pace_vs_grade_plot(
-    df: pd.DataFrame, pace_series: pd.Series | None = None, grade_series: pd.Series | None = None
-) -> go.Figure:
-    """Courbe allure (min/km) en fonction de la pente (%) lissée par binning."""
+def compute_pace_vs_grade_data(
+    df: pd.DataFrame,
+    *,
+    pace_series: pd.Series | None = None,
+    grade_series: pd.Series | None = None,
+    report: TransformReport | None = None,
+) -> pd.DataFrame:
+    """Compute the data used by build_pace_vs_grade_plot.
+
+    Returns a DataFrame with columns: grade_center, pace_med, pace_std.
+    """
+
+    out_cols = ["grade_center", "pace_med", "pace_std"]
+    if df.empty:
+        return pd.DataFrame(columns=out_cols)
+
     mask_moving = (df["speed_m_s"] > MOVING_SPEED_THRESHOLD_M_S) & (df["delta_time_s"].fillna(0) > 0)
     df_filtered = df[mask_moving]
-    pace_series = pace_series.loc[df_filtered.index] if pace_series is not None else df_filtered["pace_s_per_km"]
+    if report is not None:
+        report.add(
+            "pace_vs_grade:mask_moving",
+            rows_in=len(df),
+            rows_out=int(mask_moving.sum()),
+            reason="keep moving points (speed>threshold and dt>0)",
+        )
+    if df_filtered.empty:
+        return pd.DataFrame(columns=out_cols)
 
-    if grade_series is not None:
-        grade = grade_series.reindex(df_filtered.index)
-    else:
-        grade = _compute_grade_percent(df_filtered, smooth_window=5)
-    grade = grade.clip(lower=-20, upper=20)
+    pace_s = pace_series.loc[df_filtered.index] if pace_series is not None else df_filtered["pace_s_per_km"]
+    grade_s = grade_series.reindex(df_filtered.index) if grade_series is not None else _compute_grade_percent(df_filtered, smooth_window=5)
+    grade_s = grade_s.clip(lower=-20, upper=20)
 
-    data = pd.DataFrame(
-        {
-            "grade_percent": grade,
-            "pace_min_per_km": (pace_series / 60.0),
-        }
-    ).replace([np.inf, -np.inf], np.nan).dropna()
+    data = (
+        pd.DataFrame({"grade_percent": grade_s, "pace_min_per_km": (pace_s / 60.0)})
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()
+    )
+    if report is not None:
+        report.add(
+            "pace_vs_grade:dropna",
+            rows_in=len(df_filtered),
+            rows_out=len(data),
+            reason="drop non-finite grade/pace",
+        )
 
-    pace_mean_min = pace_series.mean(skipna=True) / 60.0 if len(pace_series.dropna()) else math.nan
-    if not math.isnan(pace_mean_min):
+    pace_mean_min = pace_s.mean(skipna=True) / 60.0 if len(pace_s.dropna()) else math.nan
+    if pace_mean_min == pace_mean_min and not data.empty:
         slow_mask = data["grade_percent"].between(-5.0, 5.0) & (data["pace_min_per_km"] > pace_mean_min * 1.5)
+        before = len(data)
         data = data.loc[~slow_mask]
+        if report is not None:
+            report.add(
+                "pace_vs_grade:slow_filter",
+                rows_in=before,
+                rows_out=len(data),
+                reason="remove slow outliers near flat grade",
+                details={"pace_mean_min": float(pace_mean_min), "mult": 1.5},
+            )
 
     if data.empty:
-        return go.Figure()
+        return pd.DataFrame(columns=out_cols)
 
     bins = np.arange(-20, 20.5, 0.5)
     data["grade_bin"] = pd.cut(data["grade_percent"], bins=bins, labels=False)
-
     grouped = data.groupby("grade_bin").agg(
         grade_center=("grade_percent", "median"),
         pace_med=("pace_min_per_km", "median"),
@@ -418,46 +362,62 @@ def build_pace_vs_grade_plot(
     grouped = grouped.dropna(subset=["grade_center", "pace_med"]).sort_values("grade_center")
     grouped["pace_std"] = grouped["pace_std"].fillna(0.0)
     if grouped.empty:
+        return pd.DataFrame(columns=out_cols)
+
+    return grouped[out_cols].reset_index(drop=True)
+
+
+def build_pace_vs_grade_plot_from_data(
+    data: pd.DataFrame,
+    *,
+    pro_ref: pd.DataFrame | None = None,
+) -> go.Figure:
+    """Build the Plotly figure from compute_pace_vs_grade_data output."""
+
+    if data is None or data.empty:
         return go.Figure()
 
-    pace_vals = grouped["pace_med"]
-    pace_std_upper = (grouped["pace_med"] + grouped["pace_std"]).clip(lower=0)
-    pace_std_lower = (grouped["pace_med"] - grouped["pace_std"]).clip(lower=0)
-    pace_custom = pace_vals.apply(lambda v: seconds_to_mmss(v * 60.0) if v == v else "-")
+    pace_vals = data["pace_med"]
+    pace_std_upper = (data["pace_med"] + data["pace_std"]).clip(lower=0)
+    pace_std_lower = (data["pace_med"] - data["pace_std"]).clip(lower=0)
+    pace_custom = pace_vals.apply(lambda v: seconds_to_mmss(float(v) * 60.0) if v == v else "-")
 
     fig = go.Figure()
     fig.add_vline(x=0, line=dict(color="#bbbbbb", width=1), layer="below", opacity=0.7)
-    pro_ref = _load_pro_pace_vs_grade()
-    if not pro_ref.empty:
-        pro_ref = pro_ref.sort_values("grade_percent")
-        pro_ref["pace_min_per_km"] = pro_ref["pace_s_per_km_pro"] / 60.0
-        pro_ref["pace_display"] = pro_ref["pace_s_per_km_pro"].apply(seconds_to_mmss)
-        fig.add_trace(
-            go.Scatter(
-                x=pro_ref["grade_percent"],
-                y=pro_ref["pace_min_per_km"],
-                mode="lines",
-                line=dict(color="#999999", dash="dash"),
-                name="Ref pro",
-                customdata=pro_ref["pace_display"],
-                hovertemplate="Pente: %{x:.1f} %<br>Allure pro: %{customdata} / km<extra></extra>",
+
+    if pro_ref is not None and not pro_ref.empty:
+        expected_cols = {"grade_percent", "pace_s_per_km_pro"}
+        if expected_cols.issubset(set(pro_ref.columns)):
+            pro_line = pro_ref.sort_values("grade_percent")
+            pro_line["pace_min_per_km"] = pro_line["pace_s_per_km_pro"] / 60.0
+            pro_line["pace_display"] = pro_line["pace_s_per_km_pro"].apply(seconds_to_mmss)
+            fig.add_trace(
+                go.Scatter(
+                    x=pro_line["grade_percent"],
+                    y=pro_line["pace_min_per_km"],
+                    mode="lines",
+                    line=dict(color="#999999", dash="dash"),
+                    name="Ref pro",
+                    customdata=pro_line["pace_display"],
+                    hovertemplate="Pente: %{x:.1f} %<br>Allure pro: %{customdata} / km<extra></extra>",
+                )
             )
-        )
+
     fig.add_trace(
         go.Scatter(
-            x=pd.concat([grouped["grade_center"], grouped["grade_center"][::-1]]),
+            x=pd.concat([data["grade_center"], data["grade_center"][::-1]]),
             y=pd.concat([pace_std_upper, pace_std_lower[::-1]]),
             fill="toself",
             fillcolor="rgba(76,120,168,0.18)",
             line=dict(color="rgba(0,0,0,0)"),
-            name="+/- 1 écart-type",
+            name="+/- 1 ecart-type",
             hoverinfo="skip",
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=grouped["grade_center"],
-            y=grouped["pace_med"],
+            x=data["grade_center"],
+            y=data["pace_med"],
             mode="lines",
             line=dict(color="#4c78a8"),
             name="Allure vs pente (lissee)",
@@ -465,19 +425,20 @@ def build_pace_vs_grade_plot(
             hovertemplate="Pente: %{x:.1f} %<br>Allure mediane: %{customdata} / km<extra></extra>",
         )
     )
+
     pace_for_ticks = pd.concat(
         [
             pace_vals,
             pace_std_upper,
             pace_std_lower,
-            pro_ref["pace_min_per_km"] if not pro_ref.empty else pd.Series(dtype=float),
+            (pro_ref["pace_s_per_km_pro"] / 60.0) if (pro_ref is not None and not pro_ref.empty and "pace_s_per_km_pro" in pro_ref) else pd.Series(dtype=float),
         ]
     )
-    tick_start = math.floor(pace_for_ticks.min() * 2) / 2.0
-    tick_end = math.ceil(pace_for_ticks.max() * 2) / 2.0
+    tick_start = math.floor(float(pace_for_ticks.min()) * 2) / 2.0
+    tick_end = math.ceil(float(pace_for_ticks.max()) * 2) / 2.0
     tick_step = 0.5
     tick_vals = np.arange(tick_start, tick_end + tick_step, tick_step)
-    tick_text = [seconds_to_mmss(v * 60.0) for v in tick_vals]
+    tick_text = [seconds_to_mmss(float(v) * 60.0) for v in tick_vals]
     fig.update_layout(
         xaxis_title="Pente (%)",
         yaxis_title="Allure (min/km)",
@@ -485,6 +446,17 @@ def build_pace_vs_grade_plot(
         margin=dict(t=40, b=40),
     )
     return fig
+
+
+def build_pace_vs_grade_plot(
+    df: pd.DataFrame, pace_series: pd.Series | None = None, grade_series: pd.Series | None = None, *, pro_ref: pd.DataFrame | None = None
+) -> go.Figure:
+    """Courbe allure (min/km) en fonction de la pente (%) lissee par binning."""
+
+    data = compute_pace_vs_grade_data(df, pace_series=pace_series, grade_series=grade_series)
+    if pro_ref is None:
+        pro_ref = get_pro_pace_vs_grade_df()
+    return build_pace_vs_grade_plot_from_data(data, pro_ref=pro_ref)
 
 
 def _compute_grade_percent(
@@ -623,26 +595,52 @@ def build_pace_grade_heatmap(
     return fig
 
 
-def build_residuals_vs_grade(
-    df: pd.DataFrame, pace_series: pd.Series | None = None, grade_series: pd.Series | None = None
-) -> go.Figure:
-    """Courbe des résidus allure réelle - allure attendue (via grade_table) par pente."""
+def compute_residuals_vs_grade_data(
+    df: pd.DataFrame,
+    *,
+    pace_series: pd.Series | None = None,
+    grade_series: pd.Series | None = None,
+    report: TransformReport | None = None,
+) -> pd.DataFrame:
+    """Compute the data used by build_residuals_vs_grade.
+
+    Returns a DataFrame with columns: grade_center, residual_med, residual_q1, residual_q3.
+    """
+
+    out_cols = ["grade_center", "residual_med", "residual_q1", "residual_q3"]
+    if df.empty:
+        return pd.DataFrame(columns=out_cols)
+
     mask = (df["speed_m_s"] > MOVING_SPEED_THRESHOLD_M_S) & (df["delta_time_s"].fillna(0) > 0)
     subset = df[mask]
+    if report is not None:
+        report.add(
+            "residuals_vs_grade:mask_moving",
+            rows_in=len(df),
+            rows_out=int(mask.sum()),
+            reason="keep moving points (speed>threshold and dt>0)",
+        )
     if subset.empty:
-        return go.Figure()
+        return pd.DataFrame(columns=out_cols)
+
     pace_used = pace_series.loc[subset.index] if pace_series is not None else subset["pace_s_per_km"]
     grade_for_subset = grade_series.reindex(subset.index) if grade_series is not None else _compute_grade_percent(subset, smooth_window=5)
     flat_pace = _estimate_flat_pace(subset, pace_used, grade_series=grade_for_subset)
     if math.isnan(flat_pace):
-        return go.Figure()
+        return pd.DataFrame(columns=out_cols)
 
-    expected = pd.Series(flat_pace * grade_factor(grade_for_subset.to_numpy()), index=grade_for_subset.index)
+    expected = pd.Series(float(flat_pace) * grade_factor(grade_for_subset.to_numpy()), index=grade_for_subset.index)
     residual = (pace_used - expected) / 60.0  # min/km
-
     data = pd.DataFrame({"grade": grade_for_subset, "residual": residual}).dropna()
+    if report is not None:
+        report.add(
+            "residuals_vs_grade:dropna",
+            rows_in=len(subset),
+            rows_out=len(data),
+            reason="drop non-finite grade/residual",
+        )
     if data.empty:
-        return go.Figure()
+        return pd.DataFrame(columns=out_cols)
 
     bins = np.arange(-20, 20.5, 0.5)
     data["grade_bin"] = pd.cut(data["grade"], bins=bins, labels=False)
@@ -653,40 +651,56 @@ def build_residuals_vs_grade(
         residual_q3=("residual", lambda x: x.quantile(0.75)),
     ).dropna()
     if grouped.empty:
+        return pd.DataFrame(columns=out_cols)
+
+    return grouped[out_cols].sort_values("grade_center").reset_index(drop=True)
+
+
+def build_residuals_vs_grade_plot_from_data(data: pd.DataFrame) -> go.Figure:
+    if data is None or data.empty:
         return go.Figure()
 
     fig = go.Figure()
     fig.add_vline(x=0, line=dict(color="#bbbbbb", width=1), layer="below", opacity=0.7)
     fig.add_trace(
         go.Scatter(
-            x=grouped["grade_center"],
-            y=grouped["residual_med"],
+            x=data["grade_center"],
+            y=data["residual_med"],
             mode="lines",
-            name="Résidu vs pente (médian)",
+            name="Residu vs pente (median)",
             line=dict(color="#4c78a8"),
-            hovertemplate="Pente: %{x:.1f} %<br>Résidu: %{y:.2f} min/km<extra></extra>",
+            hovertemplate="Pente: %{x:.1f} %<br>Residu: %{y:.2f} min/km<extra></extra>",
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=pd.concat([grouped["grade_center"], grouped["grade_center"][::-1]]),
-            y=pd.concat([grouped["residual_q1"], grouped["residual_q3"][::-1]]),
+            x=pd.concat([data["grade_center"], data["grade_center"][::-1]]),
+            y=pd.concat([data["residual_q1"], data["residual_q3"][::-1]]),
             fill="toself",
             fillcolor="rgba(76,120,168,0.2)",
             line=dict(color="rgba(0,0,0,0)"),
             hoverinfo="skip",
             showlegend=True,
-            name="+/- 1 écart-type",
+            name="+/- 1 ecart-type",
         )
     )
     fig.add_hline(y=0, line=dict(color="#999", dash="dash"))
     fig.update_layout(
         xaxis_title="Pente (%)",
-        yaxis_title="Résidu (min/km) — positif = plus lent que attendu",
+        yaxis_title="Residu (min/km) - positif = plus lent que attendu",
         margin=dict(t=40, b=40),
         xaxis=dict(range=[-20, 20]),
     )
     return fig
+
+
+def build_residuals_vs_grade(
+    df: pd.DataFrame, pace_series: pd.Series | None = None, grade_series: pd.Series | None = None
+) -> go.Figure:
+    """Courbe des residus allure reelle - allure attendue (via grade_table) par pente."""
+
+    data = compute_residuals_vs_grade_data(df, pace_series=pace_series, grade_series=grade_series)
+    return build_residuals_vs_grade_plot_from_data(data)
 
 
 def compute_climbs(

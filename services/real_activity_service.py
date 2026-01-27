@@ -8,6 +8,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from core.ref_data import get_pro_pace_vs_grade_df
+from core.transform_report import TransformReport
 from core.metrics import compute_garmin_like_stats, estimate_zone_inputs
 from core.real_run_analysis import (
     build_distribution_plots,
@@ -133,30 +135,9 @@ def _build_map_payload(
     pauses: list[dict[str, Any]],
     map_color_mode: str,
 ) -> RealRunMapPayload:
-    map_df = df[["lat", "lon", "distance_m"]].dropna().copy() if not df.empty else pd.DataFrame()
+    map_df = compute_map_df(df, derived=derived, map_color_mode=map_color_mode)
     if map_df.empty:
         return RealRunMapPayload(map_df=map_df, climb_points=[], pause_points=pauses or [])
-
-    pace_s_per_km = df["pace_s_per_km"] if "pace_s_per_km" in df else None
-    map_df["pace_min_per_km"] = (pace_s_per_km / 60.0) if pace_s_per_km is not None else math.nan
-    map_df["grade_percent"] = derived.grade_series
-    map_df["gap_min_per_km"] = (derived.gap_series / 60.0) if derived.gap_series is not None else math.nan
-
-    if map_color_mode == "grade":
-        map_df["color"] = _colorize(map_df["grade_percent"].clip(-20, 20))
-        map_df["label"] = map_df["grade_percent"].apply(
-            lambda v: f"Pente: {v:.1f} %" if v == v else "Pente: -"
-        )
-    elif map_color_mode == "gap":
-        map_df["color"] = _colorize(map_df["gap_min_per_km"].clip(2.5, 15.0))
-        map_df["label"] = map_df["gap_min_per_km"].apply(
-            lambda v: f"GAP: {seconds_to_mmss(v*60)} / km" if v == v else "GAP: -"
-        )
-    else:
-        map_df["color"] = _colorize(map_df["pace_min_per_km"].clip(2.5, 15.0))
-        map_df["label"] = map_df["pace_min_per_km"].apply(
-            lambda v: f"Allure: {seconds_to_mmss(v*60)} / km" if v == v else "Allure: -"
-        )
 
     climb_points: list[dict[str, Any]] = []
     for climb in climbs:
@@ -168,6 +149,51 @@ def _build_map_payload(
             climb_points.append({"lon": df.iloc[idx]["lon"], "lat": df.iloc[idx]["lat"], "label": label})
 
     return RealRunMapPayload(map_df=map_df, climb_points=climb_points, pause_points=pauses or [])
+
+
+def compute_map_df(
+    df: pd.DataFrame,
+    *,
+    derived: RealRunDerived,
+    map_color_mode: str,
+    report: TransformReport | None = None,
+) -> pd.DataFrame:
+    """Compute the map-ready DataFrame used by build_map_payload.
+
+    This function is Streamlit-free and intentionally testable.
+    """
+
+    if df.empty:
+        return pd.DataFrame()
+
+    rows_in = len(df)
+    map_df = df[["lat", "lon", "distance_m"]].dropna().copy()
+    if report is not None:
+        report.add(
+            "map_payload:dropna_lat_lon_distance",
+            rows_in=rows_in,
+            rows_out=len(map_df),
+            reason="drop points without coordinates/distance",
+        )
+    if map_df.empty:
+        return map_df
+
+    pace_s_per_km = df["pace_s_per_km"] if "pace_s_per_km" in df else None
+    map_df["pace_min_per_km"] = (pace_s_per_km / 60.0) if pace_s_per_km is not None else math.nan
+    map_df["grade_percent"] = derived.grade_series
+    map_df["gap_min_per_km"] = (derived.gap_series / 60.0) if derived.gap_series is not None else math.nan
+
+    if map_color_mode == "grade":
+        map_df["color"] = _colorize(map_df["grade_percent"].clip(-20, 20))
+        map_df["label"] = map_df["grade_percent"].apply(lambda v: f"Pente: {v:.1f} %" if v == v else "Pente: -")
+    elif map_color_mode == "gap":
+        map_df["color"] = _colorize(map_df["gap_min_per_km"].clip(2.5, 15.0))
+        map_df["label"] = map_df["gap_min_per_km"].apply(lambda v: f"GAP: {seconds_to_mmss(v*60)} / km" if v == v else "GAP: -")
+    else:
+        map_df["color"] = _colorize(map_df["pace_min_per_km"].clip(2.5, 15.0))
+        map_df["label"] = map_df["pace_min_per_km"].apply(lambda v: f"Allure: {seconds_to_mmss(v*60)} / km" if v == v else "Allure: -")
+
+    return map_df
 
 
 def build_map_payload(
@@ -257,10 +283,11 @@ def build_figures(
     pace_series: pd.Series,
     grade_series: pd.Series,
 ) -> RealRunFigures:
+    pro_ref = get_pro_pace_vs_grade_df()
     return RealRunFigures(
         pace_elevation=build_pace_elevation_plot(df, pace_series=pace_series),
         distributions=build_distribution_plots(df, pace_series=pace_series, grade_series=grade_series),
-        pace_vs_grade=build_pace_vs_grade_plot(df, pace_series=pace_series, grade_series=grade_series),
+        pace_vs_grade=build_pace_vs_grade_plot(df, pace_series=pace_series, grade_series=grade_series, pro_ref=pro_ref),
         residuals_vs_grade=build_residuals_vs_grade(df, pace_series=pace_series, grade_series=grade_series),
         pace_grade_scatter=build_pace_grade_scatter(df, pace_series=pace_series, grade_series=grade_series),
         pace_grade_heatmap=build_pace_grade_heatmap(df, pace_series=pace_series, grade_series=grade_series),
