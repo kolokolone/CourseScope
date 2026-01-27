@@ -1,4 +1,4 @@
-# CourseScope (v1.1.1)
+# CourseScope (v1.1.2)
 
 CourseScope est une app Streamlit locale pour analyser des traces running GPX/FIT (carte, graphes, splits, zones type Garmin, GAP/pente) et estimer un temps theorique sur un trace selon une allure de base et la pente. Backend Python prepare pour une future API.
 
@@ -7,13 +7,17 @@ La v1.1 est une refacto interne (aucune feature supprimee) qui separe:
 - `services/` (orchestration, pur Python)
 - `ui/` (Streamlit, rendu uniquement)
 
-Version courante: v1.1.1 (patch de v1.1)
+Version courante: v1.1.2 (patch de v1.1)
 
 Depuis v1.1.1, le backend est durci pour preparer une migration FastAPI/React:
 - contrat DataFrame canonique (validation/coercion)
 - cache portable injectable
 - serialisation JSON
 - batterie de tests unitaires
+
+Depuis v1.1.2, la racine du projet est simplifiee:
+- suppression du shim `grade_table.py` (utiliser `core/grade_table.py`)
+- table "Ref pro" embarquee dans `core/resources/pro_pace_vs_grade.csv` (surcharge possible via `COURSESCOPE_PRO_PACE_VS_GRADE_PATH`)
 
 
 ## Prerequis
@@ -115,7 +119,7 @@ Compatibilite:
 
 ## Tests
 
-La v1.1.1 fournit:
+La v1.1.2 fournit:
 - des smoke tests minimalistes (sans framework) pour eviter les regressions
 - des tests unitaires (unittest) pour valider les fonctions de base apres refacto
 
@@ -148,11 +152,11 @@ python -m unittest discover -s tests -p "test_*.py" -v
 ### Compilation (sanity check)
 
 ```bash
-python -m compileall -q core services ui tests CourseScope.py grade_table.py
+python -m compileall -q core services ui tests CourseScope.py
 ```
 
 
-## Structure du projet (v1.1.1)
+## Structure du projet (v1.1.2)
 
 ```
 CourseScope/
@@ -160,8 +164,6 @@ CourseScope/
   run_win.bat
   run_linux.sh
   requirements.txt
-  grade_table.py
-  pro_pace_vs_grade.csv
   core/
   services/
   ui/
@@ -179,6 +181,10 @@ CourseScope/
 - `core/theoretical_model.py`: modele theorique + figures Plotly
 - `core/formatting.py`, `core/parsing.py`: helpers partages
 - `core/grade_table.py`: correction d'allure selon la pente (canonical)
+- `core/resources/pro_pace_vs_grade.csv`: table de reference "Ref pro" (optionnelle)
+
+Pour utiliser une table personnalisable par l'utilisateur:
+- definir `COURSESCOPE_PRO_PACE_VS_GRADE_PATH` vers un fichier CSV (meme schema)
 
 ### Services (backend applicatif, pur Python)
 - `services/activity_service.py`: chargement + type detection + stats sidebar
@@ -198,11 +204,11 @@ CourseScope/
 
 ## Notes pour developpement / contributions
 
-Regle principale v1.1.1:
+Regle principale v1.1.2:
 - `core/` et `services/` ne doivent pas importer Streamlit.
 - Streamlit reste confine a `ui/`.
 
-Regle v1.1.1 (prepa API):
+Regle v1.1.2 (prepa API):
 - valider le DataFrame canonique a la frontiere service (voir services/activity_service.py)
 - pour une future API, utiliser services/analysis_service.py + services/serialization.py
 

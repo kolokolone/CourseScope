@@ -1,4 +1,4 @@
-1. Contexte general (v1.1.1)
+1. Contexte general (v1.1.2)
 
 Application web locale en Python (Streamlit) pour analyser et preparer des courses a pied a partir de traces GPX/FIT.
 
@@ -24,10 +24,11 @@ Objectif v1.1 (refacto interne) :
 - Separation des responsabilites: la logique metier ne vit plus dans les vues Streamlit.
 - Preparatif migration API: le backend (core + services) ne depend pas de Streamlit.
 
-Objectif v1.1.1 (patch) :
+Objectif v1.1.2 (patch) :
 - Durcir le backend (contrats, constantes, serialisation JSON) pour une reutilisation API.
 - Ajouter une batterie de tests unitaires (unittest) pour fiabiliser les evolutions.
 - Deplacer les fichiers demo GPX/FIT dans tests/ (plus pertinent pour les tests).
+- Nettoyer la racine du projet et rendre les ressources packagables (suppression du shim grade_table.py, deplacement de la table Ref pro).
 
 
 2. Stack technique
@@ -88,14 +89,12 @@ Contient:
 - Cache Streamlit (st.cache_data) conserve uniquement au niveau UI.
 
 
-6. Arborescence v1.1.1 (fichiers importants)
+6. Arborescence v1.1.2 (fichiers importants)
 
 CourseScope.py
 run_win.bat
 run_linux.sh
 requirements.txt
-grade_table.py                # shim compat -> re-export depuis core/grade_table.py
-pro_pace_vs_grade.csv         # table reference "coureur pro" pour allure vs pente
 tests/course.gpx / tests/course.fit  # fichiers demo pour smoke tests
 cahier_des_charges.txt
 nouvelles_fonctions           # idees futures (non implemente)
@@ -119,6 +118,9 @@ core/
   formatting.py               # NEW v1.1
   parsing.py                  # NEW v1.1
   grade_table.py              # NEW v1.1 (canonical)
+  resources/                  # NEW v1.1.2 (ressources embarquees)
+    __init__.py
+    pro_pace_vs_grade.csv
 
 services/
   __init__.py
@@ -212,9 +214,8 @@ compute_theoretical_timing() renvoie un DataFrame par segment:
 8.3 core/real_run_analysis.py
 Responsabilites:
 - Derives et nettoyage:
-  - compute_grade_percent_series()
-  - compute_gap_series()
-- compute_derived_series() -> {grade_series, moving_mask, gap_series}
+   - compute_grade_percent_series()
+   - compute_gap_series()
 - compute_derived_series() -> DerivedSeries (grade_series, moving_mask, gap_series)
 - Mouvement / pauses:
   - compute_moving_mask() (mediane glissante vitesse + seuil + duree min pause)
@@ -227,12 +228,13 @@ Responsabilites:
 - Plots Plotly:
   - build_pace_elevation_plot()
   - build_distribution_plots()
-  - build_pace_vs_grade_plot() (inclut courbe pro si pro_pace_vs_grade.csv present)
+   - build_pace_vs_grade_plot() (inclut courbe pro si table de reference disponible)
   - build_pace_grade_scatter()
   - build_pace_grade_heatmap()
   - build_residuals_vs_grade()
 - Ressource:
-  - pro_pace_vs_grade.csv charge via DEFAULT_PRO_PACE_PATH (Path(__file__).parents[1])
+   - core/resources/pro_pace_vs_grade.csv (par defaut)
+   - override utilisateur via variable d'environnement: COURSESCOPE_PRO_PACE_VS_GRADE_PATH
 
 8.4 core/metrics.py
 - estimate_zone_inputs(df, moving_mask) -> defaults (hr_max, cadence target, ftp estime, pace seuil estime)
@@ -344,7 +346,7 @@ Cache portable (Streamlit-free) :
 - MemoryCache (LRU simple)
 - DiskCache (pickle)
 - helpers: sha256_bytes, stable_json_dumps, make_key, make_cache_key
-Note: v1.1.1 conserve st.cache_data au niveau UI. services/cache.py est une brique prete pour v2 (API).
+Note: v1.1.2 conserve st.cache_data au niveau UI. services/cache.py est une brique prete pour v2 (API).
 
 9.7 services/serialization.py
 - to_jsonable() + helpers pour convertir dataclasses/pandas/numpy/plotly en JSON.
@@ -414,7 +416,7 @@ Note: v1.1.1 conserve st.cache_data au niveau UI. services/cache.py est une briq
 
 11.1 Smoke tests
 - tests/smoke_test.py
-  - charge course.gpx et course.fit
+  - charge tests/course.gpx et tests/course.fit
   - verifie loaders
   - verifie pipeline "real" (base + garmin + figures + map payload)
   - verifie pipeline "theoretical" (base + display + passages + advanced)
@@ -423,7 +425,7 @@ Execution recommande (venv):
 - .venv/Scripts/python.exe tests/smoke_test.py
 
 11.2 Compilation
-- .venv/Scripts/python.exe -m compileall -q core services ui tests CourseScope.py grade_table.py
+- .venv/Scripts/python.exe -m compileall -q core services ui tests CourseScope.py
 
 11.3 Tests unitaires
 - python -m unittest discover -s tests -p "test_*.py" -v

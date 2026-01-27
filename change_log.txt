@@ -1,5 +1,5 @@
 CHANGE LOG
-Unreleased (post-v1.1.1)
+Unreleased (post-v1.1.2)
 Date: 2026-01-26
 
 Objectif
@@ -15,6 +15,19 @@ Nouveautes
 - Extraction FIT (optionnelle) des running dynamics + normalisation d'unites.
 - Stats resume enrichies: vitesse max, best pace, min/max altitude, stats de pente (mean/min/max), VAM.
 - Bloc power avancee (si power dispo): normalized power (NP), intensity factor (IF), TSS.
+
+
+Version: v1.1.1 -> v1.1.2
+Date: 2026-01-27
+
+Objectif
+- Nettoyer la racine du projet et rendre les ressources packagables, tout en laissant la table "Ref pro" personnalisable.
+
+Nouveautes
+- Suppression du shim `grade_table.py` a la racine (utiliser `core/grade_table.py`).
+- Deplacement de la table de reference vers `core/resources/pro_pace_vs_grade.csv`.
+- Possibilite de surcharge utilisateur via variable d'environnement: `COURSESCOPE_PRO_PACE_VS_GRADE_PATH`.
+- Documentation mise a jour (arborescence + commandes).
 
 Version: v1.1 -> v1.1.1
 Date: 2026-01-27

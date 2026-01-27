@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Helpers de manipulation d'historique (fonctions pures).
 
-Le stockage reste un sujet UI en v1.1 (ex: Streamlit session_state).
+Le stockage reste un sujet UI en v1.1.2 (ex: Streamlit session_state).
 """
 
 from typing import Any

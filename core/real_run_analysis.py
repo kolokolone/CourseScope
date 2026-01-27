@@ -1,8 +1,10 @@
 import math
+import os
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
 from functools import lru_cache
+from importlib import resources
 
 import numpy as np
 import pandas as pd
@@ -17,27 +19,92 @@ from core.constants import (
     MOVING_SPEED_THRESHOLD_M_S,
 )
 
-DEFAULT_PRO_PACE_PATH = Path(__file__).resolve().parents[1] / "pro_pace_vs_grade.csv"
+PRO_PACE_VS_GRADE_ENV_VAR = "COURSESCOPE_PRO_PACE_VS_GRADE_PATH"
+PRO_PACE_VS_GRADE_RESOURCE_PACKAGE = "core.resources"
+PRO_PACE_VS_GRADE_RESOURCE_NAME = "pro_pace_vs_grade.csv"
 MIN_GRADE_DISTANCE_M = 1.0
 
 
-def _load_pro_pace_vs_grade(csv_path: str | Path = DEFAULT_PRO_PACE_PATH) -> pd.DataFrame:
-    """Charge une table de reference allure vs pente si disponible."""
-
-    return _load_pro_pace_vs_grade_cached(str(Path(csv_path)))
+def _empty_pro_pace_vs_grade_df() -> pd.DataFrame:
+    return pd.DataFrame(columns=["grade_percent", "pace_s_per_km_pro"])
 
 
-@lru_cache(maxsize=4)
-def _load_pro_pace_vs_grade_cached(csv_path: str) -> pd.DataFrame:
+def _load_pro_pace_vs_grade(csv_path: str | Path | None = None) -> pd.DataFrame:
+    """Charge une table de reference allure vs pente.
+
+    Source:
+    - si csv_path est fourni: charge ce fichier
+    - sinon, si la variable d'environnement COURSESCOPE_PRO_PACE_VS_GRADE_PATH pointe vers
+      un fichier existant: charge ce fichier (modifiable par l'utilisateur)
+    - sinon: charge la ressource embarquee dans core/resources/pro_pace_vs_grade.csv
+
+    Retourne un DataFrame avec colonnes grade_percent, pace_s_per_km_pro (peut etre vide).
+    """
+
+    if csv_path is not None:
+        path = Path(csv_path).expanduser()
+        if not path.is_absolute():
+            path = (Path.cwd() / path)
+        try:
+            resolved = path.resolve()
+        except Exception:
+            resolved = path
+        try:
+            mtime_ns = resolved.stat().st_mtime_ns
+        except OSError:
+            mtime_ns = None
+        return _load_pro_pace_vs_grade_from_file(str(resolved), mtime_ns)
+
+    override = os.environ.get(PRO_PACE_VS_GRADE_ENV_VAR)
+    if override:
+        path = Path(override).expanduser()
+        if not path.is_absolute():
+            path = (Path.cwd() / path)
+        try:
+            resolved = path.resolve()
+        except Exception:
+            resolved = path
+        if resolved.exists():
+            try:
+                mtime_ns = resolved.stat().st_mtime_ns
+            except OSError:
+                mtime_ns = None
+            return _load_pro_pace_vs_grade_from_file(str(resolved), mtime_ns)
+
+    return _load_pro_pace_vs_grade_from_package()
+
+
+@lru_cache(maxsize=8)
+def _load_pro_pace_vs_grade_from_file(csv_path: str, mtime_ns: int | None) -> pd.DataFrame:
+    _ = mtime_ns  # participe a la cle de cache
     try:
         df = pd.read_csv(Path(csv_path))
     except FileNotFoundError:
-        return pd.DataFrame(columns=["grade_percent", "pace_s_per_km_pro"])
+        return _empty_pro_pace_vs_grade_df()
+    except Exception:
+        return _empty_pro_pace_vs_grade_df()
+
     expected_cols = {"grade_percent", "pace_s_per_km_pro"}
     if not expected_cols.issubset(df.columns):
-        return pd.DataFrame(columns=["grade_percent", "pace_s_per_km_pro"])
-    df = df.dropna(subset=["grade_percent", "pace_s_per_km_pro"])
-    return df
+        return _empty_pro_pace_vs_grade_df()
+    return df.dropna(subset=["grade_percent", "pace_s_per_km_pro"])
+
+
+@lru_cache(maxsize=1)
+def _load_pro_pace_vs_grade_from_package() -> pd.DataFrame:
+    try:
+        file = resources.files(PRO_PACE_VS_GRADE_RESOURCE_PACKAGE).joinpath(PRO_PACE_VS_GRADE_RESOURCE_NAME)
+        with file.open("rb") as f:
+            df = pd.read_csv(f)
+    except (FileNotFoundError, ModuleNotFoundError):
+        return _empty_pro_pace_vs_grade_df()
+    except Exception:
+        return _empty_pro_pace_vs_grade_df()
+
+    expected_cols = {"grade_percent", "pace_s_per_km_pro"}
+    if not expected_cols.issubset(df.columns):
+        return _empty_pro_pace_vs_grade_df()
+    return df.dropna(subset=["grade_percent", "pace_s_per_km_pro"])
 
 
 def compute_moving_mask(
@@ -65,7 +132,7 @@ def compute_moving_mask(
     if active.size:
         low_active = speed_med[active] < float(pause_threshold_m_s)
         if low_active.any():
-            # Run-length encode contiguous low-speed runs in the active index space.
+            # Encodage RLE (run-length) des sequences contigues "low speed" sur l'espace des index actifs.
             starts = np.flatnonzero(
                 np.concatenate(([low_active[0]], low_active[1:] & ~low_active[:-1]))
             )
