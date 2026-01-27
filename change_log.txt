@@ -1,6 +1,19 @@
 CHANGE LOG
-Unreleased (post-v1.1.2)
-Date: 2026-01-26
+Unreleased (post-v1.1.3)
+Date: 2026-01-27
+
+
+Version: v1.1.2 -> v1.1.3
+Date: 2026-01-27
+
+Objectif
+- Performance/stabilite du parsing GPX/FIT + outils de profilage reproductibles.
+
+Nouveautes
+- Ajout d'un harness de profilage backend (sans Streamlit): tools/profile_pipeline.py.
+- Perf GPX: extraction des extensions (hr/cadence/power) en un seul passage par point.
+- Perf FIT: reduction drastique des appels record.get_value via lookup par record (champs + unites).
+- Contrat: centralisation de l'ordre des colonnes (COLUMNS) dans core/contracts/activity_df_contract.py, partage par les deux loaders.
 
 Objectif
 - Ajouter des metriques supplementaires (style Garmin) principalement depuis FIT, sans casser GPX.

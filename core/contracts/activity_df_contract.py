@@ -44,6 +44,10 @@ CANONICAL_COLUMNS: tuple[str, ...] = (
 )
 
 
+# Alias historique utilise par les loaders GPX/FIT pour fixer l'ordre des colonnes.
+COLUMNS: tuple[str, ...] = CANONICAL_COLUMNS
+
+
 # Ensemble minimal requis par la plupart des analyses.
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "distance_m",

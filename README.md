@@ -1,4 +1,4 @@
-# CourseScope (v1.1.2)
+# CourseScope (v1.1.3)
 
 CourseScope est une app Streamlit locale pour analyser des traces running GPX/FIT (carte, graphes, splits, zones type Garmin, GAP/pente) et estimer un temps theorique sur un trace selon une allure de base et la pente. Backend Python prepare pour une future API.
 
@@ -7,7 +7,7 @@ La v1.1 est une refacto interne (aucune feature supprimee) qui separe:
 - `services/` (orchestration, pur Python)
 - `ui/` (Streamlit, rendu uniquement)
 
-Version courante: v1.1.2 (patch de v1.1)
+Version courante: v1.1.3 (patch de v1.1)
 
 Depuis v1.1.1, le backend est durci pour preparer une migration FastAPI/React:
 - contrat DataFrame canonique (validation/coercion)
@@ -117,9 +117,25 @@ Compatibilite:
 - Si une metrique FIT est absente: valeur `NaN`/`None` et l'UI masque les panneaux associes.
 
 
+## Profilage (perf)
+
+Un harness de profilage (sans Streamlit) est fourni pour mesurer rapidement le backend sur un fichier GPX/FIT.
+
+Depuis la racine du projet (Windows, venv actif):
+
+```bat
+.venv\Scripts\python.exe tools\profile_pipeline.py --input tests\course.gpx --mode all --repeat 3 --json-out profiles\profile_gpx.json
+.venv\Scripts\python.exe tools\profile_pipeline.py --input tests\course.fit --mode all --repeat 3 --json-out profiles\profile_fit.json
+```
+
+Notes:
+- `profiles/` est un dossier local (ignore par git).
+- `--tracemalloc` existe mais ajoute un surcout important (a reserver a des diagnostics memoire).
+
+
 ## Tests
 
-La v1.1.2 fournit:
+La v1.1.3 fournit:
 - des smoke tests minimalistes (sans framework) pour eviter les regressions
 - des tests unitaires (unittest) pour valider les fonctions de base apres refacto
 
@@ -156,10 +172,10 @@ python -m compileall -q core services ui tests CourseScope.py
 ```
 
 
-## Structure du projet (v1.1.2)
+## Structure du projet (v1.1.3)
 
 ```
-CourseScope/
+  CourseScope/
   CourseScope.py
   run_win.bat
   run_linux.sh
@@ -168,6 +184,7 @@ CourseScope/
   services/
   ui/
   tests/
+  tools/
 ```
 
 ### Core (pur Python)
@@ -204,11 +221,11 @@ Pour utiliser une table personnalisable par l'utilisateur:
 
 ## Notes pour developpement / contributions
 
-Regle principale v1.1.2:
+Regle principale v1.1.3:
 - `core/` et `services/` ne doivent pas importer Streamlit.
 - Streamlit reste confine a `ui/`.
 
-Regle v1.1.2 (prepa API):
+Regle v1.1.3 (prepa API):
 - valider le DataFrame canonique a la frontiere service (voir services/activity_service.py)
 - pour une future API, utiliser services/analysis_service.py + services/serialization.py
 

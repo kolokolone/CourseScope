@@ -238,6 +238,9 @@ Thumbs.db
 # Streamlit
 .streamlit/secrets.toml
 
+# Local profiling outputs
+profiles/
+
 # Local env files
 .env
 .env.*
