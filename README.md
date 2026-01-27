@@ -1,4 +1,4 @@
-# CourseScope (v1.1.3)
+# CourseScope (v1.1.4)
 
 CourseScope est une app Streamlit locale pour analyser des traces running GPX/FIT (carte, graphes, splits, zones type Garmin, GAP/pente) et estimer un temps theorique sur un trace selon une allure de base et la pente. Backend Python prepare pour une future API.
 
@@ -7,7 +7,7 @@ La v1.1 est une refacto interne (aucune feature supprimee) qui separe:
 - `services/` (orchestration, pur Python)
 - `ui/` (Streamlit, rendu uniquement)
 
-Version courante: v1.1.3 (patch de v1.1)
+Version courante: v1.1.4 (patch de v1.1)
 
 Depuis v1.1.1, le backend est durci pour preparer une migration FastAPI/React:
 - contrat DataFrame canonique (validation/coercion)
@@ -135,7 +135,7 @@ Notes:
 
 ## Tests
 
-La v1.1.3 fournit:
+La v1.1.4 fournit:
 - des smoke tests minimalistes (sans framework) pour eviter les regressions
 - des tests unitaires (unittest) pour valider les fonctions de base apres refacto
 
@@ -165,6 +165,14 @@ Depuis le dossier du projet (avec le venv actif):
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
+### Tests pytest
+
+La suite pytest (tests cibles) vit dans `tests/pytest/`.
+
+```bash
+python -m pytest -q
+```
+
 ### Compilation (sanity check)
 
 ```bash
@@ -172,7 +180,7 @@ python -m compileall -q core services ui tests CourseScope.py
 ```
 
 
-## Structure du projet (v1.1.3)
+## Structure du projet (v1.1.4)
 
 ```
   CourseScope/
@@ -194,6 +202,8 @@ python -m compileall -q core services ui tests CourseScope.py
 - `core/stats/basic_stats.py`: stats de base unifiees
 - `core/derived.py`: bundle de series derivees
 - `core/real_run_analysis.py`: calculs + figures Plotly (reel)
+- `core/ref_data.py`: providers de donnees de reference (ex: Ref pro)
+- `core/transform_report.py`: reporting testable (rows_in/rows_out)
 - `core/metrics.py`: stats style Garmin + zones
 - `core/theoretical_model.py`: modele theorique + figures Plotly
 - `core/formatting.py`, `core/parsing.py`: helpers partages
@@ -221,11 +231,11 @@ Pour utiliser une table personnalisable par l'utilisateur:
 
 ## Notes pour developpement / contributions
 
-Regle principale v1.1.3:
+Regle principale v1.1.4:
 - `core/` et `services/` ne doivent pas importer Streamlit.
 - Streamlit reste confine a `ui/`.
 
-Regle v1.1.3 (prepa API):
+Regle v1.1.4 (prepa API):
 - valider le DataFrame canonique a la frontiere service (voir services/activity_service.py)
 - pour une future API, utiliser services/analysis_service.py + services/serialization.py
 

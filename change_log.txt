@@ -1,6 +1,24 @@
 CHANGE LOG
-Unreleased (post-v1.1.3)
+Unreleased (post-v1.1.4)
 Date: 2026-01-27
+
+
+Version: v1.1.3 -> v1.1.4
+Date: 2026-01-27
+
+Objectif
+- Fiabilite/maintenabilite du pipeline DataFrame, sans casser l'UI.
+
+Nouveautes
+- Decouplage: extraction des DataFrames intermediaires hors des fonctions de plotting:
+  - core/real_run_analysis.py: compute_pace_vs_grade_data / compute_residuals_vs_grade_data.
+- Observabilite: TransformReport (rows_in/rows_out + raison) + points d'accroche:
+  - core/theoretical_model.py: compute_theoretical_timing(report=...).
+  - services/real_activity_service.py: compute_map_df(report=...).
+- Ref data: provider unique pour Ref pro:
+  - core/ref_data.py (cache + sha256 debug).
+- Serialisation: df_to_records force NaN/NaT -> None (JSON) sans muter le DF d'entree.
+- Tests: ajout d'une suite pytest (tests/pytest) + ajout de pytest dans requirements.
 
 
 Version: v1.1.2 -> v1.1.3
