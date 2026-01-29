@@ -6,3 +6,11 @@ numpy
 plotly
 pydeck
 pytest
+
+# FastAPI Backend
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+httpx
+pyarrow

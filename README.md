@@ -1,4 +1,4 @@
-# CourseScope (v1.1.4)
+# CourseScope (v1.1.5)
 
 CourseScope est une app Streamlit locale pour analyser des traces running GPX/FIT (carte, graphes, splits, zones type Garmin, GAP/pente) et estimer un temps theorique sur un trace selon une allure de base et la pente. Backend Python prepare pour une future API.
 
@@ -7,7 +7,7 @@ La v1.1 est une refacto interne (aucune feature supprimee) qui separe:
 - `services/` (orchestration, pur Python)
 - `ui/` (Streamlit, rendu uniquement)
 
-Version courante: v1.1.4 (patch de v1.1)
+Version courante: v1.1.5 (patch de v1.1)
 
 Depuis v1.1.1, le backend est durci pour preparer une migration FastAPI/React:
 - contrat DataFrame canonique (validation/coercion)
@@ -93,6 +93,51 @@ streamlit run CourseScope.py
 ```
 
 
+## API + Frontend (transition)
+
+Streamlit reste l'UI legacy et continue de fonctionner. La nouvelle stack tourne en parallele.
+
+### Backend API (FastAPI)
+
+Depuis la racine du projet (venv active):
+
+```bash
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Endpoints principaux:
+- `POST /activity/load`
+- `GET /activity/{id}/real`
+- `GET /activity/{id}/theoretical`
+- `GET /activity/{id}/series/{name}?x_axis=time|distance&from=&to=&downsample=`
+- `GET /activity/{id}/map?downsample=`
+
+Stockage:
+- Les activites sont persistees dans `./data/activities/{id}/` (fichier original, `df.parquet`, `meta.json`).
+
+### Frontend (Next.js)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Par defaut, le frontend cible `http://localhost:8000`.
+Pour changer:
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+### Conventions API
+
+- `x_axis=time` -> secondes depuis le depart
+- `x_axis=distance` -> metres depuis le depart
+- `from/to` dans l'unite de `x_axis`
+- slicing AVANT downsampling
+- les series sont renvoyees en `x[]`/`y[]`
+
 ## Utilisation
 
 1) Ouvrir l'app dans le navigateur (URL affichee par Streamlit).
@@ -176,11 +221,11 @@ python -m pytest -q
 ### Compilation (sanity check)
 
 ```bash
-python -m compileall -q core services ui tests CourseScope.py
+python -m compileall -q core services ui api registry storage tests CourseScope.py
 ```
 
 
-## Structure du projet (v1.1.4)
+## Structure du projet (v1.1.5)
 
 ```
   CourseScope/
@@ -188,12 +233,18 @@ python -m compileall -q core services ui tests CourseScope.py
   run_win.bat
   run_linux.sh
   requirements.txt
+  api/
   core/
   services/
+  registry/
+  storage/
   ui/
+  frontend/
   tests/
   tools/
 ```
+
+Note: la structure "backend/" n'est pas encore materialisee. Le backend est actuellement reparti entre `api/`, `core/`, `services/`, `registry/` et `storage/`.
 
 ### Core (pur Python)
 - `core/gpx_loader.py`, `core/fit_loader.py`: parsing -> DataFrame canonique

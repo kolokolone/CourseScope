@@ -19,9 +19,20 @@ class ActivityTypeDetection:
 @dataclass(frozen=True)
 class LoadedActivity:
     name: str
-    df: pd.DataFrame
+    df: pd.DataFrame | None
     gpx_type: ActivityTypeDetection
     track_count: int
+    
+    # Champs ajoutés pour compatibilité API
+    @property
+    def type(self) -> str:
+        """Retourne le type pour l'API ('real' ou 'theoretical')"""
+        return "real" if self.gpx_type.type == "real_run" else "theoretical"
+    
+    @property
+    def raw_bytes(self) -> bytes:
+        """Placeholder - à implémenter avec stockage réel"""
+        return b""
 
 
 @dataclass(frozen=True)

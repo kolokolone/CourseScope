@@ -1,6 +1,7 @@
-1. Contexte general (v1.1.4)
+1. Contexte general (v1.1.5)
 
 Application web locale en Python (Streamlit) pour analyser et preparer des courses a pied a partir de traces GPX/FIT.
+Transition en cours vers une API FastAPI et un frontend Next.js, sans casser l'UI legacy.
 
 Deux cas d'usage principaux :
 
@@ -99,7 +100,7 @@ Contient:
 - Cache Streamlit (st.cache_data) conserve uniquement au niveau UI.
 
 
-6. Arborescence v1.1.4 (fichiers importants)
+6. Arborescence v1.1.5 (fichiers importants)
 
 CourseScope.py
 run_win.bat
@@ -158,6 +159,19 @@ tests/
 
 tools/
   profile_pipeline.py         # NEW v1.1.3 (harness profilage backend)
+api/
+  main.py
+  routes/
+  schemas.py
+
+registry/
+  series_registry.py
+
+storage/
+  activity_store.py
+
+frontend/
+  (Next.js app)
 
 
 7. Donnees (schemas DataFrame)
@@ -456,6 +470,7 @@ Execution recommande (venv):
 
 13. Roadmap migration (API + front)
 
-- Reutiliser services/* comme "backend applicatif" pour une API FastAPI.
+- Reutiliser services/* comme "backend applicatif" pour l'API FastAPI (en cours).
+- Frontend Next.js en parallele, branche sur l'API.
 - Remplacer progressivement st.cache_data par un cache portable base sur hash(bytes)+params.
 - Definir des schemas de serialisation (DataFrame -> json/parquet) si passage HTTP.
