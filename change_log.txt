@@ -10,6 +10,7 @@ Nouveautes
 - API expose davantage de metriques (summary, zones, best efforts, splits, pacing, cadence, power).
 - Frontend Next.js metrics-only (sans cartes ni charts) + sections par categories.
 - Tests frontend: Vitest + Testing Library (upload, page metrics, error state).
+- Catalogue des metriques mis a jour (docs/metrics_catalog.md).
 
 Changements
 - Mise a jour des scripts CI/Docs pour `backend.api.main:app`.

@@ -1,8 +1,27 @@
 # Metrics Catalog
 
-Generated from live API responses using `tests/course.gpx`.
+Compiled from API schemas and backend metric builders (`backend/api/schemas.py`, `backend/core/real_run_analysis.py`, `backend/core/metrics.py`).
 
-## Real Activity Metrics
+## Activity Load (POST /activity/load)
+
+### Sidebar stats
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `stats_sidebar.distance_km` | float | km | distance km |
+| `stats_sidebar.elapsed_time_s` | float | s | elapsed time s |
+| `stats_sidebar.moving_time_s` | float | s | moving time s |
+| `stats_sidebar.elevation_gain_m` | float | m | elevation gain m |
+
+### Limits
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `limits.downsampled` | bool | - | downsampled |
+| `limits.dataframe_limit` | int | - | dataframe limit |
+| `limits.note` | string | - | note |
+
+## Real Activity Metrics (GET /activity/{id}/real)
 
 ### Infos de course
 
@@ -59,25 +78,25 @@ Generated from live API responses using `tests/course.gpx`.
 
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |
-| `zones.heart_rate.type` | str | - | type |
-| `zones.heart_rate.shape[]` | array | - | shape |
-| `zones.heart_rate.columns[]` | array | - | columns |
+| `zones.heart_rate.type` | string | - | dataframe type |
+| `zones.heart_rate.shape[]` | array | - | dataframe shape |
+| `zones.heart_rate.columns[]` | array | - | dataframe columns |
 | `zones.heart_rate.records[]` | array<object> | - | records |
 | `zones.heart_rate.records[].zone` | unknown | - | zone |
 | `zones.heart_rate.records[].range` | unknown | - | range |
 | `zones.heart_rate.records[].time_s` | unknown | s | time s |
 | `zones.heart_rate.records[].time_pct` | unknown | % | time pct |
-| `zones.pace.type` | str | - | type |
-| `zones.pace.shape[]` | array | - | shape |
-| `zones.pace.columns[]` | array | - | columns |
+| `zones.pace.type` | string | - | dataframe type |
+| `zones.pace.shape[]` | array | - | dataframe shape |
+| `zones.pace.columns[]` | array | - | dataframe columns |
 | `zones.pace.records[]` | array<object> | - | records |
 | `zones.pace.records[].zone` | unknown | - | zone |
 | `zones.pace.records[].range` | unknown | - | range |
 | `zones.pace.records[].time_s` | unknown | s | time s |
 | `zones.pace.records[].time_pct` | unknown | % | time pct |
-| `zones.power.type` | str | - | type |
-| `zones.power.shape[]` | array | - | shape |
-| `zones.power.columns[]` | array | - | columns |
+| `zones.power.type` | string | - | dataframe type |
+| `zones.power.shape[]` | array | - | dataframe shape |
+| `zones.power.columns[]` | array | - | dataframe columns |
 | `zones.power.records[]` | array<object> | - | records |
 | `zones.power.records[].zone` | unknown | - | zone |
 | `zones.power.records[].range` | unknown | - | range |
@@ -101,6 +120,18 @@ Generated from live API responses using `tests/course.gpx`.
 | `pauses.items[].lat` | unknown | - | lat |
 | `pauses.items[].lon` | unknown | - | lon |
 | `pauses.items[].label` | unknown | - | label |
+
+### Climbs
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `climbs.items[]` | array<object> | - | items |
+| `climbs.items[].distance_km` | unknown | km | climb distance km |
+| `climbs.items[].elevation_gain_m` | unknown | m | climb elevation gain m |
+| `climbs.items[].avg_grade_percent` | unknown | % | average grade percent |
+| `climbs.items[].vam_m_h` | unknown | m/h | vertical ascent rate |
+| `climbs.items[].start_idx` | unknown | - | start index |
+| `climbs.items[].end_idx` | unknown | - | end index |
 
 ### Splits
 
@@ -134,8 +165,8 @@ Generated from live API responses using `tests/course.gpx`.
 | --- | --- | --- | --- |
 | `cadence.mean_spm` | float | spm | mean spm |
 | `cadence.max_spm` | float | spm | max spm |
-| `cadence.target_spm` | NoneType | spm | target spm |
-| `cadence.above_target_pct` | NoneType | % | above target pct |
+| `cadence.target_spm` | float | spm | target spm |
+| `cadence.above_target_pct` | float | % | above target pct |
 
 ### Power
 
@@ -145,9 +176,9 @@ Generated from live API responses using `tests/course.gpx`.
 | `power.max_w` | float | W | max w |
 | `power.ftp_w` | float | W | ftp w |
 | `power.ftp_estimated` | bool | - | ftp estimated |
-| `power.zones.type` | str | - | type |
-| `power.zones.shape[]` | array | - | shape |
-| `power.zones.columns[]` | array | - | columns |
+| `power.zones.type` | string | - | dataframe type |
+| `power.zones.shape[]` | array | - | dataframe shape |
+| `power.zones.columns[]` | array | - | dataframe columns |
 | `power.zones.records[]` | array<object> | - | records |
 | `power.zones.records[].zone` | unknown | - | zone |
 | `power.zones.records[].range` | unknown | - | range |
@@ -159,10 +190,10 @@ Generated from live API responses using `tests/course.gpx`.
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |
 | `running_dynamics.stride_length_mean_m` | float | m | stride length mean m |
-| `running_dynamics.vertical_oscillation_mean_cm` | NoneType | - | vertical oscillation mean cm |
-| `running_dynamics.vertical_ratio_mean_pct` | NoneType | % | vertical ratio mean pct |
-| `running_dynamics.ground_contact_time_mean_ms` | NoneType | - | ground contact time mean ms |
-| `running_dynamics.gct_balance_mean_pct` | NoneType | % | gct balance mean pct |
+| `running_dynamics.vertical_oscillation_mean_cm` | float | cm | vertical oscillation mean cm |
+| `running_dynamics.vertical_ratio_mean_pct` | float | % | vertical ratio mean pct |
+| `running_dynamics.ground_contact_time_mean_ms` | float | ms | ground contact time mean ms |
+| `running_dynamics.gct_balance_mean_pct` | float | % | gct balance mean pct |
 
 ### Power advanced
 
@@ -172,6 +203,16 @@ Generated from live API responses using `tests/course.gpx`.
 | `power_advanced.intensity_factor` | float | - | intensity factor |
 | `power_advanced.tss` | float | - | tss |
 
+### Series index
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `series_index.available[]` | array<object> | - | available series |
+| `series_index.available[].name` | string | - | series name |
+| `series_index.available[].unit` | string | - | unit |
+| `series_index.available[].x_axes[]` | array | - | allowed x axes |
+| `series_index.available[].default` | bool | - | default series |
+
 ### Limits
 
 | Path | Type | Unit | Description |
@@ -179,9 +220,9 @@ Generated from live API responses using `tests/course.gpx`.
 | `limits.downsampled` | bool | - | downsampled |
 | `limits.original_points` | int | - | original points |
 | `limits.returned_points` | int | - | returned points |
-| `limits.note` | NoneType | - | note |
+| `limits.note` | string | - | note |
 
-## Theoretical Activity Metrics
+## Theoretical Activity Metrics (GET /activity/{id}/theoretical)
 
 ### Infos de course
 
@@ -192,11 +233,20 @@ Generated from live API responses using `tests/course.gpx`.
 | `summary.average_pace_s_per_km` | float | s/km | average pace s per km |
 | `summary.elevation_gain_m` | float | m | elevation gain m |
 
+### Series index
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `series_index.available[]` | array<object> | - | available series |
+| `series_index.available[].name` | string | - | series name |
+| `series_index.available[].unit` | string | - | unit |
+| `series_index.available[].x_axes[]` | array | - | allowed x axes |
+| `series_index.available[].default` | bool | - | default series |
+
 ### Limits
 
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |
 | `limits.downsampled` | bool | - | downsampled |
 | `limits.original_points` | int | - | original points |
-| `limits.returned_points` | int | - | returned points |
-| `limits.note` | NoneType | - | note |
+| `limits.note` | string | - | note |

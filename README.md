@@ -119,9 +119,10 @@ Stockage:
 
 ```bash
 cd frontend
-npm install
-npm run dev
-npm run test
+pnpm install
+pnpm dev
+pnpm build
+pnpm test
 ```
 
 Par defaut, le frontend cible `http://localhost:8000`.
@@ -130,6 +131,9 @@ Pour changer:
 ```
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
+
+Note v1.1.6:
+- Le frontend est volontairement "metrics-only" (pas de cartes ni graphs).
 
 ### Conventions API
 

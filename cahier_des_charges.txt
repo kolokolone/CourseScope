@@ -3,6 +3,11 @@
 Application web locale en Python (Streamlit) pour analyser et preparer des courses a pied a partir de traces GPX/FIT.
 Transition en cours vers une API FastAPI et un frontend Next.js, sans casser l'UI legacy.
 
+Etat transition v1.1.6:
+- FastAPI expose /activity/load, /activity/{id}/real, /activity/{id}/theoretical, series, map.
+- Frontend Next.js "metrics-only" (upload -> page metriques), sans cartes ni graphes.
+- Streamlit legacy reste l'UI de reference.
+
 Deux cas d'usage principaux :
 
 1) Analyse "reelle" (course effectuee)

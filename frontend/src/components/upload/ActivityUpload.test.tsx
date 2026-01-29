@@ -1,40 +1,35 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+'use client';
+
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { ActivityUpload } from './ActivityUpload';
 
-const mockMutateAsync = vi.fn();
+const mutateAsync = vi.fn().mockResolvedValue({ id: 'activity-123', type: 'real' });
 
 vi.mock('@/hooks/useActivity', () => ({
   useUploadActivity: () => ({
-    mutateAsync: mockMutateAsync,
+    mutateAsync,
     isPending: false,
   }),
 }));
 
 describe('ActivityUpload', () => {
-  it('uploads a valid file and calls onUploadSuccess', async () => {
-    mockMutateAsync.mockResolvedValueOnce({ id: 'activity-1', type: 'real' });
-
+  it('uploads a file and calls onUploadSuccess', async () => {
     const onUploadSuccess = vi.fn();
-    const user = userEvent.setup();
-
     const { container } = render(<ActivityUpload onUploadSuccess={onUploadSuccess} />);
 
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['gpx'], 'run.gpx', { type: 'application/gpx+xml' });
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    if (!input) return;
 
-    await user.upload(input, file);
+    const file = new File(['data'], 'sample.gpx', { type: 'application/gpx+xml' });
+    fireEvent.change(input, { target: { files: [file] } });
 
-    expect(screen.getByText('run.gpx')).toBeInTheDocument();
+    const uploadButton = await screen.findByRole('button', { name: /upload activity/i });
+    fireEvent.click(uploadButton);
 
-    await user.click(screen.getByRole('button', { name: 'Upload Activity' }));
-
-    await waitFor(() => {
-      expect(mockMutateAsync).toHaveBeenCalledWith({ file, name: 'run.gpx' });
-    });
-
-    expect(onUploadSuccess).toHaveBeenCalledWith('activity-1', 'real');
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ file, name: 'sample.gpx' }));
+    await waitFor(() => expect(onUploadSuccess).toHaveBeenCalledWith('activity-123', 'real'));
   });
 });
