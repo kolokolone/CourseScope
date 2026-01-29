@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, X } from 'lucide-react';
+import { Upload, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUploadActivity } from '@/hooks/useActivity';
@@ -16,47 +16,53 @@ export function ActivityUpload({ onUploadSuccess }: ActivityUploadProps) {
   const [uploadingFile, setUploadingFile] = useState<File | null>(null);
   const uploadMutation = useUploadActivity();
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) return;
-    
-    const file = acceptedFiles[0];
-    const fileName = file.name.toLowerCase();
-    
-    // Validation .gpx/.fit
-    if (!fileName.endsWith('.gpx') && !fileName.endsWith('.fit')) {
-      alert('Please upload a GPX or FIT file');
-      return;
-    }
-    
-    // Validation taille (100MB)
-    if (file.size > 100 * 1024 * 1024) {
-      alert('File too large. Maximum size is 100MB');
-      return;
-    }
-    
-    setUploadingFile(file);
-  }, []);
+  const startUpload = useCallback(
+    async (file: File) => {
+      setUploadingFile(file);
 
-  const uploadFile = useCallback(async () => {
-    if (!uploadingFile) return;
-    
-    try {
-      const result = await uploadMutation.mutateAsync({
-        file: uploadingFile,
-        name: uploadingFile.name
-      });
-      
-      onUploadSuccess(result.id, result.type);
-      setUploadingFile(null);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        alert(`Upload failed: ${error.message}`);
-      } else {
-        alert('Upload failed: Unknown error');
+      try {
+        const result = await uploadMutation.mutateAsync({
+          file,
+          name: file.name,
+        });
+
+        onUploadSuccess(result.id, result.type);
+        setUploadingFile(null);
+      } catch (error) {
+        if (error instanceof ApiError) {
+          alert(`Upload failed: ${error.message}`);
+        } else {
+          alert('Upload failed: Unknown error');
+        }
+        setUploadingFile(null);
       }
-      setUploadingFile(null);
-    }
-  }, [uploadingFile, uploadMutation, onUploadSuccess]);
+    },
+    [uploadMutation, onUploadSuccess]
+  );
+
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length === 0) return;
+
+      const file = acceptedFiles[0];
+      const fileName = file.name.toLowerCase();
+
+      // Validation .gpx/.fit
+      if (!fileName.endsWith('.gpx') && !fileName.endsWith('.fit')) {
+        alert('Please upload a GPX or FIT file');
+        return;
+      }
+
+      // Validation taille (100MB)
+      if (file.size > 100 * 1024 * 1024) {
+        alert('File too large. Maximum size is 100MB');
+        return;
+      }
+
+      startUpload(file);
+    },
+    [startUpload]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -65,12 +71,9 @@ export function ActivityUpload({ onUploadSuccess }: ActivityUploadProps) {
       'application/octet-stream': ['.fit']
     },
     maxFiles: 1,
-    multiple: false
+    multiple: false,
+    disabled: uploadMutation.isPending
   });
-
-  const cancelUpload = () => {
-    setUploadingFile(null);
-  };
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
@@ -124,31 +127,10 @@ export function ActivityUpload({ onUploadSuccess }: ActivityUploadProps) {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={cancelUpload}
-                disabled={uploadMutation.isPending}
-              >
-                <X className="h-4 w-4" />
-              </Button>
             </div>
-            
-            <div className="flex gap-2">
-              <Button
-                onClick={uploadFile}
-                disabled={uploadMutation.isPending}
-                className="flex-1"
-              >
-                {uploadMutation.isPending ? 'Uploading...' : 'Upload Activity'}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={cancelUpload}
-                disabled={uploadMutation.isPending}
-              >
-                Cancel
-              </Button>
+
+            <div className="flex items-center justify-center rounded-md border border-dashed border-gray-200 py-4 text-sm text-gray-600">
+              Uploading and analyzing...
             </div>
           </div>
         )}

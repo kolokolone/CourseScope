@@ -1,6 +1,6 @@
 'use client';
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { ActivityUpload } from './ActivityUpload';
@@ -25,9 +25,6 @@ describe('ActivityUpload', () => {
 
     const file = new File(['data'], 'sample.gpx', { type: 'application/gpx+xml' });
     fireEvent.change(input, { target: { files: [file] } });
-
-    const uploadButton = await screen.findByRole('button', { name: /upload activity/i });
-    fireEvent.click(uploadButton);
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ file, name: 'sample.gpx' }));
     await waitFor(() => expect(onUploadSuccess).toHaveBeenCalledWith('activity-123', 'real'));
