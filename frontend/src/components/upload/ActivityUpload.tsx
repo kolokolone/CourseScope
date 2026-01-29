@@ -31,6 +31,15 @@ export function ActivityUpload({ onUploadSuccess }: ActivityUploadProps) {
       } catch (error) {
         if (error instanceof ApiError) {
           alert(`Upload failed: ${error.message}`);
+        } else if (error instanceof Error) {
+          const message = error.message || 'Unknown error';
+          const lower = message.toLowerCase();
+          const hint = lower.includes('failed to fetch') || lower.includes('network') || lower.includes('err_failed')
+            ? `Network error (${message}). Check API URL, CORS, or backend availability.`
+            : lower.includes('failed to parse url')
+              ? `Invalid API URL (${message}). Check NEXT_PUBLIC_API_URL formatting.`
+              : message;
+          alert(`Upload failed: ${hint}`);
         } else {
           alert('Upload failed: Unknown error');
         }
