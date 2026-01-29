@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CourseScope API",
     description="Analytics pour traces GPX/FIT",
-    version="2.0.0",
+    version="1.1.6",
     lifespan=lifespan,
 )
 
@@ -60,7 +60,7 @@ def get_series_registry():
 async def root():
     return {
         "message": "CourseScope API",
-        "version": "2.0.0",
+        "version": "1.1.6",
         "docs": "/docs",
         "status": "operational",
     }
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "api.main:app",
+        "backend.api.main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,

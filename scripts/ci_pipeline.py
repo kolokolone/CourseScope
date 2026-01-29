@@ -67,7 +67,7 @@ def run_api_tests():
     try:
         # Lancer le serveur en arrière-plan
         api_process = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"],
+            [sys.executable, "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -108,14 +108,14 @@ def run_sync_tests():
         
         # Démarrer API
         api_process = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"],
+            [sys.executable, "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
         
         # Démarrer Streamlit
         streamlit_process = subprocess.Popen(
-            [sys.executable, "-m", "streamlit", "run", "frontend/streamlit_app.py", "--server.port", "8501", "--server.headless", "true"],
+            [sys.executable, "-m", "streamlit", "run", "CourseScope.py", "--server.port", "8501", "--server.headless", "true"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -193,9 +193,9 @@ def generate_report(results):
         "results": results,
         "summary": {
             "total_tests": len(results),
-            "passed": sum(1 for r in results if r["success"]),
+            "passed": sum(1 for r in results if r['success']),
             "failed": sum(1 for r in results if not r["success"]),
-            "success_rate": f"{(sum(1 for r in results if r["success"]) / len(results) * 100):.1f}%"
+            "success_rate": f"{(sum(1 for r in results if r['success']) / len(results) * 100):.1f}%"
         }
     }
     

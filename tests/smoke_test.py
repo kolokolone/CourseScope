@@ -6,10 +6,13 @@ from pathlib import Path
 
 TESTS_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = TESTS_DIR.parent
+BACKEND_DIR = PROJECT_DIR / "backend"
 GPX_PATH = TESTS_DIR / "course.gpx"
 FIT_PATH = TESTS_DIR / "course.fit"
 
 # Execution possible via: `python tests/smoke_test.py`
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 

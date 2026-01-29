@@ -1,4 +1,27 @@
 CHANGE LOG
+Version: v1.1.5 -> v1.1.6
+Date: 2026-01-29
+
+Objectif
+- Finaliser une etape metrics-only FastAPI + Next.js sans casser Streamlit.
+
+Nouveautes
+- Backend consolide sous `backend/` (api/core/services/ui + registry/storage).
+- API expose davantage de metriques (summary, zones, best efforts, splits, pacing, cadence, power).
+- Frontend Next.js metrics-only (sans cartes ni charts) + sections par categories.
+- Tests frontend: Vitest + Testing Library (upload, page metrics, error state).
+
+Changements
+- Mise a jour des scripts CI/Docs pour `backend.api.main:app`.
+- Version uniforme v1.1.6 (README, API, package.json).
+
+Correctifs
+- Bootstrap tests/outils ajuste pour importer depuis `backend/`.
+
+Notes migration
+- Streamlit legacy reste fonctionnel (CourseScope.py).
+
+
 Version: v1.1.4 -> v1.1.5
 Date: 2026-01-29
 

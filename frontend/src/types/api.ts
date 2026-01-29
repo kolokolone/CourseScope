@@ -43,6 +43,13 @@ export interface RealActivityResponse {
   best_efforts?: Record<string, unknown>;
   pauses?: Record<string, unknown>;
   climbs?: Record<string, unknown>;
+  splits?: Record<string, unknown>;
+  garmin_summary?: Record<string, unknown>;
+  cadence?: Record<string, unknown>;
+  power?: Record<string, unknown>;
+  running_dynamics?: Record<string, unknown>;
+  power_advanced?: Record<string, unknown>;
+  pacing?: Record<string, unknown>;
   series_index: SeriesIndex;
   limits?: ActivityLimitsDetail;
 }

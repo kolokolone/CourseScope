@@ -1,13 +1,13 @@
-# CourseScope (v1.1.5)
+# CourseScope (v1.1.6)
 
 CourseScope est une app Streamlit locale pour analyser des traces running GPX/FIT (carte, graphes, splits, zones type Garmin, GAP/pente) et estimer un temps theorique sur un trace selon une allure de base et la pente. Backend Python prepare pour une future API.
 
 La v1.1 est une refacto interne (aucune feature supprimee) qui separe:
-- `core/` (pur Python)
-- `services/` (orchestration, pur Python)
-- `ui/` (Streamlit, rendu uniquement)
+- `backend/core/` (pur Python)
+- `backend/services/` (orchestration, pur Python)
+- `backend/ui/` (Streamlit, rendu uniquement)
 
-Version courante: v1.1.5 (patch de v1.1)
+Version courante: v1.1.6 (patch de v1.1)
 
 Depuis v1.1.1, le backend est durci pour preparer une migration FastAPI/React:
 - contrat DataFrame canonique (validation/coercion)
@@ -16,8 +16,8 @@ Depuis v1.1.1, le backend est durci pour preparer une migration FastAPI/React:
 - batterie de tests unitaires
 
 Depuis v1.1.2, la racine du projet est simplifiee:
-- suppression du shim `grade_table.py` (utiliser `core/grade_table.py`)
-- table "Ref pro" embarquee dans `core/resources/pro_pace_vs_grade.csv` (surcharge possible via `COURSESCOPE_PRO_PACE_VS_GRADE_PATH`)
+- suppression du shim `grade_table.py` (utiliser `backend/core/grade_table.py`)
+- table "Ref pro" embarquee dans `backend/core/resources/pro_pace_vs_grade.csv` (surcharge possible via `COURSESCOPE_PRO_PACE_VS_GRADE_PATH`)
 
 
 ## Prerequis
@@ -102,7 +102,7 @@ Streamlit reste l'UI legacy et continue de fonctionner. La nouvelle stack tourne
 Depuis la racine du projet (venv active):
 
 ```bash
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Endpoints principaux:
@@ -121,6 +121,7 @@ Stockage:
 cd frontend
 npm install
 npm run dev
+npm run test
 ```
 
 Par defaut, le frontend cible `http://localhost:8000`.
@@ -131,6 +132,8 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 ### Conventions API
+
+- Catalogue des metriques: `docs/metrics_catalog.md`.
 
 - `x_axis=time` -> secondes depuis le depart
 - `x_axis=distance` -> metres depuis le depart
@@ -221,11 +224,11 @@ python -m pytest -q
 ### Compilation (sanity check)
 
 ```bash
-python -m compileall -q core services ui api registry storage tests CourseScope.py
+python -m compileall -q backend/core backend/services backend/ui backend/api backend/registry backend/storage tests CourseScope.py
 ```
 
 
-## Structure du projet (v1.1.5)
+## Structure du projet (v1.1.6)
 
 ```
   CourseScope/
@@ -233,67 +236,67 @@ python -m compileall -q core services ui api registry storage tests CourseScope.
   run_win.bat
   run_linux.sh
   requirements.txt
-  api/
-  core/
-  services/
-  registry/
-  storage/
-  ui/
+  backend/api/
+  backend/core/
+  backend/services/
+  backend/registry/
+  backend/storage/
+  backend/ui/
   frontend/
   tests/
   tools/
 ```
 
-Note: la structure "backend/" n'est pas encore materialisee. Le backend est actuellement reparti entre `api/`, `core/`, `services/`, `registry/` et `storage/`.
+Note: la structure `backend/` regroupe desormais `backend/api/`, `backend/core/`, `backend/services/`, `backend/registry/`, `backend/storage/` et `backend/ui/`. Streamlit continue d'utiliser ces modules via `CourseScope.py`.
 
 ### Core (pur Python)
-- `core/gpx_loader.py`, `core/fit_loader.py`: parsing -> DataFrame canonique
-- `core/contracts/activity_df_contract.py`: contrat/validation DF canonique
-- `core/constants.py`: constantes partagees (seuils, defaults)
-- `core/stats/basic_stats.py`: stats de base unifiees
-- `core/derived.py`: bundle de series derivees
-- `core/real_run_analysis.py`: calculs + figures Plotly (reel)
-- `core/ref_data.py`: providers de donnees de reference (ex: Ref pro)
-- `core/transform_report.py`: reporting testable (rows_in/rows_out)
-- `core/metrics.py`: stats style Garmin + zones
-- `core/theoretical_model.py`: modele theorique + figures Plotly
-- `core/formatting.py`, `core/parsing.py`: helpers partages
-- `core/grade_table.py`: correction d'allure selon la pente (canonical)
-- `core/resources/pro_pace_vs_grade.csv`: table de reference "Ref pro" (optionnelle)
+- `backend/core/gpx_loader.py`, `backend/core/fit_loader.py`: parsing -> DataFrame canonique
+- `backend/core/contracts/activity_df_contract.py`: contrat/validation DF canonique
+- `backend/core/constants.py`: constantes partagees (seuils, defaults)
+- `backend/core/stats/basic_stats.py`: stats de base unifiees
+- `backend/core/derived.py`: bundle de series derivees
+- `backend/core/real_run_analysis.py`: calculs + figures Plotly (reel)
+- `backend/core/ref_data.py`: providers de donnees de reference (ex: Ref pro)
+- `backend/core/transform_report.py`: reporting testable (rows_in/rows_out)
+- `backend/core/metrics.py`: stats style Garmin + zones
+- `backend/core/theoretical_model.py`: modele theorique + figures Plotly
+- `backend/core/formatting.py`, `backend/core/parsing.py`: helpers partages
+- `backend/core/grade_table.py`: correction d'allure selon la pente (canonical)
+- `backend/core/resources/pro_pace_vs_grade.csv`: table de reference "Ref pro" (optionnelle)
 
 Pour utiliser une table personnalisable par l'utilisateur:
 - definir `COURSESCOPE_PRO_PACE_VS_GRADE_PATH` vers un fichier CSV (meme schema)
 
 ### Services (backend applicatif, pur Python)
-- `services/activity_service.py`: chargement + type detection + stats sidebar
-- `services/real_activity_service.py`: orchestration analyse reel
-- `services/theoretical_service.py`: orchestration prevision
-- `services/history_service.py`: helpers d'historique (pure functions)
-- `services/models.py`: dataclasses (contrats)
-- `services/cache.py`: cache portable (preparation migration API)
-- `services/serialization.py`: conversion en structures JSON-serialisables
-- `services/analysis_service.py`: points d'entree backend de haut niveau (cache injectable)
+- `backend/services/activity_service.py`: chargement + type detection + stats sidebar
+- `backend/services/real_activity_service.py`: orchestration analyse reel
+- `backend/services/theoretical_service.py`: orchestration prevision
+- `backend/services/history_service.py`: helpers d'historique (pure functions)
+- `backend/services/models.py`: dataclasses (contrats)
+- `backend/services/cache.py`: cache portable (preparation migration API)
+- `backend/services/serialization.py`: conversion en structures JSON-serialisables
+- `backend/services/analysis_service.py`: points d'entree backend de haut niveau (cache injectable)
 
 ### UI (Streamlit)
-- `ui/layout.py`: navigation + uploader + historique
-- `ui/real_run_view.py`: widgets + rendu reel
-- `ui/theoretical_view.py`: widgets + rendu theorique
+- `backend/ui/layout.py`: navigation + uploader + historique
+- `backend/ui/real_run_view.py`: widgets + rendu reel
+- `backend/ui/theoretical_view.py`: widgets + rendu theorique
 
 
 ## Notes pour developpement / contributions
 
 Regle principale v1.1.4:
-- `core/` et `services/` ne doivent pas importer Streamlit.
-- Streamlit reste confine a `ui/`.
+- `backend/core/` et `backend/services/` ne doivent pas importer Streamlit.
+- Streamlit reste confine a `backend/ui/`.
 
 Regle v1.1.4 (prepa API):
-- valider le DataFrame canonique a la frontiere service (voir services/activity_service.py)
-- pour une future API, utiliser services/analysis_service.py + services/serialization.py
+- valider le DataFrame canonique a la frontiere service (voir backend/services/activity_service.py)
+- pour une future API, utiliser backend/services/analysis_service.py + backend/services/serialization.py
 
 Si tu ajoutes une nouvelle fonctionnalite:
-1) Implementer le calcul dans `core/`.
-2) Orchestrer dans `services/` (structures de retour stables).
-3) Ajouter les widgets/rendu dans `ui/`.
+1) Implementer le calcul dans `backend/core/`.
+2) Orchestrer dans `backend/services/` (structures de retour stables).
+3) Ajouter les widgets/rendu dans `backend/ui/`.
 4) Ajouter/etendre `tests/smoke_test.py` si pertinent.
 
 

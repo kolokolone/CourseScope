@@ -50,6 +50,13 @@ class RealActivityResponse(BaseModel):
     best_efforts: Optional[dict] = None
     pauses: Optional[dict] = None
     climbs: Optional[dict] = None
+    splits: Optional[dict] = None
+    garmin_summary: Optional[dict] = None
+    cadence: Optional[dict] = None
+    power: Optional[dict] = None
+    running_dynamics: Optional[dict] = None
+    power_advanced: Optional[dict] = None
+    pacing: Optional[dict] = None
     series_index: SeriesIndex
     limits: Optional[ActivityLimitsDetail] = None
 

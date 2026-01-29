@@ -1,27 +1,16 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useRealActivity, useMapData } from '@/hooks/useActivity';
 import { Button } from '@/components/ui/button';
-import { ActivityMap } from '@/components/maps/ActivityMap';
-import { SidebarStats } from '@/components/stats/SidebarStats';
-import { useActivityStore } from '@/store/activityStore';
+import { MetricsSection } from '@/components/metrics/MetricsSection';
+import { useRealActivity } from '@/hooks/useActivity';
 
 export default function RealActivityPage() {
   const params = useParams();
   const router = useRouter();
   const activityId = params.id as string;
 
-  const { data: activity, isLoading, error } = useRealActivity(activityId);
-  const { data: mapData } = useMapData(activityId, 1000);
-  const { setLoading, setError } = useActivityStore();
-
-  useEffect(() => {
-    setLoading(isLoading);
-    setError(error?.message || null);
-  }, [isLoading, error, setLoading, setError]);
+  const { data: activity, isLoading, error, refetch } = useRealActivity(activityId);
 
   if (isLoading) {
     return (
@@ -37,132 +26,44 @@ export default function RealActivityPage() {
         <div className="text-center text-red-600">
           Failed to load activity: {error?.message || 'Unknown error'}
         </div>
-        <div className="text-center mt-4">
-          <Button onClick={() => router.back()}>Go Back</Button>
+        <div className="flex justify-center gap-3 mt-4">
+          <Button onClick={() => refetch()}>Retry</Button>
+          <Button variant="outline" onClick={() => router.back()}>
+            Go Back
+          </Button>
         </div>
       </div>
     );
   }
 
-  const highlights = (activity.highlights?.items as string[]) || [];
-  const summary = activity.summary || {};
+  const sections = [
+    { title: 'Infos de course', data: activity.summary },
+    { title: 'Summary', data: activity.garmin_summary },
+    { title: 'Highlights', data: activity.highlights },
+    { title: 'Zones', data: activity.zones },
+    { title: 'Best efforts', data: activity.best_efforts },
+    { title: 'Pauses', data: activity.pauses },
+    { title: 'Climbs', data: activity.climbs },
+    { title: 'Splits', data: activity.splits },
+    { title: 'Pacing', data: activity.pacing },
+    { title: 'Cadence', data: activity.cadence },
+    { title: 'Power', data: activity.power },
+    { title: 'Running dynamics', data: activity.running_dynamics },
+    { title: 'Power advanced', data: activity.power_advanced },
+    { title: 'Limits', data: activity.limits },
+  ];
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-7xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Real Activity Analysis</h1>
-        <p className="text-gray-600">Detailed analysis of your GPS activity</p>
+        <h1 className="text-3xl font-bold mb-2">Metrics</h1>
+        <p className="text-gray-600">Real activity metrics from the backend</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <SidebarStats summary={summary} />
-        </div>
-
-        <div className="lg:col-span-2 space-y-6">
-          {mapData && mapData.polyline && mapData.polyline.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Activity Map</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ActivityMap mapData={mapData} height="400px" />
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h3 className="font-medium mb-2">Activity Stats</h3>
-                  <dl className="space-y-1">
-                    <div className="flex justify-between">
-                      <dt className="text-gray-600">Distance:</dt>
-                      <dd>{summary.distance_km?.toFixed(2)} km</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-gray-600">Time:</dt>
-                      <dd>
-                        {summary.total_time_s
-                          ? `${Math.floor(summary.total_time_s / 60)}m ${Math.floor(
-                              summary.total_time_s % 60
-                            )}s`
-                          : 'N/A'}
-                      </dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-gray-600">Avg Pace:</dt>
-                      <dd>
-                        {summary.average_pace_s_per_km
-                          ? `${Math.floor(summary.average_pace_s_per_km / 60)}:${String(
-                              Math.floor(summary.average_pace_s_per_km % 60)
-                            ).padStart(2, '0')}/km`
-                          : 'N/A'}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-                <div>
-                  <h3 className="font-medium mb-2">Performance</h3>
-                  <dl className="space-y-1">
-                    <div className="flex justify-between">
-                      <dt className="text-gray-600">Moving Time:</dt>
-                      <dd>
-                        {summary.moving_time_s
-                          ? `${Math.floor(summary.moving_time_s / 60)}m ${Math.floor(
-                              summary.moving_time_s % 60
-                            )}s`
-                          : 'N/A'}
-                      </dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-gray-600">Elevation Gain:</dt>
-                      <dd>{summary.elevation_gain_m?.toFixed(0)} m</dd>
-                    </div>
-                  </dl>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {highlights.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Highlights</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="list-disc list-inside space-y-1 text-gray-700">
-                  {highlights.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-
-          {activity.series_index && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Available Data Series</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {activity.series_index.available.map((series) => (
-                    <div key={series.name} className="p-3 border rounded-lg">
-                      <h4 className="font-medium">{series.name}</h4>
-                      <p className="text-sm text-gray-600">{series.unit}</p>
-                      <p className="text-xs text-gray-500">Axes: {series.x_axes.join(', ')}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      <div className="space-y-8">
+        {sections.map((section) => (
+          <MetricsSection key={section.title} title={section.title} data={section.data} />
+        ))}
       </div>
     </div>
   );

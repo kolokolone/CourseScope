@@ -1,4 +1,4 @@
-1. Contexte general (v1.1.5)
+1. Contexte general (v1.1.6)
 
 Application web locale en Python (Streamlit) pour analyser et preparer des courses a pied a partir de traces GPX/FIT.
 Transition en cours vers une API FastAPI et un frontend Next.js, sans casser l'UI legacy.
@@ -84,7 +84,7 @@ Objectif v1.1.4 (patch) :
 Contient:
 - Loaders: parsing GPX/FIT -> DataFrame canonique.
 - Calculs: derives (pente, moving_mask, GAP), stats, splits, best efforts, modele theorique.
-- Plots Plotly: construits dans core/* (toujours Streamlit-free).
+- Plots Plotly: construits dans backend/core/* (toujours Streamlit-free).
 - Utilitaires: conversions mm:ss, formatage (duree, time-of-day), parsing de listes.
 
 5.2 Service layer (backend applicatif, Streamlit-free)
@@ -100,7 +100,7 @@ Contient:
 - Cache Streamlit (st.cache_data) conserve uniquement au niveau UI.
 
 
-6. Arborescence v1.1.5 (fichiers importants)
+6. Arborescence v1.1.6 (fichiers importants)
 
 CourseScope.py
 run_win.bat
@@ -110,7 +110,7 @@ tests/course.gpx / tests/course.fit  # fichiers demo pour smoke tests
 cahier_des_charges.txt
 nouvelles_fonctions           # idees futures (non implemente)
 
-core/
+backend/core/
   __init__.py
   constants.py                # NEW v1.1.1 (seuils/defaults partages)
   derived.py                  # NEW v1.1.1 (bundle de series derivees)
@@ -135,7 +135,7 @@ core/
     __init__.py
     pro_pace_vs_grade.csv
 
-services/
+backend/services/
   __init__.py
   models.py                   # dataclasses (contrats)
   cache.py                    # cache portable (LRU + disque optionnel)
@@ -146,7 +146,7 @@ services/
   real_activity_service.py    # orchestration "course reelle"
   theoretical_service.py      # orchestration "prevision"
 
-ui/
+backend/ui/
   __init__.py
   layout.py
   real_run_view.py
@@ -159,15 +159,15 @@ tests/
 
 tools/
   profile_pipeline.py         # NEW v1.1.3 (harness profilage backend)
-api/
+backend/api/
   main.py
   routes/
   schemas.py
 
-registry/
+backend/registry/
   series_registry.py
 
-storage/
+backend/storage/
   activity_store.py
 
 frontend/
@@ -177,7 +177,7 @@ frontend/
 7. Donnees (schemas DataFrame)
 
 7.1 DataFrame canonique (sortie loaders)
-Colonnes definies par core/contracts/activity_df_contract.py::COLUMNS (utilise par gpx_loader et fit_loader):
+Colonnes definies par backend/core/contracts/activity_df_contract.py::COLUMNS (utilise par gpx_loader et fit_loader):
 - lat, lon: float (degres)
 - elevation: float (m)
 - time: datetime (peut etre NaT)
@@ -201,7 +201,7 @@ Colonnes definies par core/contracts/activity_df_contract.py::COLUMNS (utilise p
 - moving_mask: booleen (True = en mouvement)
 - gap_series: "grade adjusted pace" (s/km), estime via grade_table
 
-7.3 DataFrame theorique (core/theoretical_model.py)
+7.3 DataFrame theorique (backend/core/theoretical_model.py)
 compute_theoretical_timing() renvoie un DataFrame par segment:
 - distance_km_cumulative
 - segment_distance_km
@@ -215,7 +215,7 @@ compute_theoretical_timing() renvoie un DataFrame par segment:
 
 8. Modules Core (details)
 
-8.1 core/gpx_loader.py
+8.1 backend/core/gpx_loader.py
 - load_gpx(file: IO[bytes]) -> gpxpy.gpx.GPX
   - decode bytes (utf-8/latin-1 fallback).
 - gpx_to_dataframe(gpx) -> DataFrame canonique
@@ -227,7 +227,7 @@ compute_theoretical_timing() renvoie un DataFrame par segment:
 - detect_gpx_type(df) -> {type, confidence}
   - score sur delta_time_s "regulier" et vitesses > MIN_SPEED
 
-8.2 core/fit_loader.py
+8.2 backend/core/fit_loader.py
 - load_fit(file: IO[bytes]) -> FitFile
 - fit_to_dataframe(fitfile) -> DataFrame canonique
   - conversion semicircle -> deg
@@ -241,7 +241,7 @@ compute_theoretical_timing() renvoie un DataFrame par segment:
   - normalise les unites (cm, ms, %, m) et applique des heuristiques si les units FIT sont absentes
 - detect_fit_type(df) -> detect_gpx_type(df)
 
-8.3 core/real_run_analysis.py
+8.3 backend/core/real_run_analysis.py
 Responsabilites:
 - Derives et nettoyage:
    - compute_grade_percent_series()
@@ -263,10 +263,10 @@ Responsabilites:
   - build_pace_grade_heatmap()
   - build_residuals_vs_grade()
 - Ressource:
-   - core/resources/pro_pace_vs_grade.csv (par defaut)
+   - backend/core/resources/pro_pace_vs_grade.csv (par defaut)
    - override utilisateur via variable d'environnement: COURSESCOPE_PRO_PACE_VS_GRADE_PATH
 
-8.4 core/metrics.py
+8.4 backend/core/metrics.py
 - estimate_zone_inputs(df, moving_mask) -> defaults (hr_max, cadence target, ftp estime, pace seuil estime)
 - compute_garmin_like_stats(df, moving_mask, gap_series, grade_series=None, hr_max, hr_rest, use_hrr, pace_threshold, ftp, cadence_target, use_moving_time)
   - resume (summary):
@@ -294,7 +294,7 @@ Responsabilites:
     - tss
 - format_zone_table(df) -> DataFrame affiche (Temps en mm:ss, %)
 
-8.5 core/theoretical_model.py
+8.5 backend/core/theoretical_model.py
 - compute_theoretical_timing(df, base_pace_s_per_km, start_datetime=None)
   - calcule grade segment, applique grade_factor, obtient temps cumul
 - compute_theoretical_summary(df_theoretical)
@@ -303,20 +303,20 @@ Responsabilites:
 - build_theoretical_plot(df_theoretical, markers=None)
   - allure (min/km) + altitude + markers optionnels
 
-8.6 core/utils.py
+8.6 backend/core/utils.py
 - mmss_to_seconds("M:SS")
 - seconds_to_mmss(seconds)
 - conversions de pace (m/s, mile)
 
-8.7 core/formatting.py (NEW v1.1)
+8.7 backend/core/formatting.py (NEW v1.1)
 - format_duration_compact(seconds) -> "3h05m02s" / "5m02s" / "-" (layout)
 - format_duration_clock(seconds) -> "1:02:03" / "5:02" / "-" (views)
 - format_time_of_day(value) -> "HH:MM:SS" / "-"
 
-8.8 core/parsing.py (NEW v1.1)
+8.8 backend/core/parsing.py (NEW v1.1)
 - parse_km_list("5, 10, 21.1") -> [5.0, 10.0, 21.1]
 
-8.9 core/grade_table.py (NEW v1.1 canonical)
+8.9 backend/core/grade_table.py (NEW v1.1 canonical)
 - GRADE_FACTORS (0..10%)
 - MIN_DOWNHILL_FACTOR
 - grade_factor(grade_percent)
@@ -324,30 +324,30 @@ Responsabilites:
 - pace_to_mmss(pace_s_per_km)
 
 8.10 grade_table.py (root)
-- shim compat: re-export des symboles depuis core/grade_table.py
+- shim compat: re-export des symboles depuis backend/core/grade_table.py
 - but: conserver `from grade_table import grade_factor`.
 
 
 9. Service layer (details)
 
-9.1 services/models.py
+9.1 backend/services/models.py
 Dataclasses (contrats internes) :
 - ActivityTypeDetection, LoadedActivity, SidebarStats
 - RealRunParams, RealRunViewParams, RealRunBase, RealRunResult
 - TheoreticalBase, TheoreticalPassages, TheoreticalAdvanced, TheoreticalResult
 
-9.2 services/activity_service.py
+9.2 backend/services/activity_service.py
 - load_activity_from_bytes(data: bytes, name: str) -> LoadedActivity
   - selection loader selon extension (.fit vs autres)
   - detection type + confidence
 - compute_sidebar_stats(df) -> SidebarStats
 - suggest_default_view(ActivityTypeDetection) -> "real"|"theoretical"
 
-9.3 services/history_service.py
+9.3 backend/services/history_service.py
 - upsert_history(history, entry, max_items=0)
   - dedupe par name, insert en tete, trim optionnel
 
-9.4 services/real_activity_service.py
+9.4 backend/services/real_activity_service.py
 - prepare_base(df) -> RealRunBase
   - derived_series + summary + zone defaults + best efforts + climbs + pauses + splits
 - compute_garmin_stats(df, moving_mask, gap_series, grade_series=None, params) -> dict
@@ -357,7 +357,7 @@ Dataclasses (contrats internes) :
 - build_highlights(best_df, climbs, garmin_summary) -> list[str]
 - analyze_real_activity(df, base=None, params=None, view=None) -> RealRunResult
 
-9.5 services/theoretical_service.py
+9.5 backend/services/theoretical_service.py
 - prepare_base(df, base_pace_s_per_km) -> (df_base, summary_base)
 - compute_display_df(df_base, smoothing_segments, cap_min_per_km) -> (df_display, default_cap_min, used_cap_min)
 - compute_passages(df_base, start_datetime, target_distances_km) -> TheoreticalPassages
@@ -368,7 +368,7 @@ Dataclasses (contrats internes) :
 - compute_advanced(df_calc, weather_factor, split_bias, smoothing_segments, cap_adv_min_per_km) -> TheoreticalAdvanced
 - analyze_theoretical_activity(...) -> TheoreticalResult (disponible, non requis par l'UI)
 
-9.6 services/cache.py
+9.6 backend/services/cache.py
 Cache portable (Streamlit-free) :
 - KeyValueCache (interface)
 - InMemoryCache (TTL optionnel)
@@ -376,28 +376,28 @@ Cache portable (Streamlit-free) :
 - MemoryCache (LRU simple)
 - DiskCache (pickle)
 - helpers: sha256_bytes, stable_json_dumps, make_key, make_cache_key
-Note: v1.1.4 conserve st.cache_data au niveau UI. services/cache.py est une brique prete pour v2 (API).
+Note: v1.1.4 conserve st.cache_data au niveau UI. backend/services/cache.py est une brique prete pour v2 (API).
 
-9.7 services/serialization.py
+9.7 backend/services/serialization.py
 - to_jsonable() + helpers pour convertir dataclasses/pandas/numpy/plotly en JSON.
 
-9.8 services/analysis_service.py
+9.8 backend/services/analysis_service.py
 - Points d'entree backend haut niveau (cache injectable): load_activity(), analyze_real(), analyze_theoretical().
 
 
 10. UI Streamlit (details)
 
-10.1 ui/layout.py
+10.1 backend/ui/layout.py
 - Uploader GPX/FIT
 - Sidebar: historique session (gpx_history), separation reels/theoriques, purge
 - Chargement:
-  - _load_activity_from_bytes() est un wrapper st.cache_data qui appelle services/activity_service.py
-  - _compute_sidebar_stats() appelle services/activity_service.py
-  - _add_to_history() appelle services/history_service.py
+  - _load_activity_from_bytes() est un wrapper st.cache_data qui appelle backend/services/activity_service.py
+  - _compute_sidebar_stats() appelle backend/services/activity_service.py
+  - _add_to_history() appelle backend/services/history_service.py
 - Stocke df + gpx_type dans st.session_state
 - Choix de vue: real_run_view.render(df) ou theoretical_view.render(df)
 
-10.2 ui/real_run_view.py
+10.2 backend/ui/real_run_view.py
 - Cache UI:
   - _get_cached_base(df): st.cache_data -> services.real_activity_service.prepare_base
   - _get_garmin_stats(...): st.cache_data -> services.real_activity_service.compute_garmin_stats
@@ -416,7 +416,7 @@ Note: v1.1.4 conserve st.cache_data au niveau UI. services/cache.py est une briq
   - carte enrichie (trace + points + climbs + pauses)
   - graphes Plotly: allure+altitude, distributions, allure vs pente, residus, scatter, heatmap
 
-10.3 ui/theoretical_view.py
+10.3 backend/ui/theoretical_view.py
 - Cache UI:
   - _get_cached_theoretical(df, base_pace): st.cache_data -> services.theoretical_service.prepare_base
 - Widgets:
@@ -465,12 +465,12 @@ Execution recommande (venv):
 
 - Detection type (real_run vs theoretical_route) est heuristique et fournit un champ confidence.
 - Caches Streamlit reduisent les recomputes lors des interactions.
-- services/cache.py existe mais n'est pas encore branche partout (prevu pour une future migration API).
+- backend/services/cache.py existe mais n'est pas encore branche partout (prevu pour une future migration API).
 
 
 13. Roadmap migration (API + front)
 
-- Reutiliser services/* comme "backend applicatif" pour l'API FastAPI (en cours).
+- Reutiliser backend/services/* comme "backend applicatif" pour l'API FastAPI (en cours).
 - Frontend Next.js en parallele, branche sur l'API.
 - Remplacer progressivement st.cache_data par un cache portable base sur hash(bytes)+params.
 - Definir des schemas de serialisation (DataFrame -> json/parquet) si passage HTTP.

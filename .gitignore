@@ -57,6 +57,7 @@ cover/
 
 # Django stuff:
 *.log
+api_docs.html
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -228,6 +229,7 @@ htmlcov/
 
 # Logs
 *.log
+api_docs.html
 
 # OS / Editor
 .DS_Store

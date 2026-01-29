@@ -41,6 +41,18 @@ def prepare_real_response(activity_df, registry: SeriesRegistry) -> RealActivity
     best_efforts_rows = df_to_records(result.best_efforts)
     best_efforts_payload = {"rows": best_efforts_rows} if best_efforts_rows else None
 
+    splits_rows = df_to_records(result.splits)
+    splits_payload = {"rows": splits_rows} if splits_rows else None
+
+    garmin_summary_payload = to_jsonable(garmin.get("summary")) if garmin.get("summary") else None
+    cadence_payload = to_jsonable(garmin.get("cadence")) if garmin.get("cadence") else None
+    power_payload = to_jsonable(garmin.get("power")) if garmin.get("power") else None
+    running_dynamics_payload = (
+        to_jsonable(garmin.get("running_dynamics")) if garmin.get("running_dynamics") else None
+    )
+    power_advanced_payload = to_jsonable(garmin.get("power_advanced")) if garmin.get("power_advanced") else None
+    pacing_payload = to_jsonable(garmin.get("pacing")) if garmin.get("pacing") else None
+
     pauses_payload = {"items": to_jsonable(result.pauses)} if result.pauses else None
     climbs_payload = {"items": to_jsonable(result.climbs)} if result.climbs else None
 
@@ -51,6 +63,13 @@ def prepare_real_response(activity_df, registry: SeriesRegistry) -> RealActivity
         best_efforts=best_efforts_payload,
         pauses=pauses_payload,
         climbs=climbs_payload,
+        splits=splits_payload,
+        garmin_summary=garmin_summary_payload,
+        cadence=cadence_payload,
+        power=power_payload,
+        running_dynamics=running_dynamics_payload,
+        power_advanced=power_advanced_payload,
+        pacing=pacing_payload,
         series_index=series_index,
         limits=_build_limits(activity_df),
     )

@@ -80,7 +80,7 @@ jobs:
     
     - name: Start API server for testing
       run: |
-        python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 &
+        python -m uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 &
         sleep 10
     
     - name: Run API tests
@@ -93,7 +93,7 @@ jobs:
     
     - name: Stop API server
       run: |
-        pkill -f "uvicorn api.main:app" || true
+        pkill -f "uvicorn backend.api.main:app" || true
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -234,7 +234,7 @@ jobs:
     
     - name: Start application
       run: |
-        python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 &
+        python -m uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 &
         sleep 10
     
     - name: Run performance tests
@@ -243,7 +243,7 @@ jobs:
     
     - name: Stop application
       run: |
-        pkill -f "uvicorn api.main:app" || true
+        pkill -f "uvicorn backend.api.main:app" || true
     
     - name: Upload performance reports
       uses: actions/upload-artifact@v3

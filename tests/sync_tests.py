@@ -3,9 +3,17 @@ import asyncio
 import httpx
 import json
 import time
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 import pandas as pd
+
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+BACKEND_DIR = PROJECT_DIR / "backend"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
 
 from services.activity_service import load_activity_from_bytes
 from storage.activity_store import LocalTempStorage, DatabaseStorage

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from api.main import app
+from backend.api.main import app
 
 
 def _load_fixture_bytes() -> tuple[bytes, str]:
