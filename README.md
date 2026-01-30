@@ -132,8 +132,8 @@ Pour changer:
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-Note v1.1.6:
-- Le frontend est volontairement "metrics-only" (pas de cartes ni graphs).
+Note v1.1.7:
+- Le frontend reste volontairement "metrics-only" (pas de cartes ni graphs), mais l'UI est plus structuree (KPI + sections) et inclut les metriques cardio.
 
 ### Conventions API
 
@@ -232,7 +232,7 @@ python -m compileall -q backend/core backend/services backend/ui backend/api bac
 ```
 
 
-## Structure du projet (v1.1.6)
+## Structure du projet (v1.1.7)
 
 ```
   CourseScope/

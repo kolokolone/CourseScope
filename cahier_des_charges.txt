@@ -1,11 +1,12 @@
-1. Contexte general (v1.1.6)
+1. Contexte general (v1.1.7)
 
 Application web locale en Python (Streamlit) pour analyser et preparer des courses a pied a partir de traces GPX/FIT.
 Transition en cours vers une API FastAPI et un frontend Next.js, sans casser l'UI legacy.
 
-Etat transition v1.1.6:
+Etat transition v1.1.7:
 - FastAPI expose /activity/load, /activity/{id}/real, /activity/{id}/theoretical, series, map.
-- Frontend Next.js "metrics-only" (upload -> page metriques), sans cartes ni graphes.
+- API expose des metriques cardio (summary.cardio: FC moy/max/min) pour les activites FIT.
+- Frontend Next.js "metrics-only" (upload -> page metriques), sans cartes ni graphes, avec une UI plus structuree (KPI + sections, Cardio).
 - Streamlit legacy reste l'UI de reference.
 
 Deux cas d'usage principaux :
@@ -105,7 +106,7 @@ Contient:
 - Cache Streamlit (st.cache_data) conserve uniquement au niveau UI.
 
 
-6. Arborescence v1.1.6 (fichiers importants)
+6. Arborescence v1.1.7 (fichiers importants)
 
 CourseScope.py
 run_win.bat

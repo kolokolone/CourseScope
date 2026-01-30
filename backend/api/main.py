@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CourseScope API",
     description="Analytics pour traces GPX/FIT",
-    version="1.1.6",
+    version="1.1.7",
     lifespan=lifespan,
 )
 
@@ -61,7 +61,7 @@ def get_series_registry():
 async def root():
     return {
         "message": "CourseScope API",
-        "version": "1.1.6",
+        "version": "1.1.7",
         "docs": "/docs",
         "status": "operational",
     }

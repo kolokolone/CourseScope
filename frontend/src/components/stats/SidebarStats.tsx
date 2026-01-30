@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatDurationSeconds } from '@/lib/metricsFormat';
 
 interface SidebarStatsProps {
   summary: Record<string, unknown>;
@@ -27,18 +28,14 @@ export function SidebarStats({ summary }: SidebarStatsProps) {
           {totalTime !== undefined && (
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Total Time:</span>
-              <span className="font-medium">
-                {Math.floor(totalTime / 60)}m {Math.floor(totalTime % 60)}s
-              </span>
+              <span className="font-medium">{formatDurationSeconds(totalTime)}</span>
             </div>
           )}
 
           {movingTime !== undefined && (
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Moving Time:</span>
-              <span className="font-medium">
-                {Math.floor(movingTime / 60)}m {Math.floor(movingTime % 60)}s
-              </span>
+              <span className="font-medium">{formatDurationSeconds(movingTime)}</span>
             </div>
           )}
 

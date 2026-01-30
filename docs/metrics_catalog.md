@@ -34,6 +34,14 @@ Compiled from API schemas and backend metric builders (`backend/api/schemas.py`,
 | `summary.average_speed_kmh` | float | km/h | average speed kmh |
 | `summary.elevation_gain_m` | float | m | elevation gain m |
 
+### Cardio
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `summary.cardio.hr_avg_bpm` | float | bpm | average heart rate (time-weighted, moving points) |
+| `summary.cardio.hr_max_bpm` | float | bpm | max heart rate (moving points) |
+| `summary.cardio.hr_min_bpm` | float | bpm | min heart rate (moving points) |
+
 ### Summary
 
 | Path | Type | Unit | Description |

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header, Request
 from typing import Optional
 
@@ -62,10 +64,15 @@ async def load_activity_endpoint(
 
     try:
         display_name = name or file.filename
-        activity = load_activity(data=file_bytes, name=display_name)
+        suffix = Path(file.filename).suffix
+        parse_name = display_name
+        if suffix and not display_name.lower().endswith(suffix.lower()):
+            parse_name = f"{display_name}{suffix}"
+
+        activity = load_activity(data=file_bytes, name=parse_name)
 
         storage = get_activity_storage(request)
-        activity_id = storage.store(activity, file.filename, file_bytes, name=name)
+        activity_id = storage.store(activity, file.filename, file_bytes, name=display_name)
 
         stats = storage._compute_sidebar_stats(activity.df)
         limits = check_dataframe_limits(activity.df)

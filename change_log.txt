@@ -1,4 +1,24 @@
 CHANGE LOG
+Version: v1.1.6 -> v1.1.7
+Date: 2026-01-30
+
+Objectif
+- Polir l'UI "metrics-only" (coach-friendly, plus lisible) et exposer les metriques cardio manquantes via l'API, sans casser Streamlit.
+
+Nouveautes
+- Backend: ajout d'un bloc stable `summary.cardio` (FC moyenne/max/min) pour les activites FIT.
+- Backend: robustesse /activity/load (conserve l'extension pour parser meme si un nom custom est fourni).
+- Frontend: UI "metrics-only" restructuree (KPI header + sections) + section Cardio.
+- Tests: ajout d'un test pytest cardio (API) + refresh de l'exemple JSON.
+- Docs: catalogue des metriques mis a jour (docs/metrics_catalog.md).
+
+Changements
+- Version uniforme v1.1.7 (README, API, package.json).
+
+Notes migration
+- Streamlit legacy reste fonctionnel (CourseScope.py).
+
+
 Version: v1.1.5 -> v1.1.6
 Date: 2026-01-29
 

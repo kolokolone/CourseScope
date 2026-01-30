@@ -1,3 +1,5 @@
+import math
+
 from fastapi import APIRouter, HTTPException, Request
 
 from api.schemas import RealActivityResponse, SeriesIndex, ActivityLimitsDetail, TheoreticalActivityResponse
@@ -7,6 +9,29 @@ from services.serialization import df_to_records, to_jsonable
 
 
 router = APIRouter()
+
+
+def _is_finite_number(value) -> bool:
+    return isinstance(value, (int, float)) and value == value and math.isfinite(value)
+
+
+def _build_cardio_summary(garmin: dict) -> dict | None:
+    heart_rate = (garmin or {}).get("heart_rate")
+    if not isinstance(heart_rate, dict):
+        return None
+
+    cardio: dict[str, float] = {}
+    mapping = {
+        "hr_avg_bpm": "mean_bpm",
+        "hr_max_bpm": "max_bpm",
+        "hr_min_bpm": "min_bpm",
+    }
+    for out_key, src_key in mapping.items():
+        val = heart_rate.get(src_key)
+        if _is_finite_number(val):
+            cardio[out_key] = float(val)
+
+    return cardio or None
 
 
 def get_series_registry(request: Request) -> SeriesRegistry:
@@ -56,8 +81,13 @@ def prepare_real_response(activity_df, registry: SeriesRegistry) -> RealActivity
     pauses_payload = {"items": to_jsonable(result.pauses)} if result.pauses else None
     climbs_payload = {"items": to_jsonable(result.climbs)} if result.climbs else None
 
+    summary_payload = to_jsonable(result.summary) or {}
+    cardio_payload = _build_cardio_summary(garmin)
+    if cardio_payload is not None:
+        summary_payload["cardio"] = cardio_payload
+
     return RealActivityResponse(
-        summary=to_jsonable(result.summary),
+        summary=summary_payload,
         highlights={"items": result.highlights},
         zones=to_jsonable(zones_payload),
         best_efforts=best_efforts_payload,

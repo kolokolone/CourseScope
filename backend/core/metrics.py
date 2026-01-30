@@ -552,6 +552,7 @@ def compute_garmin_like_stats(
         hr_values = df["heart_rate"].to_numpy(dtype=float)
         hr_mask = np.isfinite(hr_values) & (weights > 0)
         hr_max_obs = float(np.nanmax(hr_values[hr_mask])) if hr_mask.any() else math.nan
+        hr_min_obs = float(np.nanmin(hr_values[hr_mask])) if hr_mask.any() else math.nan
         hr_max_used = float(hr_max) if hr_max and hr_max > 0 else hr_max_obs
         hr_mean = _weighted_mean(hr_values, weights)
         ratio_first = _half_overlap_ratio(delta_dist * mask)
@@ -593,6 +594,7 @@ def compute_garmin_like_stats(
         heart_rate = {
             "mean_bpm": float(hr_mean),
             "max_bpm": float(hr_max_obs),
+            "min_bpm": float(hr_min_obs),
             "hr_max_used": float(hr_max_used) if hr_max_used == hr_max_used else math.nan,
             "zones": hr_zones,
         }

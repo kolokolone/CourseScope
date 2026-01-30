@@ -1,8 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  formatDurationSeconds,
+  formatPaceSecondsPerKm,
+  isDeltaMetricKey,
+  isDurationMetricKey,
+  isPaceMetricKey,
+} from '@/lib/metricsFormat';
 
 type MetricValue = unknown;
 
 interface MetricItem {
+  key: string;
   label: string;
   value: MetricValue;
   unit?: string;
@@ -19,6 +27,7 @@ function formatLabel(label: string) {
 }
 
 function inferUnit(label: string) {
+  if (label.endsWith('_s_per_km')) return '/ km';
   if (label.endsWith('_km')) return 'km';
   if (label.endsWith('_m')) return 'm';
   if (label.endsWith('_s')) return 's';
@@ -62,16 +71,32 @@ function renderValue(value: MetricValue) {
 function normalizeItems(data: unknown): MetricItem[] {
   if (data === null || data === undefined) return [];
   if (Array.isArray(data)) {
-    return [{ label: 'Items', value: data }];
+    return [{ key: 'items', label: 'Items', value: data }];
   }
   if (typeof data === 'object') {
-    return Object.entries(data as Record<string, unknown>).map(([key, value]) => ({
-      label: formatLabel(key),
-      value,
-      unit: inferUnit(key),
-    }));
+    return Object.entries(data as Record<string, unknown>).map(([key, value]) => {
+      let unit = inferUnit(key);
+      let formattedValue: MetricValue = value;
+
+      if (typeof value === 'number') {
+        if (isDurationMetricKey(key)) {
+          formattedValue = formatDurationSeconds(value);
+          unit = undefined;
+        } else if (isPaceMetricKey(key)) {
+          formattedValue = formatPaceSecondsPerKm(value, { forceSign: isDeltaMetricKey(key) });
+          unit = '/ km';
+        }
+      }
+
+      return {
+        key,
+        label: formatLabel(key),
+        value: formattedValue,
+        unit,
+      };
+    });
   }
-  return [{ label: 'Value', value: data }];
+  return [{ key: 'value', label: 'Value', value: data }];
 }
 
 function isEmptyData(data: unknown) {
@@ -110,7 +135,7 @@ export function MetricsSection({ title, data }: MetricsSectionProps) {
       <h2 className="text-xl font-semibold">{title}</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {items.map((item) => (
-          <MetricTile key={`${title}-${item.label}`} item={item} />
+          <MetricTile key={`${title}-${item.key}`} item={item} />
         ))}
       </div>
     </section>
