@@ -41,6 +41,9 @@ export interface RealActivityResponse {
   highlights: Record<string, unknown>;
   zones?: Record<string, unknown>;
   best_efforts?: Record<string, unknown>;
+  personal_records?: Record<string, unknown>;
+  segment_analysis?: Record<string, unknown>;
+  performance_predictions?: Record<string, unknown>;
   pauses?: Record<string, unknown>;
   climbs?: Record<string, unknown>;
   splits?: Record<string, unknown>;
@@ -50,6 +53,7 @@ export interface RealActivityResponse {
   running_dynamics?: Record<string, unknown>;
   power_advanced?: Record<string, unknown>;
   pacing?: Record<string, unknown>;
+  training_load?: Record<string, unknown>;
   series_index: SeriesIndex;
   limits?: ActivityLimitsDetail;
 }

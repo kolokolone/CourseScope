@@ -1,4 +1,37 @@
 CHANGE LOG
+Version: v1.1.8 -> v1.1.9
+Date: 2026-01-30
+
+Objectif
+- Enrichir l'analyse backend avec les métriques compétition manquantes (sans dépendances externes).
+
+Nouveautes
+- Backend: TRIMP (méthode Edwards) exposé via `training_load`.
+- Backend: power duration curve (puissance moyenne max par durée) exposée dans `power_advanced`.
+- Backend: segment analysis (best efforts par durée) exposé via `segment_analysis`.
+- Backend: performance predictions (Riegel) exposées via `performance_predictions`.
+- Backend: personal records exposés via `personal_records` (alias best efforts).
+- Backend: patch FIT datetime (remplace utcfromtimestamp deprecated).
+- Frontend: types API alignés sur les nouveaux champs (types seulement).
+
+Changements
+- API: réponse /activity/{id}/real étendue avec `training_load`, `segment_analysis`, `performance_predictions`, `personal_records`.
+- API: version backend alignée sur v1.1.9.
+- Optimisations: factorisation resampling puissance (NP + duration curve) et preparation des tableaux best efforts.
+
+Tests
+- Ajout d'un test unitaire pour les best efforts (distance/duree).
+- Tests smoke/pytest: assertions mises a jour pour les nouveaux champs.
+
+Docs
+- README, change_log.txt, cahier_des_charges.txt, docs/metrics_catalog.md mis à jour.
+- Nouveau fichier: doc/metrics_list.txt (liste complete des metriques file-only).
+
+Notes migration
+- Champs additionnels uniquement (backward compatible).
+- Liste des metriques inchangée apres optimisation (voir doc/metrics_list.txt).
+
+
 Version: v1.1.7 -> v1.1.8
 Date: 2026-01-30
 

@@ -1,4 +1,4 @@
-# CourseScope (v1.1.8)
+# CourseScope (v1.1.9)
 
 CourseScope est une application double-stack pour analyser des traces running GPX/FIT :
 - **UI legacy Streamlit** : interface complète avec cartes, graphiques, et analyses avancées
@@ -73,7 +73,7 @@ CourseScope/
 └── tests/                       # Tests unitaires + intégration
 ```
 
-## 🔌 Configuration API (v1.1.8)
+## 🔌 Configuration API (v1.1.9)
 
 ### Stratégie de communication
 - **Développement local** : Proxy Next.js (`/api/*` → `http://localhost:8000/*`)
@@ -236,6 +236,7 @@ curl -X POST http://localhost:8000/api/activity/load \
 
 Voir `change_log.txt` pour l'historique détaillé des versions.
 
+**v1.1.9** : Nouveaux métriques backend + optimisations calcul + correction FIT datetime + tests/Docs a jour  
 **v1.1.8** : Fix upload "Failed to fetch" + proxy Next.js + logs améliorés  
 **v1.1.7** : UI metrics-only + métriques cardio  
 **v1.1.6** : Backend consolidé + API endpoints  

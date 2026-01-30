@@ -38,3 +38,8 @@ def test_real_activity_includes_cardio_summary_from_fit():
         assert isinstance(cardio["hr_max_bpm"], (int, float))
         assert isinstance(cardio["hr_min_bpm"], (int, float))
         assert cardio["hr_min_bpm"] <= cardio["hr_avg_bpm"] <= cardio["hr_max_bpm"]
+
+        training_load = payload.get("training_load")
+        if training_load is not None:
+            assert "trimp" in training_load
+            assert "method" in training_load

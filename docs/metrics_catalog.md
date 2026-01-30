@@ -1,6 +1,7 @@
 # Metrics Catalog
 
 Compiled from API schemas and backend metric builders (`backend/api/schemas.py`, `backend/core/real_run_analysis.py`, `backend/core/metrics.py`).
+See `docs/metrics_list.txt` for a categorized list of all file-only metrics.
 
 ## Activity Load (POST /activity/load)
 
@@ -120,6 +121,36 @@ Compiled from API schemas and backend metric builders (`backend/api/schemas.py`,
 | `best_efforts.rows[].time_s` | unknown | s | time s |
 | `best_efforts.rows[].pace_s_per_km` | unknown | s/km | pace s per km |
 
+### Personal records
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `personal_records.rows[]` | array<object> | - | rows |
+| `personal_records.rows[].distance_km` | unknown | km | distance km |
+| `personal_records.rows[].time_s` | unknown | s | time s |
+| `personal_records.rows[].pace_s_per_km` | unknown | s/km | pace s per km |
+
+### Segment analysis (time best efforts)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `segment_analysis.rows[]` | array<object> | - | rows |
+| `segment_analysis.rows[].duration_s` | unknown | s | duration s |
+| `segment_analysis.rows[].distance_km` | unknown | km | distance km |
+| `segment_analysis.rows[].time_s` | unknown | s | time s |
+| `segment_analysis.rows[].pace_s_per_km` | unknown | s/km | pace s per km |
+
+### Performance predictions
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `performance_predictions.items[]` | array<object> | - | predictions |
+| `performance_predictions.items[].target_distance_km` | unknown | km | target distance km |
+| `performance_predictions.items[].predicted_time_s` | unknown | s | predicted time s |
+| `performance_predictions.items[].base_distance_km` | unknown | km | base distance km |
+| `performance_predictions.items[].base_time_s` | unknown | s | base time s |
+| `performance_predictions.items[].exponent` | unknown | - | Riegel exponent |
+
 ### Pauses
 
 | Path | Type | Unit | Description |
@@ -210,6 +241,16 @@ Compiled from API schemas and backend metric builders (`backend/api/schemas.py`,
 | `power_advanced.normalized_power_w` | float | W | normalized power w |
 | `power_advanced.intensity_factor` | float | - | intensity factor |
 | `power_advanced.tss` | float | - | tss |
+| `power_advanced.power_duration_curve[]` | array<object> | - | peak power by duration |
+| `power_advanced.power_duration_curve[].duration_s` | unknown | s | duration s |
+| `power_advanced.power_duration_curve[].power_w` | unknown | W | peak average power w |
+
+### Training load
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `training_load.trimp` | float | - | TRIMP (Edwards) |
+| `training_load.method` | string | - | method name |
 
 ### Series index
 

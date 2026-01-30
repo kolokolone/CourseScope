@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import math
 from typing import IO, Any, Dict
 
@@ -13,6 +14,39 @@ from core.contracts.activity_df_contract import COLUMNS
 
 
 SEMICIRCLE_TO_DEG = 180.0 / (2**31)
+
+
+def _patch_fitparse_datetime() -> None:
+    """Remplace utcfromtimestamp (deprecated) par une conversion UTC moderne."""
+    try:
+        from fitparse import processors as fit_processors
+    except Exception:
+        return
+
+    if getattr(fit_processors, "_coursescope_datetime_patch", False):
+        return
+
+    def _to_utc_naive(value: float) -> datetime.datetime:
+        dt = datetime.datetime.fromtimestamp(fit_processors.UTC_REFERENCE + value, datetime.UTC)
+        return dt.replace(tzinfo=None)
+
+    def _process_type_date_time(self, field_data):
+        value = field_data.value
+        if value is not None and value >= 0x10000000:
+            field_data.value = _to_utc_naive(value)
+            field_data.units = None
+
+    def _process_type_local_date_time(self, field_data):
+        if field_data.value is not None:
+            field_data.value = _to_utc_naive(field_data.value)
+            field_data.units = None
+
+    fit_processors.FitFileDataProcessor.process_type_date_time = _process_type_date_time
+    fit_processors.FitFileDataProcessor.process_type_local_date_time = _process_type_local_date_time
+    fit_processors._coursescope_datetime_patch = True
+
+
+_patch_fitparse_datetime()
 
 
 def _build_field_lookup(record) -> dict[str, tuple[Any, str | None]]:

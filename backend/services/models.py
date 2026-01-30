@@ -109,12 +109,14 @@ class RealRunResult:
     garmin: dict[str, Any]
     zone_defaults: dict[str, Any]
     best_efforts: pd.DataFrame
+    best_efforts_time: pd.DataFrame
     climbs: list[dict[str, Any]]
     pauses: list[dict[str, Any]]
     highlights: list[str]
     pace_series: pd.Series
     default_cap_min_per_km: float
     splits: pd.DataFrame
+    performance_predictions: list[dict[str, Any]]
     map_payload: RealRunMapPayload
     figures: RealRunFigures
 
@@ -125,6 +127,7 @@ class RealRunBase:
     summary: dict[str, Any]
     zone_defaults: dict[str, Any]
     best_efforts: pd.DataFrame
+    best_efforts_time: pd.DataFrame
     climbs: list[dict[str, Any]]
     pauses: list[dict[str, Any]]
     splits: pd.DataFrame

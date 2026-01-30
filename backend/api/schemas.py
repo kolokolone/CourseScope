@@ -48,6 +48,9 @@ class RealActivityResponse(BaseModel):
     highlights: dict
     zones: Optional[dict] = None
     best_efforts: Optional[dict] = None
+    personal_records: Optional[dict] = None
+    segment_analysis: Optional[dict] = None
+    performance_predictions: Optional[dict] = None
     pauses: Optional[dict] = None
     climbs: Optional[dict] = None
     splits: Optional[dict] = None
@@ -57,6 +60,7 @@ class RealActivityResponse(BaseModel):
     running_dynamics: Optional[dict] = None
     power_advanced: Optional[dict] = None
     pacing: Optional[dict] = None
+    training_load: Optional[dict] = None
     series_index: SeriesIndex
     limits: Optional[ActivityLimitsDetail] = None
 

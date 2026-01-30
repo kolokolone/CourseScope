@@ -69,6 +69,9 @@ def prepare_real_response(activity_df, registry: SeriesRegistry) -> RealActivity
     splits_rows = df_to_records(result.splits)
     splits_payload = {"rows": splits_rows} if splits_rows else None
 
+    segments_rows = df_to_records(result.best_efforts_time)
+    segment_analysis_payload = {"rows": segments_rows} if segments_rows else None
+
     garmin_summary_payload = to_jsonable(garmin.get("summary")) if garmin.get("summary") else None
     cadence_payload = to_jsonable(garmin.get("cadence")) if garmin.get("cadence") else None
     power_payload = to_jsonable(garmin.get("power")) if garmin.get("power") else None
@@ -77,6 +80,13 @@ def prepare_real_response(activity_df, registry: SeriesRegistry) -> RealActivity
     )
     power_advanced_payload = to_jsonable(garmin.get("power_advanced")) if garmin.get("power_advanced") else None
     pacing_payload = to_jsonable(garmin.get("pacing")) if garmin.get("pacing") else None
+    training_load_payload = to_jsonable(garmin.get("training_load")) if garmin.get("training_load") else None
+    performance_predictions_payload = (
+        {"items": to_jsonable(result.performance_predictions)}
+        if result.performance_predictions
+        else None
+    )
+    personal_records_payload = {"rows": best_efforts_rows} if best_efforts_rows else None
 
     pauses_payload = {"items": to_jsonable(result.pauses)} if result.pauses else None
     climbs_payload = {"items": to_jsonable(result.climbs)} if result.climbs else None
@@ -91,6 +101,9 @@ def prepare_real_response(activity_df, registry: SeriesRegistry) -> RealActivity
         highlights={"items": result.highlights},
         zones=to_jsonable(zones_payload),
         best_efforts=best_efforts_payload,
+        personal_records=personal_records_payload,
+        segment_analysis=segment_analysis_payload,
+        performance_predictions=performance_predictions_payload,
         pauses=pauses_payload,
         climbs=climbs_payload,
         splits=splits_payload,
@@ -100,6 +113,7 @@ def prepare_real_response(activity_df, registry: SeriesRegistry) -> RealActivity
         running_dynamics=running_dynamics_payload,
         power_advanced=power_advanced_payload,
         pacing=pacing_payload,
+        training_load=training_load_payload,
         series_index=series_index,
         limits=_build_limits(activity_df),
     )
@@ -117,9 +131,13 @@ def prepare_theoretical_response(activity_df, registry: SeriesRegistry) -> Theor
         highlights={},
         zones=None,
         best_efforts=None,
+        personal_records=None,
+        segment_analysis=None,
+        performance_predictions=None,
         pauses=None,
         climbs=None,
         series_index=series_index,
+        training_load=None,
         limits=_build_limits(activity_df),
     )
 

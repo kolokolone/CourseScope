@@ -25,6 +25,17 @@ Deux cas d'usage principaux :
    - Optionnel: simulation avancee (meteo + split positif/negatif + clip d'allure) + plan de pacing par terrain.
    - Export CSV de la simulation avancee.
 
+Objectif v1.1.9 (metrics competition)
+- Ajouter TRIMP (Edwards) a partir des zones FC.
+- Ajouter power duration curve + peak power (si power dispo).
+- Ajouter segment analysis (best efforts par durée).
+- Ajouter performance predictions (formule de Riegel) depuis les best efforts.
+- Exposer ces métriques via l'API FastAPI (champs additionnels).
+- Corriger les warnings FIT datetime (utcfromtimestamp) via patch local.
+- Documenter la liste complete des metriques file-only (doc/metrics_list.txt).
+- Optimiser la logique de calcul (resampling puissance factorise, best efforts factorises).
+- Mettre a jour les tests (smoke/pytest) pour couvrir les nouveaux champs.
+
 Objectif v1.1 (refacto interne) :
 - Aucune fonctionnalite supprimee.
 - Stabilite: le comportement utilisateur reste identique.

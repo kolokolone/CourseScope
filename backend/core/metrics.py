@@ -36,6 +36,8 @@ POWER_ZONES = [
     ("Z7", 1.50, math.inf),
 ]
 
+POWER_PEAK_DURATIONS_S = [5, 10, 30, 60, 120, 300, 600, 1200, 1800, 3600]
+
 
 def _weighted_mean(values: np.ndarray, weights: np.ndarray) -> float:
     mask = np.isfinite(values) & np.isfinite(weights) & (weights > 0)
@@ -179,29 +181,47 @@ def _normalized_power_w(
     rolling_window_s: int = 30,
 ) -> float:
     """Calcule la Normalized Power (NP) via resampling 1 Hz + moyenne glissante 30s."""
-
     if power_w.size == 0:
         return math.nan
 
+    series_1hz = _resample_series_1hz(power_w, delta_time_s, mask)
+    return _normalized_power_from_series(series_1hz, rolling_window_s=rolling_window_s)
+
+
+def _resample_series_1hz(
+    values: np.ndarray,
+    delta_time_s: np.ndarray,
+    mask: np.ndarray,
+    *,
+    ffill_limit: int = 5,
+) -> pd.Series:
     dt = np.where(delta_time_s > 0, delta_time_s, 0.0)
     dt = np.where(mask, dt, 0.0)
     elapsed_s = np.cumsum(dt)
 
-    valid = mask & (dt > 0) & np.isfinite(power_w)
-    if int(valid.sum()) < rolling_window_s:
-        return math.nan
+    valid = mask & (dt > 0) & np.isfinite(values)
+    if int(valid.sum()) < 2:
+        return pd.Series(dtype=float)
 
     idx = pd.to_timedelta(elapsed_s[valid], unit="s")
-    s = pd.Series(power_w[valid], index=idx).sort_index()
+    s = pd.Series(values[valid], index=idx).sort_index()
     if s.empty:
-        return math.nan
+        return pd.Series(dtype=float)
 
     s = s.groupby(level=0).mean()
-    p1 = s.resample("1s").mean().ffill(limit=5)
-    if int(p1.dropna().shape[0]) < rolling_window_s:
+    return s.resample("1s").mean().ffill(limit=ffill_limit)
+
+
+def _normalized_power_from_series(
+    series_1hz: pd.Series, *, rolling_window_s: int = 30
+) -> float:
+    if series_1hz is None or series_1hz.empty:
         return math.nan
 
-    roll = p1.rolling(window=rolling_window_s, min_periods=rolling_window_s).mean().dropna()
+    if int(series_1hz.dropna().shape[0]) < rolling_window_s:
+        return math.nan
+
+    roll = series_1hz.rolling(window=rolling_window_s, min_periods=rolling_window_s).mean().dropna()
     if roll.empty:
         return math.nan
 
@@ -210,6 +230,48 @@ def _normalized_power_w(
     if not np.isfinite(mean_fourth) or mean_fourth <= 0:
         return math.nan
     return float(np.power(mean_fourth, 0.25))
+
+
+def _compute_power_duration_curve_from_series(
+    series_1hz: pd.Series, durations_s: list[int]
+) -> list[dict[str, float]]:
+    if series_1hz is None or series_1hz.empty:
+        return []
+
+    out: list[dict[str, float]] = []
+    for duration in durations_s:
+        window = int(duration)
+        if window <= 0:
+            continue
+        roll = series_1hz.rolling(window=window, min_periods=window).mean().dropna()
+        peak = float(roll.max()) if not roll.empty else math.nan
+        out.append({"duration_s": float(window), "power_w": float(peak)})
+    return out
+
+
+def _compute_power_duration_curve(
+    power_w: np.ndarray,
+    delta_time_s: np.ndarray,
+    mask: np.ndarray,
+    durations_s: list[int],
+) -> list[dict[str, float]]:
+    series_1hz = _resample_series_1hz(power_w, delta_time_s, mask)
+    return _compute_power_duration_curve_from_series(series_1hz, durations_s)
+
+
+def _edwards_trimp_from_zones(zones_df: pd.DataFrame) -> float:
+    if zones_df is None or zones_df.empty:
+        return math.nan
+    if "zone" not in zones_df.columns or "time_s" not in zones_df.columns:
+        return math.nan
+
+    weights_map = {"Z1": 1, "Z2": 2, "Z3": 3, "Z4": 4, "Z5": 5}
+    weights = zones_df["zone"].map(weights_map).to_numpy(dtype=float)
+    time_s = pd.to_numeric(zones_df["time_s"], errors="coerce").to_numpy(dtype=float)
+    mask = np.isfinite(time_s) & np.isfinite(weights) & (weights > 0)
+    if not mask.any():
+        return math.nan
+    return float(np.nansum((time_s[mask] / 60.0) * weights[mask]))
 
 
 def _negative_split(
@@ -326,6 +388,7 @@ def compute_garmin_like_stats(
             "power": None,
             "pace_zones": None,
             "running_dynamics": None,
+            "training_load": None,
             "power_advanced": None,
             "pacing": {},
         }
@@ -599,6 +662,12 @@ def compute_garmin_like_stats(
             "zones": hr_zones,
         }
 
+    training_load = None
+    if heart_rate is not None and heart_rate.get("zones") is not None:
+        trimp = _edwards_trimp_from_zones(heart_rate["zones"])
+        if trimp == trimp:
+            training_load = {"trimp": float(trimp), "method": "edwards"}
+
     cadence = None
     if "cadence" in df and df["cadence"].notna().any():
         cad_values = df["cadence"].to_numpy(dtype=float)
@@ -648,7 +717,8 @@ def compute_garmin_like_stats(
             "zones": power_zones,
         }
 
-        normalized_power_w = _normalized_power_w(power_values, delta_time, mask)
+        power_series_1hz = _resample_series_1hz(power_values, delta_time, mask)
+        normalized_power_w = _normalized_power_from_series(power_series_1hz)
         intensity_factor = (
             float(normalized_power_w / ftp_used)
             if normalized_power_w == normalized_power_w and ftp_used == ftp_used and ftp_used > 0
@@ -668,6 +738,9 @@ def compute_garmin_like_stats(
             "intensity_factor": float(intensity_factor),
             "tss": float(tss),
         }
+        power_curve = _compute_power_duration_curve_from_series(power_series_1hz, POWER_PEAK_DURATIONS_S)
+        if power_curve:
+            power_advanced["power_duration_curve"] = power_curve
 
     pace_zones = None
     pace_threshold = pace_threshold_s_per_km
@@ -704,6 +777,7 @@ def compute_garmin_like_stats(
         "power": power,
         "pace_zones": pace_zones,
         "running_dynamics": running_dynamics,
+        "training_load": training_load,
         "power_advanced": power_advanced,
         "pacing": pacing,
     }

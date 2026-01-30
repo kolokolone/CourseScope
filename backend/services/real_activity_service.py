@@ -19,6 +19,8 @@ from core.real_run_analysis import (
     build_pace_vs_grade_plot,
     build_residuals_vs_grade,
     compute_best_efforts,
+    compute_best_efforts_by_duration,
+    compute_race_predictions,
     compute_climbs,
     compute_derived_series,
     compute_pause_markers,
@@ -56,6 +58,7 @@ def prepare_base(df: pd.DataFrame) -> RealRunBase:
     summary = compute_summary_stats(df, moving_mask=derived.moving_mask)
     zone_defaults = estimate_zone_inputs(df, moving_mask=derived.moving_mask)
     best_efforts = compute_best_efforts(df)
+    best_efforts_time = compute_best_efforts_by_duration(df)
     climbs = compute_climbs(df, grade_series=derived.grade_series)
     pauses = compute_pause_markers(df, moving_mask=derived.moving_mask)
     splits = compute_splits(df)
@@ -66,6 +69,7 @@ def prepare_base(df: pd.DataFrame) -> RealRunBase:
         summary=summary,
         zone_defaults=zone_defaults,
         best_efforts=best_efforts,
+        best_efforts_time=best_efforts_time,
         climbs=climbs,
         pauses=pauses,
         splits=splits,
@@ -313,6 +317,8 @@ def analyze_real_activity(
         params=params,
     )
 
+    performance_predictions = compute_race_predictions(base.best_efforts)
+
     cap_min_per_km = float(view.cap_min_per_km) if view.cap_min_per_km is not None else base.default_cap_min_per_km
     pace_series = _compute_pace_series(df, derived=base.derived, view=view, cap_min_per_km=cap_min_per_km)
 
@@ -334,12 +340,14 @@ def analyze_real_activity(
         garmin=garmin,
         zone_defaults=base.zone_defaults,
         best_efforts=base.best_efforts,
+        best_efforts_time=base.best_efforts_time,
         climbs=base.climbs,
         pauses=base.pauses,
         highlights=highlights,
         pace_series=pace_series,
         default_cap_min_per_km=base.default_cap_min_per_km,
         splits=splits,
+        performance_predictions=performance_predictions,
         map_payload=map_payload,
         figures=figures,
     )
