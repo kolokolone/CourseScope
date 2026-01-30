@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatDurationSeconds } from '@/lib/metricsFormat';
+import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
 
 interface SidebarStatsProps {
   summary: Record<string, unknown>;
@@ -21,7 +21,7 @@ export function SidebarStats({ summary }: SidebarStatsProps) {
           {distance !== undefined && (
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Distance:</span>
-              <span className="font-medium">{distance.toFixed(2)} km</span>
+              <span className="font-medium">{formatNumber(distance, { decimals: 2 })} km</span>
             </div>
           )}
 
@@ -42,7 +42,7 @@ export function SidebarStats({ summary }: SidebarStatsProps) {
           {elevationGain !== undefined && (
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Elevation Gain:</span>
-              <span className="font-medium">{elevationGain.toFixed(0)} m</span>
+              <span className="font-medium">{formatNumber(elevationGain, { integer: true })} m</span>
             </div>
           )}
         </div>

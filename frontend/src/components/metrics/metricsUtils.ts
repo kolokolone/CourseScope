@@ -25,6 +25,11 @@ export function getValueAtPath(root: unknown, path: string): unknown {
   return current;
 }
 
+export function parsePath(root: unknown, path: string): unknown {
+  const value = getValueAtPath(root, path);
+  return value === undefined ? null : value;
+}
+
 export function pickFirstDefined(root: unknown, paths: string[]): unknown {
   for (const path of paths) {
     const value = getValueAtPath(root, path);

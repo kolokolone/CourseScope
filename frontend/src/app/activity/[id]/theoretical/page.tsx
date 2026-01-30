@@ -1,9 +1,19 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
+
+import { ActivityCharts } from '@/components/charts/ActivityCharts';
+import { MetricsRegistryRenderer } from '@/components/metrics/MetricsRegistryRenderer';
+import { SectionCard } from '@/components/metrics/SectionCard';
 import { Button } from '@/components/ui/button';
-import { MetricsSection } from '@/components/metrics/MetricsSection';
 import { useTheoreticalActivity } from '@/hooks/useActivity';
+import { CATEGORY_COLORS, CHART_SERIES, THEORETICAL_METRIC_SECTIONS } from '@/lib/metricsRegistry';
+import type { SeriesInfo } from '@/types/api';
+
+function hasAnyChartSeries(available: SeriesInfo[]) {
+  const availableNames = new Set(available.map((s) => s.name));
+  return CHART_SERIES.some((series) => availableNames.has(series.name));
+}
 
 export default function TheoreticalActivityPage() {
   const params = useParams();
@@ -23,9 +33,7 @@ export default function TheoreticalActivityPage() {
   if (error || !activity) {
     return (
       <div className="container mx-auto py-8 px-4 max-w-7xl">
-        <div className="text-center text-red-600">
-          Failed to load activity: {error?.message || 'Unknown error'}
-        </div>
+        <div className="text-center text-red-600">Failed to load activity: {error?.message || 'Unknown error'}</div>
         <div className="flex justify-center gap-3 mt-4">
           <Button onClick={() => refetch()}>Retry</Button>
           <Button variant="outline" onClick={() => router.back()}>
@@ -36,22 +44,8 @@ export default function TheoreticalActivityPage() {
     );
   }
 
-  const sections = [
-    { title: 'Infos de course', data: activity.summary },
-    { title: 'Summary', data: activity.garmin_summary },
-    { title: 'Highlights', data: activity.highlights },
-    { title: 'Zones', data: activity.zones },
-    { title: 'Best efforts', data: activity.best_efforts },
-    { title: 'Pauses', data: activity.pauses },
-    { title: 'Climbs', data: activity.climbs },
-    { title: 'Splits', data: activity.splits },
-    { title: 'Pacing', data: activity.pacing },
-    { title: 'Cadence', data: activity.cadence },
-    { title: 'Power', data: activity.power },
-    { title: 'Running dynamics', data: activity.running_dynamics },
-    { title: 'Power advanced', data: activity.power_advanced },
-    { title: 'Limits', data: activity.limits },
-  ];
+  const seriesAvailable = activity.series_index?.available ?? [];
+  const showCharts = hasAnyChartSeries(seriesAvailable);
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-7xl">
@@ -61,9 +55,17 @@ export default function TheoreticalActivityPage() {
       </div>
 
       <div className="space-y-8">
-        {sections.map((section) => (
-          <MetricsSection key={section.title} title={section.title} data={section.data} />
-        ))}
+        <MetricsRegistryRenderer data={activity} sections={THEORETICAL_METRIC_SECTIONS} />
+
+        {showCharts ? (
+          <SectionCard
+            title="Charts"
+            description="Series dynamiques (temps / distance)."
+            accentColor={CATEGORY_COLORS.Charts}
+          >
+            <ActivityCharts activityId={activityId} available={seriesAvailable} />
+          </SectionCard>
+        ) : null}
       </div>
     </div>
   );

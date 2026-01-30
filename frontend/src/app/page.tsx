@@ -5,6 +5,7 @@ import { ActivityUpload } from '@/components/upload/ActivityUpload';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useActivityList, useCleanupActivities } from '@/hooks/useActivity';
+import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
 import { Activity, Trash2 } from 'lucide-react';
 
 export default function HomePage() {
@@ -91,13 +92,22 @@ export default function HomePage() {
                         <div className="text-right">
                           {activity.stats_sidebar.distance_km !== undefined && (
                             <p className="font-medium">
-                              {activity.stats_sidebar.distance_km.toFixed(1)} km
+                              {formatNumber(activity.stats_sidebar.distance_km, { decimals: 1 })} km
                             </p>
                           )}
                           {activity.stats_sidebar.elapsed_time_s !== undefined && (
                             <p className="text-sm text-gray-500">
-                              {Math.floor(activity.stats_sidebar.elapsed_time_s / 60)}m{' '}
-                              {Math.floor(activity.stats_sidebar.elapsed_time_s % 60)}s
+                              {formatDurationSeconds(activity.stats_sidebar.elapsed_time_s)}
+                            </p>
+                          )}
+                          {activity.stats_sidebar.moving_time_s !== undefined && (
+                            <p className="text-xs text-gray-400">
+                              En mouvement: {formatDurationSeconds(activity.stats_sidebar.moving_time_s)}
+                            </p>
+                          )}
+                          {activity.stats_sidebar.elevation_gain_m !== undefined && (
+                            <p className="text-xs text-gray-400">
+                              D+: {formatNumber(activity.stats_sidebar.elevation_gain_m, { integer: true })} m
                             </p>
                           )}
                         </div>

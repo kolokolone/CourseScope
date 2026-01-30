@@ -3,7 +3,7 @@
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
-import { formatDurationSeconds } from '@/lib/metricsFormat';
+import { formatDurationSeconds, formatPercent } from '@/lib/metricsFormat';
 
 export type DataFramePayload = {
   type: 'dataframe';
@@ -26,7 +26,7 @@ export function isDataFramePayload(value: unknown): value is DataFramePayload {
 }
 
 function cellToText(value: unknown, column: string) {
-  if (value === null || value === undefined) return '';
+  if (value === null || value === undefined) return '—';
   if (typeof value === 'string') return value;
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) return String(value);
@@ -34,7 +34,7 @@ function cellToText(value: unknown, column: string) {
       return formatDurationSeconds(value);
     }
     if (column === 'time_pct' || column.endsWith('_pct')) {
-      return `${value.toFixed(1)}%`;
+      return `${formatPercent(value)}%`;
     }
     return Number.isInteger(value) ? String(value) : value.toFixed(2);
   }

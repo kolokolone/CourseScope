@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 
+import type { MetricFormat } from '@/lib/metricsFormat';
+
 import { cn } from '@/lib/utils';
 import { MetricTile } from '@/components/metrics/MetricTile';
 import { isRecord } from '@/components/metrics/metricsUtils';
@@ -12,6 +14,7 @@ export type MetricGridItem = {
   value: unknown;
   metricKey?: string;
   unit?: string;
+  format?: MetricFormat;
 };
 
 function formatFallbackLabel(key: string) {
@@ -100,6 +103,7 @@ export function MetricGrid({
           value={item.value}
           metricKey={item.metricKey}
           unit={item.unit}
+          format={item.format}
           className={tileClassName}
         />
       ))}

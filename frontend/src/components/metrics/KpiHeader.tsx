@@ -29,7 +29,7 @@ export function KpiHeader({
   if (visibleItems.length === 0) return null;
 
   return (
-    <Card className={cn('overflow-hidden', className)}>
+    <Card data-testid="kpi-header" className={cn('overflow-hidden', className)}>
       <div className="relative">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_60%_at_20%_0%,hsl(var(--muted))_0%,transparent_60%),radial-gradient(70%_60%_at_90%_20%,hsl(var(--accent))_0%,transparent_55%)] opacity-40" />
         <CardHeader className="relative pb-4">

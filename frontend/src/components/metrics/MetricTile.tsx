@@ -4,22 +4,17 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 import {
+  formatMetricValue,
+  formatNumber,
   formatDurationSeconds,
   formatPaceSecondsPerKm,
+  type MetricFormat,
   isDeltaMetricKey,
   isPaceMetricKey,
 } from '@/lib/metricsFormat';
 import { DataFrameTable, isDataFramePayload } from '@/components/metrics/DataFrameTable';
 
 export type MetricTileVariant = 'default' | 'kpi';
-
-function formatNumber(value: number, options?: { decimals?: number }) {
-  const decimals = options?.decimals;
-  if (!Number.isFinite(value)) return String(value);
-  if (typeof decimals === 'number') return value.toFixed(decimals);
-  if (Number.isInteger(value)) return String(value);
-  return value.toFixed(2);
-}
 
 function formatByKey(key: string, raw: number): { text: string; unit?: string } {
   if (isPaceMetricKey(key)) {
@@ -69,9 +64,13 @@ function formatByKey(key: string, raw: number): { text: string; unit?: string } 
   return { text: formatNumber(raw) };
 }
 
-function renderValue(key: string | undefined, value: unknown): { node: React.ReactNode; unit?: string } {
+function renderValue(
+  key: string | undefined,
+  value: unknown,
+  format?: MetricFormat
+): { node: React.ReactNode; unit?: string } {
   if (value === null || value === undefined) {
-    return { node: <span className="text-muted-foreground">-</span> };
+    return { node: <span className="text-muted-foreground">—</span> };
   }
 
   if (isDataFramePayload(value)) {
@@ -79,6 +78,10 @@ function renderValue(key: string | undefined, value: unknown): { node: React.Rea
   }
 
   if (typeof value === 'number') {
+    if (format) {
+      const text = formatMetricValue(value, format);
+      return { node: <span className="font-semibold tabular-nums">{text}</span> };
+    }
     const formatted = key ? formatByKey(key, value) : { text: formatNumber(value) };
     return { node: <span className="font-semibold tabular-nums">{formatted.text}</span>, unit: formatted.unit };
   }
@@ -118,6 +121,7 @@ export function MetricTile({
   value,
   metricKey,
   unit,
+  format,
   variant = 'default',
   className,
 }: {
@@ -125,10 +129,11 @@ export function MetricTile({
   value: unknown;
   metricKey?: string;
   unit?: string;
+  format?: MetricFormat;
   variant?: MetricTileVariant;
   className?: string;
 }) {
-  const rendered = renderValue(metricKey, value);
+  const rendered = renderValue(metricKey, value, format);
   const finalUnit = unit ?? rendered.unit;
 
   return (

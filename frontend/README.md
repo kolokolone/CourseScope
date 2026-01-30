@@ -1,36 +1,285 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cycling Stats Frontend
+
+A comprehensive cycling analytics dashboard built with Next.js, React, and TypeScript that displays detailed activity metrics, charts, and maps.
+
+## Features
+
+### 🚀 Core Functionality
+- **Activity Upload**: Drag & drop GPX/FIT file upload with comprehensive error handling
+- **Metrics Dashboard**: Complete metrics coverage with 100+ data points
+- **Interactive Charts**: Multi-axis charts with Recharts, supporting time/distance views
+- **Activity Maps**: Interactive Leaflet maps with polyline rendering
+- **Responsive Design**: Mobile-first UI with Tailwind CSS and Radix UI
+
+### 📊 Metrics Coverage
+- **Summary Metrics**: Duration, distance, elevation, speed, heart rate, power, cadence
+- **Advanced Metrics**: Training load, performance predictions, power curves, grade analysis
+- **Garmin Integration**: Pace distribution, climb analysis, step data, filtered elevations
+- **Pacing Analysis**: Stability metrics, drift calculations, threshold analysis
+- **Series Data**: Heart rate, power, speed, cadence, elevation, temperature, grade
+- **Map Integration**: GPS coordinates with downsampling for performance
+
+### 🎨 UI Components
+- **Metrics Registry**: Centralized metric definitions with intelligent formatting
+- **Dynamic Rendering**: Conditional display based on file type (GPX vs FIT)
+- **Performance Optimized**: Sampling for large datasets, memoized components
+- **Error Handling**: User-friendly error messages with network diagnostics
+
+## Tech Stack
+
+- **Framework**: Next.js 16.1.5 with App Router
+- **UI**: React 19.2.3, TypeScript 5, Tailwind CSS 4
+- **Charts**: Recharts 3.7.0 with custom performance optimizations
+- **Maps**: React Leaflet 5.0.0 with Leaflet 1.9.4
+- **File Upload**: React Dropzone 14.3.8
+- **State Management**: TanStack Query 5.90.20 for server state
+- **Icons**: Lucide React 0.563.0
+- **Testing**: Vitest 1.6.0 with Testing Library
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 18+ 
+- Backend API running on `http://localhost:8000` (see Network Debugging section)
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd cycling-stats-frontend
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
+```
+
+### Development
+
+```bash
+# Start development server
 npm run dev
-# or
+
+# Or with alternative package managers
 yarn dev
-# or
 pnpm dev
-# or
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run test` - Run tests in watch mode
+- `npm run test:watch` - Run tests with interactive watch
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── activity/[id]/      # Dynamic activity pages
+│   │   ├── real/          # Real activity data
+│   │   └── theoretical/    # Theoretical calculations
+│   └── page.tsx           # Home page
+├── components/             # Reusable React components
+│   ├── metrics/           # Metrics display components
+│   ├── upload/            # File upload components
+│   └── ui/               # Base UI components
+├── lib/                   # Utility libraries
+│   ├── api.ts             # API client with error handling
+│   ├── metricsRegistry.ts  # Centralized metrics definitions
+│   └── metricsFormat.ts   # Formatting utilities
+├── hooks/                 # React hooks
+│   └── useActivity.ts     # Activity data hooks
+└── types/                 # TypeScript definitions
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Metrics Registry System
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The application uses a centralized metrics registry (`src/lib/metricsRegistry.ts`) that:
 
-## Deploy on Vercel
+- **Defines 100+ metrics** with paths, categories, and metadata
+- **Handles conditional rendering** based on file type (GPX vs FIT)
+- **Provides consistent formatting** across all metric displays
+- **Supports hierarchical paths** for nested data structures
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Categories
+- **Summary**: Duration, distance, elevation, speed, heart rate
+- **Power**: Average, max, normalized, training load
+- **Performance**: VO2max, performance predictions
+- **Pacing**: Stability, drift, threshold analysis
+- **Garmin**: Extended metrics for Garmin devices
+- **Series**: Time-series data for charts
+- **Map**: GPS coordinates and elevation data
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Charts & Visualization
+
+### Performance Features
+- **Dynamic Sampling**: Automatically samples data >2500 points for performance
+- **Multi-Axis Support**: Switch between time and distance x-axis
+- **Interactive Tooltips**: Rich data display on hover
+- **Responsive Design**: Charts adapt to screen size
+- **Memory Efficient**: Uses React.memo and useMemo for optimization
+
+### Chart Types
+- **Line Charts**: Heart rate, power, speed, cadence over time/distance
+- **Area Charts**: Elevation profiles with gradient fills
+- **Scatter Plots**: Power distribution and analysis
+- **Combined Charts**: Multiple metrics with dual y-axis
+
+## Network Debugging
+
+### Common Issues
+
+If you encounter "Failed to fetch" errors:
+
+1. **Check Backend Status**:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+2. **Verify Environment**:
+   ```bash
+   cat .env.local
+   # Should contain: NEXT_PUBLIC_API_URL=http://localhost:8000
+   ```
+
+3. **Test Proxy** (development):
+   ```bash
+   curl http://localhost:3000/api/health
+   ```
+
+### Enhanced Error Messages
+
+The application provides specific error guidance:
+- **Network errors**: "Check API URL, CORS, or backend availability"
+- **URL errors**: "Check NEXT_PUBLIC_API_URL formatting"
+- **API errors**: Detailed messages from backend
+
+For complete debugging guide, see [NETWORK_DEBUG.md](./NETWORK_DEBUG.md).
+
+## Testing
+
+### Test Suite
+- **Unit Tests**: Component logic, utilities, hooks
+- **Integration Tests**: API client, error handling
+- **Coverage**: Formatters, registry, network handling
+
+### Running Tests
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm test -- --coverage
+```
+
+### Test Structure
+```
+src/
+├── components/*/           # Component tests
+├── lib/                   # Utility tests
+└── network-handling.test.ts # Network error logic
+```
+
+## Performance Optimizations
+
+### Frontend Optimizations
+- **React.memo**: Prevent unnecessary re-renders
+- **useMemo**: Cache expensive calculations
+- **Code Splitting**: Dynamic imports for charts and maps
+- **Data Sampling**: Limit chart data points for large datasets
+- **Lazy Loading**: Components loaded on demand
+
+### API Optimizations
+- **Query Caching**: TanStack Query with 5-10 minute cache
+- **Prefetching**: Related data preloaded when needed
+- **Background Updates**: Stale-while-revalidate strategy
+
+## Deployment
+
+### Environment Setup
+```bash
+# Production build
+npm run build
+
+# Environment variables (production)
+NEXT_PUBLIC_API_URL=https://your-api-domain.com
+```
+
+### Vercel Deployment
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy
+vercel --prod
+```
+
+### Docker Deployment
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+EXPOSE 3000
+CMD ["npm", "start"]
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make your changes and add tests
+4. Run the test suite: `npm test`
+5. Commit your changes: `git commit -m "Add feature"`
+6. Push to the branch: `git push origin feature-name`
+7. Open a Pull Request
+
+### Development Guidelines
+- Follow TypeScript best practices
+- Use the metrics registry for new metrics
+- Add tests for new features
+- Maintain test coverage above 80%
+- Use conventional commit messages
+
+## Version History
+
+### v1.1.20 (Current)
+- **Complete Metrics Registry**: 100+ metrics with intelligent formatting
+- **Enhanced Charts**: Performance-optimized Recharts integration
+- **Network Error Handling**: User-friendly error messages and debugging
+- **Test Coverage**: Comprehensive test suite with network handling tests
+- **UI Improvements**: Responsive design and accessibility enhancements
+
+### v1.1.19
+- Basic metrics display
+- Simple file upload
+- Initial chart implementation
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For issues and questions:
+1. Check the [Network Debugging Guide](./NETWORK_DEBUG.md)
+2. Review existing [GitHub Issues](https://github.com/your-repo/issues)
+3. Create a new issue with detailed information
+
+---
+
+Built with ❤️ for the cycling community
