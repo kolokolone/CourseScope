@@ -71,15 +71,19 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     try:
+        print("[HEALTH] Health check requested")
         storage = get_activity_storage()
         registry = get_series_registry()
 
-        return {
+        result = {
             "status": "healthy",
             "storage": "operational",
             "registry": "operational",
         }
+        print(f"[HEALTH] Health check result: {result}")
+        return result
     except Exception as e:
+        print(f"[HEALTH] Health check failed: {str(e)}")
         raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
 
 

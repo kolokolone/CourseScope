@@ -421,7 +421,7 @@ export default function RealActivityPage() {
                     const elev = getNumber(r.elevation_gain_m);
                     return (
                       <tr key={idx} className="border-t">
-                        <td className="px-3 py-2 whitespace-nowrap">{splitIndex ?? idx + 1}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{typeof splitIndex === 'number' ? splitIndex + 1 : idx + 1}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{dist !== undefined ? `${formatNumber(dist, { decimals: 2 })} km` : '-'}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{time !== undefined ? formatDurationSeconds(time) : '-'}</td>
                         <td className="px-3 py-2 whitespace-nowrap">

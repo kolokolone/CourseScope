@@ -1,4 +1,39 @@
 CHANGE LOG
+Version: v1.1.7 -> v1.1.8
+Date: 2026-01-30
+
+Objectif
+- Corriger le problème d'upload "Failed to fetch" et ajouter de la robustesse
+
+Problème identifié
+- Le frontend Next.js appelait directement l'API backend sur localhost:8000
+- Problèmes CORS potentiels et configuration réseau complexe
+- Erreurs peu claires côté utilisateur
+
+Correction apportée
+- **Stratégie proxy Next.js**: Configuration `/api/*` → `http://localhost:8000/*`
+- **URLs relatives**: Frontend utilise `/api/activity/load` en développement
+- **Mode production**: Conservation des appels directs si NEXT_PUBLIC_API_URL défini
+- **TypeScript fix**: Correction d'erreur de typage dans real/page.tsx
+
+Robustesse ajoutée
+- **Logs backend**: Upload avec [UPLOAD] préfixe pour traçabilité
+- **Logs health**: Endpoint /health avec debug détaillé
+- **Logs frontend**: Console.error pour tous les cas d'erreur upload
+- **Debug URL**: Affichage URL cible en console (mode développement)
+
+Validation
+- Backend: compile et répond à /health
+- Frontend: build réussi et proxy fonctionnel
+- Upload testé avec curl: succès
+- Streamlit legacy: reste fonctionnel
+
+Notes migration
+- Aucun impact sur Streamlit legacy (CourseScope.py)
+- Backward compatibility préservée pour production
+- Proxy seulement actif si NEXT_PUBLIC_API_URL non défini
+
+
 Version: v1.1.6 -> v1.1.7
 Date: 2026-01-30
 

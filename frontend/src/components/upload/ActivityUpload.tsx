@@ -30,8 +30,10 @@ export function ActivityUpload({ onUploadSuccess }: ActivityUploadProps) {
         setUploadingFile(null);
       } catch (error) {
         if (error instanceof ApiError) {
+          console.error('[UPLOAD ERROR] API Error:', error);
           alert(`Upload failed: ${error.message}`);
         } else if (error instanceof Error) {
+          console.error('[UPLOAD ERROR] Generic Error:', error);
           const message = error.message || 'Unknown error';
           const lower = message.toLowerCase();
           const hint = lower.includes('failed to fetch') || lower.includes('network') || lower.includes('err_failed')
@@ -41,6 +43,7 @@ export function ActivityUpload({ onUploadSuccess }: ActivityUploadProps) {
               : message;
           alert(`Upload failed: ${hint}`);
         } else {
+          console.error('[UPLOAD ERROR] Unknown Error:', error);
           alert('Upload failed: Unknown error');
         }
         setUploadingFile(null);

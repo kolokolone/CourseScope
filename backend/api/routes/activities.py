@@ -45,6 +45,7 @@ async def load_activity_endpoint(
     max_size: int = Header(100_000_000),
 ):
     """Charge une activité GPX/FIT et retourne son ID"""
+    print(f"[UPLOAD] Request received - File: {file.filename}, Name: {name}, Size: {file.size if hasattr(file, 'size') else 'unknown'}")
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
 
@@ -69,14 +70,17 @@ async def load_activity_endpoint(
         if suffix and not display_name.lower().endswith(suffix.lower()):
             parse_name = f"{display_name}{suffix}"
 
+        print(f"[UPLOAD] Parsing activity: {parse_name}")
         activity = load_activity(data=file_bytes, name=parse_name)
 
         storage = get_activity_storage(request)
         activity_id = storage.store(activity, file.filename, file_bytes, name=display_name)
 
+        print(f"[UPLOAD] Activity stored with ID: {activity_id}")
         stats = storage._compute_sidebar_stats(activity.df)
         limits = check_dataframe_limits(activity.df)
 
+        print(f"[UPLOAD] Success - Activity ID: {activity_id}, Type: {activity.type}")
         return ActivityLoadResponse(
             id=activity_id,
             type=activity.type,
@@ -84,6 +88,7 @@ async def load_activity_endpoint(
             limits=limits,
         )
     except Exception as e:
+        print(f"[UPLOAD] Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to load activity: {str(e)}")
 
 

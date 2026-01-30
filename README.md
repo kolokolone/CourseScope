@@ -7,7 +7,7 @@ La v1.1 est une refacto interne (aucune feature supprimee) qui separe:
 - `backend/services/` (orchestration, pur Python)
 - `backend/ui/` (Streamlit, rendu uniquement)
 
-Version courante: v1.1.6 (patch de v1.1)
+Version courante: v1.1.8 (fix upload + proxy)
 
 Depuis v1.1.1, le backend est durci pour preparer une migration FastAPI/React:
 - contrat DataFrame canonique (validation/coercion)
@@ -106,11 +106,12 @@ uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Endpoints principaux:
-- `POST /activity/load`
+- `POST /activity/load` (avec logs upload détaillés)
 - `GET /activity/{id}/real`
 - `GET /activity/{id}/theoretical`
 - `GET /activity/{id}/series/{name}?x_axis=time|distance&from=&to=&downsample=`
 - `GET /activity/{id}/map?downsample=`
+- `GET /health` (avec logs détaillés)
 
 Stockage:
 - Les activites sont persistees dans `./data/activities/{id}/` (fichier original, `df.parquet`, `meta.json`).
@@ -124,6 +125,21 @@ pnpm dev
 pnpm build
 pnpm test
 ```
+
+**Stratégie de communication API (v1.1.8)**:
+- **Développement local**: Utilise un proxy Next.js (`/api/*` → `http://localhost:8000/*`) pour éviter les problèmes CORS
+- **Production**: Appelle directement l'API backend (`http://localhost:8000`) 
+
+Pour changer l'URL API en production:
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+**Avantages du proxy en dev**:
+- Pas de configuration CORS nécessaire côté backend
+- URLs relatives (`/api/activity/load`) dans le frontend
+- Transparence pour le navigateur (même origine)
 
 Par defaut, le frontend cible `http://localhost:8000`.
 Pour changer:
