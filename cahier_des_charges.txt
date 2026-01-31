@@ -1,12 +1,15 @@
-1. Contexte general (v1.1.7)
+1. Contexte general (v1.1.20)
 
 Application web locale en Python (Streamlit) pour analyser et preparer des courses a pied a partir de traces GPX/FIT.
-Transition en cours vers une API FastAPI et un frontend Next.js, sans casser l'UI legacy.
+Transition termine vers une API FastAPI et un frontend Next.js moderne, sans casser l'UI legacy.
 
-Etat transition v1.1.7:
+Etat transition v1.1.20:
 - FastAPI expose /activity/load, /activity/{id}/real, /activity/{id}/theoretical, series, map.
-- API expose des metriques cardio (summary.cardio: FC moy/max/min) pour les activites FIT.
-- Frontend Next.js "metrics-only" (upload -> page metriques), sans cartes ni graphes, avec une UI plus structuree (KPI + sections, Cardio).
+- API expose des metriques etendues avec registre centralise de 100+ metriques.
+- Frontend Next.js "interface complete" avec registre de metriques, graphiques Recharts optimises, gestion erreur reseau avancee.
+- Architecture modulaire avec separation formatting/logic, registry-driven rendering.
+- Performance optimisee: React.memo, useMemo, lazy loading, sampling intelligent.
+- Tests etendus: couverture registre metriques, formatters, simulation erreurs reseau.
 - Streamlit legacy reste l'UI de reference.
 
 Deux cas d'usage principaux :
@@ -25,16 +28,16 @@ Deux cas d'usage principaux :
    - Optionnel: simulation avancee (meteo + split positif/negatif + clip d'allure) + plan de pacing par terrain.
    - Export CSV de la simulation avancee.
 
-Objectif v1.1.9 (metrics competition)
-- Ajouter TRIMP (Edwards) a partir des zones FC.
-- Ajouter power duration curve + peak power (si power dispo).
-- Ajouter segment analysis (best efforts par durée).
-- Ajouter performance predictions (formule de Riegel) depuis les best efforts.
-- Exposer ces métriques via l'API FastAPI (champs additionnels).
-- Corriger les warnings FIT datetime (utcfromtimestamp) via patch local.
-- Documenter la liste complete des metriques file-only (doc/metrics_list.txt).
-- Optimiser la logique de calcul (resampling puissance factorise, best efforts factorises).
-- Mettre a jour les tests (smoke/pytest) pour couvrir les nouveaux champs.
+Objectif v1.1.20 (registre metriques complet)
+- **Registre centralise**: Creer metricsRegistry.ts avec 100+ metriques organisees par categories (Summary, Power, Performance, Pacing, Garmin, Series, Map).
+- **Rendu conditionnel**: Affichage intelligent GPX vs FIT avec formatting automatique des unites.
+- **Graphiques Recharts optimises**: Performance avec echantillonnage dynamique (>2500 points), multi-axes, tooltips interactifs.
+- **Gestion erreur reseau**: Messages utilisateur specifiques, documentation NETWORK_DEBUG.md, debugage CORS/API.
+- **Architecture modulaire**: Separation formatting/logic, registry-driven rendering, React.memo et useMemo.
+- **Tests etendus**: Couverture registre metriques, formatters, simulation erreurs reseau, tests integration.
+- **Documentation complete**: README frontend, CHANGELOG detaille, architecture metrics, benchmarks performance.
+
+Realise en v1.1.20: Complete metrics registry with charts and enhanced error handling
 
 Objectif v1.1 (refacto interne) :
 - Aucune fonctionnalite supprimee.
@@ -188,7 +191,21 @@ backend/storage/
   activity_store.py
 
 frontend/
-  (Next.js app)
+  (Next.js app v1.1.20)
+  src/
+    lib/
+      metricsRegistry.ts     # NEW v1.1.20 - Registre centralise 100+ metriques
+      metricsFormat.ts      # NEW v1.1.20 - Formatting intelligent des metriques
+      api.ts                # Client API avec gestion erreur reseau
+    components/
+      metrics/              # Composants metriques avec registry-driven rendering
+        MetricsRegistryRenderer.tsx  # NEW v1.1.20 - Rendu conditionnel GPX/FIT
+        ActivityCharts.tsx             # NEW v1.1.20 - Graphiques Recharts optimises
+        KpiHeader.tsx, MetricGrid.tsx  # Composants UI metriques
+      upload/
+        ActivityUpload.tsx    # Upload avec gestion erreur reseau avancee
+    app/
+      activity/[id]/         # Pages analyse activite avec metriques completes
 
 
 7. Donnees (schemas DataFrame)

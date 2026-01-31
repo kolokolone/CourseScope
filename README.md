@@ -1,9 +1,9 @@
-# CourseScope (v1.1.9)
+# CourseScope (v1.1.20)
 
 CourseScope est une application double-stack pour analyser des traces running GPX/FIT :
 - **UI legacy Streamlit** : interface complète avec cartes, graphiques, et analyses avancées
-- **Backend FastAPI** : API moderne pour les données d'activité
-- **Frontend Next.js** : interface metrics-only (KPI, tableaux, visualisations simples)
+- **Backend FastAPI** : API moderne pour les données d'activité avec registre de métriques centralisé
+- **Frontend Next.js** : interface complète avec 100+ métriques, graphiques interactifs, et optimisations performance
 
 ## 🚀 Démarrage rapide
 
@@ -122,12 +122,16 @@ GET    /api/health                  # Status backend + logs
   - Estimations temps théoriques
 - **Métriques FIT** : Running dynamics, puissance normalisée (NP), TSS
 
-### Frontend Next.js (metrics-focused)
-- **Upload rapide** : Dropzone react-dropzone
-- **KPI header** : Distance, temps, dénivelé, allure moyenne
-- **Tableaux** : Splits, best efforts, statistiques
-- **Métriques cardio** : FC moyenne/max/min (fichiers FIT)
-- **Responsive** : Mobile-friendly design
+### Frontend Next.js (interface complète)
+- **Upload rapide** : Dropzone react-dropzone avec gestion d'erreur réseau avancée
+- **Métriques complètes** : 100+ métriques organisées par catégories (Summary, Power, Performance, Pacing, Garmin, Series, Map)
+- **KPI header** : Distance, temps, dénivelé, allure moyenne avec affichage conditionnel
+- **Tableaux intelligents** : Splits, best efforts, statistiques avec formatage automatique
+- **Graphiques interactifs** : Recharts optimisés avec échantillonnage dynamique (>2500 points)
+- **Métriques étendues** : FC, puissance, cadence, dynamique de course (FIT), zones Garmin
+- **Registre centralisé** : Définitions unifiées des métriques avec rendu conditionnel GPX/FIT
+- **Performance optimisée** : React.memo, useMemo, lazy loading, sampling intelligent
+- **Responsive** : Mobile-friendly design avec adaptations automatiques
 
 ## 🧪 Tests
 
@@ -234,7 +238,15 @@ curl -X POST http://localhost:8000/api/activity/load \
 
 ## 📈 Changelog
 
-Voir `change_log.txt` pour l'historique détaillé des versions.
+Voir `frontend/CHANGELOG.md` pour l'historique détaillé des versions.
+
+**v1.1.20** (2025-01-30) - **Version majeure frontend**
+- **Registre de métriques complet** : 100+ métriques avec formatage intelligent et affichage conditionnel GPX/FIT
+- **Graphiques Recharts optimisés** : Échantillonnage dynamique, multi-axes, tooltips interactifs
+- **Gestion d'erreur réseau avancée** : Messages utilisateur spécifiques, documentation de debug NETWORK_DEBUG.md
+- **Optimisations performance** : React.memo, useMemo, lazy loading, cache intelligent
+- **Tests étendus** : Couverture registre métriques, formatters, simulation erreurs réseau
+- **Architecture modulaire** : Séparation formatting/logic, registry-driven rendering
 
 **v1.1.9** : Nouveaux métriques backend + optimisations calcul + correction FIT datetime + tests/Docs a jour  
 **v1.1.8** : Fix upload "Failed to fetch" + proxy Next.js + logs améliorés  
