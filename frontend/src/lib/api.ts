@@ -89,7 +89,8 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
   const requestId = response.headers.get('X-Request-ID');
 
   if (isDev()) {
-    const level = response.ok ? 'info' : 'error';
+    // Avoid noisy Next.js dev overlays: keep failures at warn-level.
+    const level = response.ok ? 'info' : 'warn';
     console[level]('[API] response', {
       baseUrl: API_BASE_URL,
       endpoint,

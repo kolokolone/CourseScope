@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.30] - 2026-01-31
+
+### Fixed
+- Windows startup: run_win.bat waits for backend /health before starting the frontend (prevents proxy ECONNREFUSED).
+- Frontend logs: failed API responses are logged at warn-level to avoid dev overlay noise.
+
 ## [1.1.29] - 2026-01-31
 
 ### Fixed

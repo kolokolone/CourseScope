@@ -23,9 +23,16 @@ Your frontend is configured with:
 
 ## Debugging Steps
 
+### 0. Spot the proxy error (most common)
+If you see this in the Next.js terminal:
+
+`Failed to proxy http://127.0.0.1:8000/... Error: connect ECONNREFUSED 127.0.0.1:8000`
+
+Then the backend isn't running (or isn't ready yet).
+
 ### 1. Check if backend is running
 ```bash
-curl http://localhost:8000/health
+curl http://127.0.0.1:8000/health
 # Should return JSON with status info
 ```
 

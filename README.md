@@ -1,4 +1,4 @@
-# CourseScope (v1.1.29)
+# CourseScope (v1.1.30)
 
 CourseScope est une application web locale pour analyser des traces running GPX/FIT :
 - **Backend FastAPI** : API moderne pour les données d'activite
@@ -67,7 +67,7 @@ CourseScope/
 └── tests/                       # Tests unitaires + pytest
 ```
 
-## 🔌 Configuration API (v1.1.29)
+## 🔌 Configuration API (v1.1.30)
 
 ### Stratégie de communication
 - **Développement local (par défaut)** : Proxy Next.js (`/api/*` → `http://localhost:8000/*`)
@@ -78,7 +78,7 @@ CourseScope/
   - Exemple OK : `NEXT_PUBLIC_API_URL=https://api.example.com`
   - Exemple KO : `NEXT_PUBLIC_API_URL=https://api.example.com/api`
 
-### Robustesse (v1.1.29)
+### Robustesse (v1.1.30)
 - **Backend** : supporte maintenant les routes *avec* et *sans* préfixe `/api`
   - `/activity/load` et `/api/activity/load` fonctionnent tous les deux
 - **Observabilité** : chaque requête a un `X-Request-ID` et un fichier log est créé à chaque run (`./logs/backend_<timestamp>.log`)
@@ -199,13 +199,17 @@ pytest, pyarrow
 
 ## 🐛 Dépannage
 
+### Erreur "Failed to proxy" / "ECONNREFUSED 127.0.0.1:8000"
+- Le backend n'est pas demarre (ou pas encore pret). Lance l'app via `run_win.bat` / `run_linux.sh`.
+- Verifie le health check: `curl http://127.0.0.1:8000/health`
+
 ### Problèmes d'upload
 ```bash
 # Vérifier backend
-curl http://localhost:8000/health
+curl http://127.0.0.1:8000/health
 
 # Vérifier upload direct
-curl -X POST http://localhost:8000/api/activity/load \
+curl -X POST http://127.0.0.1:8000/api/activity/load \
      -F "file=@test.gpx" -F "name=test"
 
 # Logs frontend (console)
