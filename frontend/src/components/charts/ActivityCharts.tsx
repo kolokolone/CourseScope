@@ -13,6 +13,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { useMultipleSeries } from '@/hooks/useActivity';
+import { useUiPrefsStore } from '@/store/uiPrefsStore';
 import { formatDurationSeconds, formatMetricValue, formatNumber, type MetricFormat } from '@/lib/metricsFormat';
 import { CHART_SERIES, CATEGORY_COLORS } from '@/lib/metricsRegistry';
 import type { SeriesInfo, SeriesResponse } from '@/types/api';
@@ -47,6 +48,50 @@ function formatYAxis(value: number, format?: MetricFormat) {
   return formatNumber(value, { decimals: 2 });
 }
 
+type TooltipPayload = { value?: unknown };
+type TooltipContentProps = {
+  active?: boolean;
+  payload?: readonly TooltipPayload[];
+  label?: unknown;
+};
+
+function SeriesTooltip({
+  active,
+  payload,
+  label: xLabel,
+  axis,
+  labelText,
+  unit,
+  format,
+  formatX,
+}: TooltipContentProps & {
+  axis: 'time' | 'distance';
+  labelText: string;
+  unit?: string;
+  format?: MetricFormat;
+  formatX: (value: number) => string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const raw = payload[0]?.value;
+  const y = typeof raw === 'number' ? raw : Number(raw);
+  const yText = Number.isFinite(y) ? formatYAxis(y, format) : '—';
+  const x = typeof xLabel === 'number' ? xLabel : Number(xLabel);
+  const xText = axis === 'distance' ? `${formatX(x)} km` : formatX(x);
+  const xLabelText = axis === 'distance' ? 'Distance' : 'Temps';
+
+  return (
+    <div className="rounded-md border bg-background/95 px-3 py-2 text-sm shadow-sm">
+      <div className="font-medium">
+        {labelText}: {yText}
+        {unit ? ` ${unit}` : ''}
+      </div>
+      <div className="text-muted-foreground">
+        {xLabelText}: {xText}
+      </div>
+    </div>
+  );
+}
+
 function SeriesChart({
   series,
   label,
@@ -54,6 +99,9 @@ function SeriesChart({
   axis,
   format,
   unit,
+  yAxisReversed,
+  yDomain,
+  trend,
 }: {
   series: SeriesResponse;
   label: string;
@@ -61,6 +109,9 @@ function SeriesChart({
   axis: 'time' | 'distance';
   format?: MetricFormat;
   unit?: string;
+  yAxisReversed?: boolean;
+  yDomain?: [number, number];
+  trend?: ChartPoint[];
 }) {
   const data = React.useMemo(() => buildSeriesData(series), [series]);
   const tooManyPoints = data.length > MAX_POINTS;
@@ -102,17 +153,16 @@ function SeriesChart({
               tick={{ fontSize: 12 }}
               minTickGap={20}
             />
-            <YAxis tickFormatter={(value) => formatYAxis(value, format)} tick={{ fontSize: 12 }} />
+            <YAxis
+              tickFormatter={(value) => formatYAxis(value, format)}
+              tick={{ fontSize: 12 }}
+              reversed={Boolean(yAxisReversed)}
+              domain={yDomain}
+            />
             <Tooltip
               cursor={{ stroke: CATEGORY_COLORS.Charts, strokeWidth: 1 }}
-              formatter={(value: number | string | undefined) => {
-                if (value === undefined) return ['—', label];
-                const y = typeof value === 'number' ? value : Number(value);
-                const yText = formatYAxis(y, format);
-                return [`${yText}${unit ? ` ${unit}` : ''}`, label];
-              }}
-              labelFormatter={(value) =>
-                axis === 'distance' ? `${formatX(Number(value))} km` : formatX(Number(value))
+              content={
+                <SeriesTooltip axis={axis} labelText={label} unit={unit} format={format} formatX={formatX} />
               }
               isAnimationActive={false}
             />
@@ -124,11 +174,41 @@ function SeriesChart({
               dot={false}
               isAnimationActive={false}
             />
+            {trend && trend.length > 0 ? (
+              <Line
+                type="monotone"
+                data={trend}
+                dataKey="y"
+                stroke={color}
+                strokeOpacity={0.35}
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+              />
+            ) : null}
           </LineChart>
         </ResponsiveContainer>
       </div>
     </div>
   );
+}
+
+function rollingMean(points: ChartPoint[], windowSize: number) {
+  const w = Math.max(1, Math.floor(windowSize));
+  if (w <= 1) return points;
+  const out: ChartPoint[] = [];
+  let sum = 0;
+  const q: number[] = [];
+  for (let i = 0; i < points.length; i += 1) {
+    const y = points[i]?.y;
+    if (!Number.isFinite(y)) continue;
+    q.push(y);
+    sum += y;
+    if (q.length > w) sum -= q.shift() as number;
+    const mean = sum / q.length;
+    out.push({ x: points[i].x, y: mean });
+  }
+  return out;
 }
 
 export function ActivityCharts({
@@ -138,12 +218,13 @@ export function ActivityCharts({
   activityId: string;
   available: SeriesInfo[];
 }) {
-  const [axis, setAxis] = React.useState<'time' | 'distance'>('time');
+  const axis = useUiPrefsStore((s) => s.chartsXAxis);
+  const setAxis = useUiPrefsStore((s) => s.setChartsXAxis);
 
   const availableNames = React.useMemo(() => new Set(available.map((s) => s.name)), [available]);
 
   const seriesDefs = React.useMemo(() => {
-    const preferredOrder = ['pace', 'heart_rate', 'elevation', 'grade', 'speed', 'power', 'cadence', 'moving'] as const;
+    const preferredOrder = ['pace', 'heart_rate', 'elevation', 'grade', 'speed', 'power', 'cadence'] as const;
 
     const byName = new Map(CHART_SERIES.map((s) => [s.name, s] as const));
     const ordered: typeof CHART_SERIES = [];
@@ -155,7 +236,9 @@ export function ActivityCharts({
     }
 
     const preferredSet = new Set<string>(preferredOrder);
-    const rest = CHART_SERIES.filter((s) => availableNames.has(s.name) && !preferredSet.has(s.name));
+    const rest = CHART_SERIES.filter(
+      (s) => s.name !== 'moving' && availableNames.has(s.name) && !preferredSet.has(s.name)
+    );
     return [...ordered, ...rest];
   }, [availableNames]);
   const seriesNames = React.useMemo(() => seriesDefs.map((s) => s.name), [seriesDefs]);
@@ -167,7 +250,25 @@ export function ActivityCharts({
       if (!query.data) return null;
       const def = seriesDefs[idx];
       if (!def) return null;
-      const color = SERIES_COLORS[idx % SERIES_COLORS.length];
+      const color = def.name === 'heart_rate' ? '#dc2626' : SERIES_COLORS[idx % SERIES_COLORS.length];
+
+      const points = buildSeriesData(query.data);
+      const trend = def.name === 'heart_rate' ? rollingMean(samplePoints(points, RENDER_POINTS), 40) : undefined;
+
+      const yDomain: [number, number] | undefined = (() => {
+        if (def.name !== 'heart_rate') return undefined;
+        const ys = points.map((p) => p.y).filter((v) => Number.isFinite(v));
+        if (ys.length < 2) return undefined;
+        let min = ys[0];
+        let max = ys[0];
+        for (const v of ys) {
+          min = Math.min(min, v);
+          max = Math.max(max, v);
+        }
+        const pad = Math.max(5, (max - min) * 0.05);
+        return [Math.floor(min - pad), Math.ceil(max + pad)];
+      })();
+
       return (
         <SeriesChart
           key={`${def.name}-${axis}`}
@@ -177,6 +278,9 @@ export function ActivityCharts({
           axis={axis}
           format={def.format}
           unit={def.unit}
+          yAxisReversed={def.name === 'pace'}
+          yDomain={yDomain}
+          trend={trend}
         />
       );
     })
@@ -192,18 +296,19 @@ export function ActivityCharts({
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">Axes</div>
         <div className="flex gap-2">
-          <Button size="sm" variant={axis === 'time' ? 'default' : 'outline'} onClick={() => setAxis('time')}>
+          <Button size="sm" variant={axis === 'time' ? 'outline' : 'ghost'} onClick={() => setAxis('time')}>
             Temps
           </Button>
           <Button
             size="sm"
-            variant={axis === 'distance' ? 'default' : 'outline'}
+            variant={axis === 'distance' ? 'outline' : 'ghost'}
             onClick={() => setAxis('distance')}
           >
             Distance
           </Button>
         </div>
       </div>
+      <div className="text-xs text-muted-foreground">{`Axe applique: ${axis === 'distance' ? 'Distance (km)' : 'Temps'}`}</div>
       {hasError ? <div className="text-sm text-red-600">Erreur de chargement des series.</div> : null}
       {isLoading && charts.length === 0 ? (
         <div className="text-sm text-muted-foreground">Chargement des series...</div>

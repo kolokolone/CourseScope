@@ -10,6 +10,7 @@ const useRealActivityMock = vi.hoisted(() => vi.fn());
 vi.mock('@/hooks/useActivity', () => ({
   useRealActivity: useRealActivityMock,
   useMapData: () => ({ data: null }),
+  useMultipleSeries: () => [],
 }));
 
 vi.mock('next/navigation', () => ({

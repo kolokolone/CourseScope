@@ -518,6 +518,7 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Series disponibles (charts).',
     category: 'Series index',
     kind: 'table',
+    hidden: true,
     rowsPath: 'series_index.available',
     columns: [
       { key: 'name', label: 'Serie' },
@@ -561,6 +562,7 @@ export const THEORETICAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Series disponibles (charts).',
     category: 'Series index',
     kind: 'table',
+    hidden: true,
     rowsPath: 'series_index.available',
     columns: [
       { key: 'name', label: 'Serie' },

@@ -45,6 +45,9 @@ export default function RealActivityPage() {
   const showCharts = hasAnyChartSeries(seriesAvailable);
   const showMap = Boolean(mapData?.polyline?.length || mapData?.markers?.length || mapData?.bbox?.length);
 
+  const limitsSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'limits'), []);
+  const mainSections = useMemo(() => REAL_METRIC_SECTIONS.filter((s) => s.id !== 'limits'), []);
+
   if (isLoading) {
     return (
       <div className="container mx-auto py-8 px-4 max-w-7xl">
@@ -77,7 +80,7 @@ export default function RealActivityPage() {
       <div className="space-y-8">
         <KpiHeader title="Analyse de la course" subtitle="Indicateurs clefs" items={kpiItems} className="mb-4" />
 
-        <MetricsRegistryRenderer data={activity} sections={REAL_METRIC_SECTIONS} />
+        <MetricsRegistryRenderer data={activity} sections={mainSections} activityId={activityId} />
 
         {showCharts ? (
           <SectionCard
@@ -87,13 +90,15 @@ export default function RealActivityPage() {
           >
             <ActivityCharts activityId={activityId} available={seriesAvailable} />
           </SectionCard>
-        ) : null}
+          ) : null}
 
-         {showMap && mapData ? (
-           <SectionCard title="Map" description="Trace GPS et marqueurs." accentColor={CATEGORY_COLORS.Map}>
-            <ActivityMap mapData={mapData} activityId={activityId} />
-           </SectionCard>
-         ) : null}
+          {showMap && mapData ? (
+            <SectionCard title="Map" description="Trace GPS et marqueurs." accentColor={CATEGORY_COLORS.Map}>
+              <ActivityMap mapData={mapData} activityId={activityId} />
+            </SectionCard>
+          ) : null}
+
+        {limitsSection ? <MetricsRegistryRenderer data={activity} sections={[limitsSection]} activityId={activityId} /> : null}
       </div>
     </div>
   );

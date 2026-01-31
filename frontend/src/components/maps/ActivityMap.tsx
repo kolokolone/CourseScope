@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Polyline, CircleMarker, Popup } from 'react-le
 
 import { Button } from '@/components/ui/button';
 import { useSeriesData } from '@/hooks/useActivity';
+import { useUiPrefsStore } from '@/store/uiPrefsStore';
 import { ActivityMapResponse } from '@/types/api';
 
 interface ActivityMapProps {
@@ -34,8 +35,10 @@ function sampleArray<T>(arr: T[], max: number) {
 export function ActivityMap({ mapData, activityId, height = '400px' }: ActivityMapProps) {
   const hasMapData = mapData && mapData.polyline && mapData.polyline.length > 0;
 
-  const [showColorByPace, setShowColorByPace] = React.useState(false);
-  const [showPausePoints, setShowPausePoints] = React.useState(false);
+  const showColorByPace = useUiPrefsStore((s) => s.mapColorByPace);
+  const setShowColorByPace = useUiPrefsStore((s) => s.setMapColorByPace);
+  const showPausePoints = useUiPrefsStore((s) => s.mapPausePoints);
+  const setShowPausePoints = useUiPrefsStore((s) => s.setMapPausePoints);
 
   const bounds = React.useMemo(() => {
     if (!mapData?.bbox || mapData.bbox.length !== 4) return undefined;
@@ -56,6 +59,7 @@ export function ActivityMap({ mapData, activityId, height = '400px' }: ActivityM
   }, [mapData.polyline]);
 
   const canToggleColorByPace = Boolean(activityId && polyline.length > 10);
+  const hasPauseMarkers = Boolean(mapData.markers?.some((m) => m.type === 'pause'));
 
   const pauseGroups = React.useMemo(() => {
     if (!showPausePoints) return [];
@@ -74,6 +78,10 @@ export function ActivityMap({ mapData, activityId, height = '400px' }: ActivityM
     }
     return Array.from(grouped.values());
   }, [mapData.markers, showPausePoints]);
+
+  const nonPauseMarkers = React.useMemo(() => {
+    return (mapData.markers ?? []).filter((m) => m?.type !== 'pause');
+  }, [mapData.markers]);
 
   const coloredSegments = React.useMemo(() => {
     if (!showColorByPace || !activityId || !paceValues || paceValues.length < 10) return null;
@@ -117,34 +125,38 @@ export function ActivityMap({ mapData, activityId, height = '400px' }: ActivityM
   }
 
   return (
-    <div style={{ height }} className="rounded-lg overflow-hidden border">
+    <div style={{ height }} className="relative rounded-lg overflow-hidden border">
+      <div className="absolute right-2 top-2 z-[1000]">
+        <div className="rounded-md border bg-white/90 p-2 backdrop-blur">
+          <div className="flex flex-col gap-2">
+            <Button
+              size="sm"
+              variant={showColorByPace ? 'outline' : 'ghost'}
+              onClick={() => setShowColorByPace(!showColorByPace)}
+              disabled={!canToggleColorByPace}
+            >
+              Trace colore par allure
+            </Button>
+            <Button
+              size="sm"
+              variant={showPausePoints ? 'outline' : 'ghost'}
+              onClick={() => setShowPausePoints(!showPausePoints)}
+              disabled={!hasPauseMarkers}
+            >
+              Points de pauses
+            </Button>
+            {showColorByPace && !coloredSegments ? (
+              <div className="text-xs text-muted-foreground">Chargement couleur...</div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
       <MapContainer bounds={bounds} scrollWheelZoom style={{ height: '100%', width: '100%' }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <div className="leaflet-top leaflet-right">
-          <div className="m-2 rounded-md border bg-white/90 p-2 backdrop-blur">
-            <div className="flex flex-col gap-2">
-              <Button
-                size="sm"
-                variant={showColorByPace ? 'default' : 'outline'}
-                onClick={() => setShowColorByPace(!showColorByPace)}
-                disabled={!canToggleColorByPace}
-              >
-                Trace colore par allure
-              </Button>
-              <Button
-                size="sm"
-                variant={showPausePoints ? 'default' : 'outline'}
-                onClick={() => setShowPausePoints(!showPausePoints)}
-                disabled={!mapData.markers?.some((m) => m.type === 'pause')}
-              >
-                Points de pauses
-              </Button>
-            </div>
-          </div>
-        </div>
 
         {coloredSegments ? (
           <>
@@ -157,7 +169,7 @@ export function ActivityMap({ mapData, activityId, height = '400px' }: ActivityM
             ))}
           </>
         ) : mapData.polyline ? (
-          <Polyline positions={mapData.polyline as [number, number][]} />
+          <Polyline positions={mapData.polyline as [number, number][]} pathOptions={{ color: '#0f172a', opacity: 0.65 }} />
         ) : null}
 
         {pauseGroups.map((p, idx) => {
@@ -180,7 +192,7 @@ export function ActivityMap({ mapData, activityId, height = '400px' }: ActivityM
           );
         })}
 
-        {mapData.markers?.map((marker, index) => (
+        {nonPauseMarkers.map((marker, index) => (
           <CircleMarker
             key={`${marker.lat}-${marker.lon}-${index}`}
             center={[marker.lat, marker.lon]}

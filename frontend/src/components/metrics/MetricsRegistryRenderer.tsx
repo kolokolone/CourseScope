@@ -8,6 +8,7 @@ import { ZonesBreakdown } from '@/components/metrics/ZonesBreakdown';
 import { SectionCard } from '@/components/metrics/SectionCard';
 import { SimpleTable } from '@/components/metrics/SimpleTable';
 import { PowerDurationCurveChart } from '@/components/charts/PowerDurationCurveChart';
+import { AllureVsPenteChart } from '@/components/charts/AllureVsPenteChart';
 import { getValueAtPath } from '@/components/metrics/metricsUtils';
 import { CATEGORY_COLORS, type MetricSection } from '@/lib/metricsRegistry';
 
@@ -36,9 +37,11 @@ function buildGridItems(data: unknown, items: MetricSection['items']): MetricGri
 export function MetricsRegistryRenderer({
   data,
   sections,
+  activityId,
 }: {
   data: unknown;
   sections: MetricSection[];
+  activityId?: string;
 }) {
   const renderedSections = React.useMemo(() => {
     return sections
@@ -70,7 +73,8 @@ export function MetricsRegistryRenderer({
           const rows = section.rowsPath ? getValueAtPath(data, section.rowsPath) : undefined;
           if (!Array.isArray(rows) || rows.length === 0 || !section.columns) return null;
 
-          if (section.id === 'pauses') {
+          const collapsibleTables = new Set(['pauses', 'splits', 'segment-analysis', 'personal-records', 'best-efforts']);
+          if (collapsibleTables.has(section.id)) {
             return (
               <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
                 <details className="group">
@@ -89,6 +93,7 @@ export function MetricsRegistryRenderer({
           return (
             <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
               <SimpleTable rows={rows} columns={section.columns} />
+              {section.id === 'climbs' && activityId ? <AllureVsPenteChart activityId={activityId} /> : null}
             </SectionCard>
           );
         }
@@ -164,7 +169,7 @@ export function MetricsRegistryRenderer({
         return null;
       })
       .filter(Boolean);
-  }, [data, sections]);
+  }, [activityId, data, sections]);
 
   return <>{renderedSections}</>;
 }

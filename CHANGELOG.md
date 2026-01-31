@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.35] - 2026-01-31
+
+Based on v1.1.34.
+
+### Added
+- Climbs: add an interactive "Allure vs Pente" chart (binned mean pace + std error bars) with a dashed pro reference curve.
+
+### Changed
+- Metric grids: standardize MetricTile layouts to 6 columns on desktop (responsive 2/3/4).
+- Charts: tooltip shows metric value first, then distance/time; axis selector selection matches the applied axis and is persisted.
+- Charts: pace Y axis is inverted (faster = higher); heart rate uses a red curve with a transparent trend line and tighter Y domain.
+- Charts: remove the "Moving" graph from the Charts section.
+- Tables: Splits, Segment analysis, Personal records, and Efforts are collapsible (hidden by default, like Pauses).
+- Page order: "Qualite / limites" is always rendered at the very bottom.
+- UI only: hide "Series index".
+- Map: toggles (pace-colored trace + pause points) now affect rendering and persist across navigation.
+
+### Notes
+- Pro curve source: `backend/core/resources/pro_pace_vs_grade.csv` mirrored to `frontend/src/lib/proPaceVsGrade.ts` for UI rendering.
+
 ## [1.1.33] - 2026-01-31
 
 ### Added

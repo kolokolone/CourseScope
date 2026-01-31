@@ -47,6 +47,9 @@ export default function TheoreticalActivityPage() {
   const seriesAvailable = activity.series_index?.available ?? [];
   const showCharts = hasAnyChartSeries(seriesAvailable);
 
+  const limitsSection = THEORETICAL_METRIC_SECTIONS.find((s) => s.id === 'limits');
+  const mainSections = THEORETICAL_METRIC_SECTIONS.filter((s) => s.id !== 'limits');
+
   return (
     <div className="container mx-auto py-8 px-4 max-w-7xl">
       <div className="mb-6">
@@ -55,7 +58,7 @@ export default function TheoreticalActivityPage() {
       </div>
 
       <div className="space-y-8">
-        <MetricsRegistryRenderer data={activity} sections={THEORETICAL_METRIC_SECTIONS} />
+        <MetricsRegistryRenderer data={activity} sections={mainSections} activityId={activityId} />
 
         {showCharts ? (
           <SectionCard
@@ -66,6 +69,8 @@ export default function TheoreticalActivityPage() {
             <ActivityCharts activityId={activityId} available={seriesAvailable} />
           </SectionCard>
         ) : null}
+
+        {limitsSection ? <MetricsRegistryRenderer data={activity} sections={[limitsSection]} activityId={activityId} /> : null}
       </div>
     </div>
   );
