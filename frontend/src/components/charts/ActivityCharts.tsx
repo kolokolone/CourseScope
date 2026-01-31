@@ -21,6 +21,7 @@ import type { SeriesInfo, SeriesResponse } from '@/types/api';
 const SERIES_COLORS = ['#0072B2', '#E69F00', '#009E73', '#D55E00', '#56B4E9', '#CC79A7', '#F0E442'];
 const MAX_POINTS = 8000;
 const RENDER_POINTS = 2500;
+const HR_TREND_WINDOW = 120;
 
 type ChartPoint = { x: number; y: number };
 
@@ -194,6 +195,32 @@ function SeriesChart({
     return ticks;
   }, [axis, chartData, distanceScale]);
 
+  const autoYDomain = React.useMemo(() => {
+    const values: number[] = [];
+    for (const p of chartData) {
+      if (Number.isFinite(p.y)) values.push(p.y);
+    }
+    if (trend) {
+      for (const p of trend) {
+        if (Number.isFinite(p.y)) values.push(p.y);
+      }
+    }
+    if (values.length === 0) return undefined as [number, number] | undefined;
+
+    let min = values[0];
+    let max = values[0];
+    for (const v of values) {
+      min = Math.min(min, v);
+      max = Math.max(max, v);
+    }
+
+    const range = max - min;
+    const minPad = format === 'percent' ? 0.5 : format === 'pace' ? 5 : 1;
+    const pad = Math.max(minPad, range * 0.08, Math.abs(max) * 0.02);
+
+    return [min - pad, max + pad];
+  }, [chartData, format, trend]);
+
   const formatX = React.useCallback(
     (value: number) => {
       if (axis === 'time') return formatDurationSeconds(value);
@@ -223,9 +250,15 @@ function SeriesChart({
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="x"
+              type="number"
+              scale="linear"
+              domain={['dataMin', 'dataMax']}
+              allowDataOverflow
               ticks={axis === 'distance' ? distanceTicks : undefined}
               tickFormatter={(value) =>
-                axis === 'distance' ? formatNumber(Number(value) * distanceScale, { decimals: 0 }) : formatX(Number(value))
+                axis === 'distance'
+                  ? `${formatNumber(Number(value) * distanceScale, { decimals: 0 })} km`
+                  : formatX(Number(value))
               }
               tick={{ fontSize: 12 }}
               minTickGap={20}
@@ -234,7 +267,8 @@ function SeriesChart({
               tickFormatter={(value) => formatYAxis(value, format)}
               tick={{ fontSize: 12 }}
               reversed={Boolean(yAxisReversed)}
-              domain={yDomain}
+              domain={yDomain ?? autoYDomain}
+              allowDataOverflow
             />
             <Tooltip
               cursor={{ stroke: CATEGORY_COLORS.Charts, strokeWidth: 1 }}
@@ -340,7 +374,7 @@ export function ActivityCharts({
       const color = def.name === 'heart_rate' ? '#dc2626' : SERIES_COLORS[idx % SERIES_COLORS.length];
 
       const points = buildSeriesData(query.data);
-      const trend = def.name === 'heart_rate' ? rollingMean(samplePoints(points, RENDER_POINTS), 40) : undefined;
+      const trend = def.name === 'heart_rate' ? rollingMean(samplePoints(points, RENDER_POINTS), HR_TREND_WINDOW) : undefined;
 
       const yDomain: [number, number] | undefined = (() => {
         if (def.name !== 'heart_rate') return undefined;

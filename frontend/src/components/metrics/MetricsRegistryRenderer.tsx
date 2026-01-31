@@ -71,6 +71,20 @@ export function MetricsRegistryRenderer({
           }
 
           const rows = section.rowsPath ? getValueAtPath(data, section.rowsPath) : undefined;
+          if (section.id === 'climbs' && section.columns) {
+            const climbRows = Array.isArray(rows) ? rows : [];
+            return (
+              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+                {climbRows.length > 0 ? (
+                  <SimpleTable rows={climbRows} columns={section.columns} />
+                ) : (
+                  <div className="text-sm text-muted-foreground">Aucune montee detectee.</div>
+                )}
+                {activityId ? <AllureVsPenteChart activityId={activityId} /> : null}
+              </SectionCard>
+            );
+          }
+
           if (!Array.isArray(rows) || rows.length === 0 || !section.columns) return null;
 
           const collapsibleTables = new Set(['pauses', 'splits', 'segment-analysis', 'personal-records', 'best-efforts']);
@@ -93,7 +107,6 @@ export function MetricsRegistryRenderer({
           return (
             <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
               <SimpleTable rows={rows} columns={section.columns} />
-              {section.id === 'climbs' && activityId ? <AllureVsPenteChart activityId={activityId} /> : null}
             </SectionCard>
           );
         }
