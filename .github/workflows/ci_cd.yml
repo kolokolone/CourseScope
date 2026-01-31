@@ -9,6 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         python-version: [ "3.11" ]
@@ -33,6 +34,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Validate lockfile exists
+        run: test -f frontend/package-lock.json
 
       - name: Run CI pipeline (backend + frontend)
         run: |
