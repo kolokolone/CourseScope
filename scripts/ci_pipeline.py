@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CourseScope CI helper.
 
-v1.1.22+: legacy UI removed. This script runs the real backend + frontend test
+v1.1.23+: legacy UI removed. This script runs the real backend + frontend test
 suites and produces `ci_report.json`.
 """
 
@@ -79,15 +79,26 @@ def run_frontend_tests(results: list[dict]):
         return
 
     lockfile = frontend_dir / "package-lock.json"
-    install_cmd = "npm ci" if lockfile.exists() else "npm install"
+    install_primary = "npm ci" if lockfile.exists() else "npm install"
 
-    ok_install, _, dur_install = run_command(install_cmd, "Frontend: install", cwd=frontend_dir)
-    results.append({"name": "Frontend: install", "success": ok_install, "duration": dur_install})
+    ok_install, _, dur_install = run_command(install_primary, "Frontend: install", cwd=frontend_dir)
+    if not ok_install and install_primary == "npm ci":
+        # Windows environments can hit transient file locks during `npm ci`.
+        ok_install, _, dur_install = run_command("npm install", "Frontend: install (fallback)", cwd=frontend_dir)
+        results.append({"name": "Frontend: install (fallback)", "success": ok_install, "duration": dur_install})
+    else:
+        results.append({"name": "Frontend: install", "success": ok_install, "duration": dur_install})
+
     if not ok_install:
         return
 
     ok_test, _, dur_test = run_command("npm test", name, cwd=frontend_dir)
     results.append({"name": name, "success": ok_test, "duration": dur_test})
+    if not ok_test:
+        return
+
+    ok_build, _, dur_build = run_command("npm run build", "Frontend: npm run build", cwd=frontend_dir)
+    results.append({"name": "Frontend: npm run build", "success": ok_build, "duration": dur_build})
 
 
 def generate_report(results):
