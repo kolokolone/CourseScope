@@ -36,6 +36,11 @@ curl http://127.0.0.1:8000/health
 # Should return JSON with status info
 ```
 
+PowerShell equivalent:
+```powershell
+Invoke-WebRequest http://127.0.0.1:8000/health -UseBasicParsing
+```
+
 ### 2. Check Next.js proxy (if backend is running)
 ```bash
 # Start frontend

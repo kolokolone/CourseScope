@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.32] - 2026-01-31
+
+### Fixed
+- Windows launcher: avoid port-8000 zombie conflicts and disable uvicorn reload by default (set COURSESCOPE_RELOAD=1 to enable).
+- Docs: add PowerShell-safe manual start commands.
+
 ## [1.1.31] - 2026-01-31
 
 ### Fixed

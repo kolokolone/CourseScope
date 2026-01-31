@@ -7,6 +7,8 @@ cd /d "%PROJECT_DIR%" || goto :fail
 set "VENV_DIR=%PROJECT_DIR%.venv"
 set "PYTHON_EXE=%VENV_DIR%\Scripts\python.exe"
 set "FRONTEND_DIR=%PROJECT_DIR%frontend"
+set "LOG_DIR=%PROJECT_DIR%logs"
+set "STARTUP_LOG=%LOG_DIR%\startup_win.log"
 
 rem Usage:
 rem   run_win.bat            -> start API + frontend in two windows
@@ -15,6 +17,9 @@ rem   run_win.bat --smoke    -> quick non-interactive checks (no dev servers)
 if /i "%~1"=="--smoke" goto :smoke
 
 echo [INFO] Project: "%PROJECT_DIR%"
+
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+echo [%DATE% %TIME%] START >> "%STARTUP_LOG%"
 
 if not exist "%PYTHON_EXE%" (
     echo [INFO] Creation de l'environnement virtuel...
@@ -29,6 +34,15 @@ if not exist "%PYTHON_EXE%" (
 echo [INFO] Installation des dependances Python...
 "%PYTHON_EXE%" -m pip install -r "%PROJECT_DIR%requirements.txt" || goto :fail
 
+REM Kill any existing listener on 8000 (common after crashes/reload watchers)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do (
+  echo [%DATE% %TIME%] killing pid=%%a on :8000 >> "%STARTUP_LOG%"
+  taskkill /F /PID %%a >nul 2>&1
+)
+
+set "RELOAD_ARGS="
+if /i "%COURSESCOPE_RELOAD%"=="1" set "RELOAD_ARGS=--reload"
+
 where node >nul 2>&1 || goto :node_missing
 where npm >nul 2>&1 || goto :node_missing
 if not exist "%FRONTEND_DIR%\package.json" (
@@ -37,7 +51,7 @@ if not exist "%FRONTEND_DIR%\package.json" (
 )
 
 echo [INFO] Lancement de l'API (fenetre dediee): http://localhost:8000
-start "CourseScope API" /D "%PROJECT_DIR%" cmd /k "\"%PYTHON_EXE%\" -m uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000"
+start "CourseScope API" /D "%PROJECT_DIR%" cmd /k "\"%PYTHON_EXE%\" -m uvicorn backend.api.main:app %RELOAD_ARGS% --host 127.0.0.1 --port 8000"
 
 echo [INFO] Attente backend (max 60s): http://127.0.0.1:8000/health
 "%PYTHON_EXE%" "%PROJECT_DIR%scripts\wait_for_http_200.py" "http://127.0.0.1:8000/health" --timeout 60
