@@ -8,11 +8,22 @@ import {
   SeriesInfo,
 } from '@/types/api';
 
-// Base URL: use explicit env if provided, otherwise use Next rewrite prefix
+// Base URL strategy:
+// - In dev: always use Next.js rewrite prefix (/api) to avoid CORS / host edge cases.
+// - In prod: allow direct backend calls via NEXT_PUBLIC_API_URL.
 // Rule: NEXT_PUBLIC_API_URL must be the backend root (no trailing "/api").
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? '/api')
-  .trim()
-  .replace(/\/+$/, '');
+function resolveApiBaseUrl() {
+  const explicitRaw = process.env.NEXT_PUBLIC_API_URL;
+  const explicit = explicitRaw ? explicitRaw.trim() : '';
+
+  if (process.env.NODE_ENV === 'production' && explicit.length > 0) {
+    return explicit;
+  }
+
+  return '/api';
+}
+
+const API_BASE_URL = resolveApiBaseUrl().replace(/\/+$/, '');
 
 // Small helper so "/activity/load" and "activity/load" both work
 export function buildUrl(endpoint: string) {

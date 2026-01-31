@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CourseScope CI helper.
 
-v1.1.28+: legacy UI removed. This script runs the real backend + frontend test
+v1.1.29+: legacy UI removed. This script runs the real backend + frontend test
 suites and produces `ci_report.json`.
 """
 

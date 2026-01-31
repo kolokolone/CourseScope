@@ -1,9 +1,9 @@
-1. Contexte general (v1.1.28)
+1. Contexte general (v1.1.29)
 
 Application web locale (FastAPI + Next.js) pour analyser et preparer des courses a pied a partir de traces GPX/FIT.
 Transition terminee: architecture moderne uniquement (UI legacy retiree).
 
-Etat transition v1.1.28:
+Etat transition v1.1.29:
 - FastAPI expose /activity/load, /activity/{id}/real, /activity/{id}/theoretical, series, map.
 - API expose des metriques etendues avec registre centralise de 100+ metriques.
 - Frontend Next.js "interface complete" avec registre de metriques, graphiques Recharts optimises, gestion erreur reseau avancee.
@@ -28,7 +28,7 @@ Deux cas d'usage principaux :
    - Optionnel: simulation avancee (meteo + split positif/negatif + clip d'allure) + plan de pacing par terrain.
    - Export CSV de la simulation avancee.
 
-Objectif v1.1.28 (registre metriques complet)
+Objectif v1.1.29 (registre metriques complet)
 - **Registre centralise**: Creer metricsRegistry.ts avec 100+ metriques organisees par categories (Summary, Power, Performance, Pacing, Garmin, Series, Map).
 - **Rendu conditionnel**: Affichage intelligent GPX vs FIT avec formatting automatique des unites.
 - **Graphiques Recharts optimises**: Performance avec echantillonnage dynamique (>2500 points), multi-axes, tooltips interactifs.
@@ -37,9 +37,9 @@ Objectif v1.1.28 (registre metriques complet)
 - **Tests etendus**: Couverture registre metriques, formatters, simulation erreurs reseau, tests integration.
 - **Documentation complete**: README racine, CHANGELOG.md, docs/ROADMAP.md, architecture metrics, benchmarks performance.
 
-Realise en v1.1.28: Upload + debug robustes (compat /api, request_id, logs par run, FIT running dynamics optionnelles)
+Realise en v1.1.29: Upload + debug robustes (compat /api, request_id, logs par run, FIT running dynamics optionnelles)
 
-Objectif v1.1.28 (upload/debug)
+Objectif v1.1.29 (upload/debug)
 - Backend: supporter /activity/* et /api/activity/* (compatibilite proxy/config).
 - Backend: logging standard + fichier ./logs/backend_<timestamp>.log a chaque run.
 - Backend: middleware request_id + header X-Request-ID pour correlation front/back.
@@ -52,17 +52,17 @@ Objectif v1.1 (refacto interne) :
 - Separation des responsabilites: la logique metier ne vit plus dans les vues Streamlit.
 - Preparatif migration API: le backend (core + services) ne depend pas de Streamlit.
 
-Objectif v1.1.28 (patch) :
+Objectif v1.1.29 (patch) :
 - Durcir le backend (contrats, constantes, serialisation JSON) pour une reutilisation API.
 - Ajouter une batterie de tests unitaires (unittest) pour fiabiliser les evolutions.
 - Deplacer les fichiers demo GPX/FIT dans tests/ (plus pertinent pour les tests).
 - Nettoyer la racine du projet et rendre les ressources packagables (suppression du shim grade_table.py, deplacement de la table Ref pro).
 
-Objectif v1.1.28 (patch) :
+Objectif v1.1.29 (patch) :
 - Performance/stabilite du parsing GPX/FIT.
 - Outillage: harness de profilage backend reproductible (sans Streamlit).
 
-Objectif v1.1.28 (patch) :
+Objectif v1.1.29 (patch) :
 - Fiabilite/maintenabilite: decouplage des calculs de DataFrame hors des fonctions de plotting.
 - Observabilite: rendre la derive de cardinalite (rows_in/rows_out) testable via TransformReport.
 - Stabilisation: provider unique pour la table Ref pro (pro pace vs grade) avec identifiant (sha256) pour debug.
@@ -125,7 +125,7 @@ Contient:
 - Frontend Next.js: UI + proxy /api en developpement.
 
 
-6. Arborescence v1.1.28 (fichiers importants)
+6. Arborescence v1.1.29 (fichiers importants)
 
 CourseScope.py
 run_win.bat
@@ -137,14 +137,14 @@ docs/ROADMAP.md              # idees futures (non implemente)
 
 backend/core/
   __init__.py
-  constants.py                # NEW v1.1.28 (seuils/defaults partages)
-  derived.py                  # NEW v1.1.28 (bundle de series derivees)
-  ref_data.py                 # NEW v1.1.28 (providers de reference + cache)
-  transform_report.py         # NEW v1.1.28 (reporting testable rows_in/rows_out)
-  contracts/                  # NEW v1.1.28 (validation/contrats)
+  constants.py                # NEW v1.1.29 (seuils/defaults partages)
+  derived.py                  # NEW v1.1.29 (bundle de series derivees)
+  ref_data.py                 # NEW v1.1.29 (providers de reference + cache)
+  transform_report.py         # NEW v1.1.29 (reporting testable rows_in/rows_out)
+  contracts/                  # NEW v1.1.29 (validation/contrats)
     __init__.py
     activity_df_contract.py
-  stats/                      # NEW v1.1.28 (stats unifiees)
+  stats/                      # NEW v1.1.29 (stats unifiees)
     __init__.py
     basic_stats.py
   gpx_loader.py
@@ -156,7 +156,7 @@ backend/core/
   formatting.py               # NEW v1.1
   parsing.py                  # NEW v1.1
   grade_table.py              # NEW v1.1 (canonical)
-  resources/                  # NEW v1.1.28 (ressources embarquees)
+  resources/                  # NEW v1.1.29 (ressources embarquees)
     __init__.py
     pro_pace_vs_grade.csv
 
@@ -164,8 +164,8 @@ backend/services/
   __init__.py
   models.py                   # dataclasses (contrats)
   cache.py                    # cache portable (LRU + disque optionnel)
-  serialization.py            # NEW v1.1.28 (conversion JSON)
-  analysis_service.py         # NEW v1.1.28 (entrees backend haut niveau)
+  serialization.py            # NEW v1.1.29 (conversion JSON)
+  analysis_service.py         # NEW v1.1.29 (entrees backend haut niveau)
   activity_service.py         # chargement + type detection + sidebar stats
   history_service.py          # manipulation historique (pure)
   real_activity_service.py    # orchestration "course reelle"
@@ -179,11 +179,11 @@ backend/ui/
 
 tests/
   smoke_test.py               # NEW v1.1
-  unit/                       # NEW v1.1.28 (unittest)
-  pytest/                      # NEW v1.1.28 (tests pytest cibles)
+  unit/                       # NEW v1.1.29 (unittest)
+  pytest/                      # NEW v1.1.29 (tests pytest cibles)
 
 tools/
-  profile_pipeline.py         # NEW v1.1.28 (harness profilage backend)
+  profile_pipeline.py         # NEW v1.1.29 (harness profilage backend)
 backend/api/
   main.py
   routes/
@@ -196,16 +196,16 @@ backend/storage/
   activity_store.py
 
 frontend/
-(Next.js app v1.1.28)
+(Next.js app v1.1.29)
   src/
     lib/
-      metricsRegistry.ts     # NEW v1.1.28 - Registre centralise 100+ metriques
-      metricsFormat.ts      # NEW v1.1.28 - Formatting intelligent des metriques
+      metricsRegistry.ts     # NEW v1.1.29 - Registre centralise 100+ metriques
+      metricsFormat.ts      # NEW v1.1.29 - Formatting intelligent des metriques
       api.ts                # Client API avec gestion erreur reseau
     components/
       metrics/              # Composants metriques avec registry-driven rendering
-        MetricsRegistryRenderer.tsx  # NEW v1.1.28 - Rendu conditionnel GPX/FIT
-        ActivityCharts.tsx             # NEW v1.1.28 - Graphiques Recharts optimises
+        MetricsRegistryRenderer.tsx  # NEW v1.1.29 - Rendu conditionnel GPX/FIT
+        ActivityCharts.tsx             # NEW v1.1.29 - Graphiques Recharts optimises
         KpiHeader.tsx, MetricGrid.tsx  # Composants UI metriques
       upload/
         ActivityUpload.tsx    # Upload avec gestion erreur reseau avancee
@@ -415,7 +415,7 @@ Cache portable (Streamlit-free) :
 - MemoryCache (LRU simple)
 - DiskCache (pickle)
 - helpers: sha256_bytes, stable_json_dumps, make_key, make_cache_key
-Note: v1.1.28 conserve st.cache_data au niveau UI. backend/services/cache.py est une brique prete pour v2 (API).
+Note: v1.1.29 conserve st.cache_data au niveau UI. backend/services/cache.py est une brique prete pour v2 (API).
 
 9.7 backend/services/serialization.py
 - to_jsonable() + helpers pour convertir dataclasses/pandas/numpy/plotly en JSON.
