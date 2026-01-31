@@ -135,9 +135,12 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
     return { points: out, domainAbs: absRounded };
   }, [pace, grade]);
 
-  const proLine = React.useMemo(() => {
-    return PRO_PACE_VS_GRADE.map((p) => ({ grade: p.gradePercent, pace: p.paceSPerKm }));
-  }, []);
+  const chartData = React.useMemo(() => {
+    return points.map((p) => ({
+      ...p,
+      proPace: proPaceAtGrade(p.grade),
+    }));
+  }, [points]);
 
   if (points.length === 0 || domainAbs === 0) return null;
 
@@ -146,7 +149,7 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
       <div className="rounded-lg border p-4">
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={points} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <ComposedChart data={chartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="grade"
@@ -163,14 +166,14 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
               <Tooltip content={<AllureVsPenteTooltip />} cursor={{ strokeWidth: 1 }} isAnimationActive={false} />
 
               <Line
-                data={proLine}
                 type="monotone"
-                dataKey="pace"
+                dataKey="proPace"
                 stroke="#64748b"
                 strokeWidth={2}
                 strokeDasharray="6 4"
                 dot={false}
                 isAnimationActive={false}
+                connectNulls={false}
               />
 
               <Line
