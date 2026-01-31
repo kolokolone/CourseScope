@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.37] - 2026-01-31
+
+### Fixed
+- Map (Next.js dev/SSR): avoid Leaflet SSR crash ("window is not defined") by dynamically loading the Leaflet map client-side only.
+- Map: "Points de pauses" now uses `pauses.items` as a fallback source (in addition to `/map` markers), so the toggle works even when map markers do not include pauses.
+
+### Changed
+- Charts: add shared smoothing control (Off/5/10/15), persisted across navigation.
+- Charts: sync x-axis hover/cursor between all charts; distance axis ticks show whole kilometers.
+
+## [1.1.36] - 2026-01-31
+
+### Fixed
+- Climbs: "Allure vs Pente" now reliably renders both curves (user + pro reference).
+
+### Changed
+- Climbs: show a shaded variability band (std) and dynamic Y domain on the "Allure vs Pente" chart.
+
 ## [1.1.35] - 2026-01-31
 
 Based on v1.1.34.

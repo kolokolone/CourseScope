@@ -94,7 +94,7 @@ export default function RealActivityPage() {
 
           {showMap && mapData ? (
             <SectionCard title="Map" description="Trace GPS et marqueurs." accentColor={CATEGORY_COLORS.Map}>
-              <ActivityMap mapData={mapData} activityId={activityId} />
+              <ActivityMap mapData={mapData} activityId={activityId} pauseItems={getValueAtPath(activity, 'pauses.items')} />
             </SectionCard>
           ) : null}
 
