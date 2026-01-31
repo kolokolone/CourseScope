@@ -6,6 +6,7 @@ import {
   TheoreticalActivityResponse,
   SeriesResponse,
   ActivityMapResponse,
+  PaceVsGradeResponse,
 } from '@/types/api';
 
 export const activityKeys = {
@@ -54,6 +55,15 @@ export function useTheoreticalActivity(id: string) {
     queryFn: (): Promise<TheoreticalActivityResponse> => analysisApi.getTheoretical(id),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePaceVsGrade(activityId: string) {
+  return useQuery({
+    queryKey: [...activityKeys.detail(activityId), 'pace-vs-grade'] as const,
+    queryFn: (): Promise<PaceVsGradeResponse> => analysisApi.getPaceVsGrade(activityId),
+    enabled: !!activityId,
+    staleTime: 10 * 60 * 1000,
   });
 }
 

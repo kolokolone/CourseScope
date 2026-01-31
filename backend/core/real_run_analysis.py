@@ -385,10 +385,14 @@ def compute_pace_vs_grade_data(
 ) -> pd.DataFrame:
     """Compute the data used by build_pace_vs_grade_plot.
 
-    Returns a DataFrame with columns: grade_center, pace_med, pace_std.
+    Returns a DataFrame with columns: grade_center, pace_med, pace_std, pace_n.
+    - grade_center: median grade (%) in the bin
+    - pace_med: median pace (min/km) in the bin
+    - pace_std: stddev pace (min/km) in the bin
+    - pace_n: number of points in the bin
     """
 
-    out_cols = ["grade_center", "pace_med", "pace_std"]
+    out_cols = ["grade_center", "pace_med", "pace_std", "pace_n"]
     if df.empty:
         return pd.DataFrame(columns=out_cols)
 
@@ -444,6 +448,7 @@ def compute_pace_vs_grade_data(
         grade_center=("grade_percent", "median"),
         pace_med=("pace_min_per_km", "median"),
         pace_std=("pace_min_per_km", "std"),
+        pace_n=("pace_min_per_km", "count"),
     )
     grouped = grouped.dropna(subset=["grade_center", "pace_med"]).sort_values("grade_center")
     grouped["pace_std"] = grouped["pace_std"].fillna(0.0)

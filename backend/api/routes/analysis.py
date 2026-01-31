@@ -2,13 +2,56 @@ import math
 
 from fastapi import APIRouter, HTTPException, Request
 
-from api.schemas import RealActivityResponse, SeriesIndex, ActivityLimitsDetail, TheoreticalActivityResponse
+from core.real_run_analysis import compute_pace_vs_grade_data
+from core.ref_data import get_pro_pace_vs_grade_df
+
+from api.schemas import (
+    ActivityLimitsDetail,
+    PaceVsGradeBin,
+    PaceVsGradeResponse,
+    ProPaceVsGradePoint,
+    RealActivityResponse,
+    SeriesIndex,
+    TheoreticalActivityResponse,
+)
 from registry.series_registry import SeriesRegistry
 from services import real_activity_service, theoretical_service
 from services.serialization import df_to_records, to_jsonable
 
 
 router = APIRouter()
+
+
+def _interp_pro_pace_s_per_km(grade: float, pro_ref_rows: list[dict[str, float]]) -> float | None:
+    if not pro_ref_rows:
+        return None
+
+    # Expect rows sorted by grade_percent.
+    first_g = float(pro_ref_rows[0]["grade_percent"])
+    last_g = float(pro_ref_rows[-1]["grade_percent"])
+
+    if grade <= first_g:
+        try:
+            return float(pro_ref_rows[0]["pace_s_per_km_pro"])
+        except Exception:
+            return None
+    if grade >= last_g:
+        try:
+            return float(pro_ref_rows[-1]["pace_s_per_km_pro"])
+        except Exception:
+            return None
+
+    for i in range(len(pro_ref_rows) - 1):
+        a = pro_ref_rows[i]
+        b = pro_ref_rows[i + 1]
+        ga = float(a["grade_percent"])
+        gb = float(b["grade_percent"])
+        if ga <= grade <= gb and gb != ga:
+            pa = float(a["pace_s_per_km_pro"])
+            pb = float(b["pace_s_per_km_pro"])
+            t = (grade - ga) / (gb - ga)
+            return pa + t * (pb - pa)
+    return None
 
 
 def _is_finite_number(value) -> bool:
@@ -182,3 +225,73 @@ async def get_theoretical_activity(request: Request, activity_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get theoretical activity: {str(e)}")
+
+
+@router.get("/activity/{activity_id}/pace-vs-grade", response_model=PaceVsGradeResponse)
+async def get_pace_vs_grade(request: Request, activity_id: str):
+    """Returns binned pace vs grade data (backend-computed)."""
+
+    try:
+        storage = request.app.state.storage
+        df = storage.load_dataframe(activity_id)
+
+        if df.empty:
+            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+
+        data = compute_pace_vs_grade_data(df)
+        bins: list[PaceVsGradeBin] = []
+        if data is not None and not data.empty:
+            # pace_* values are in min/km; convert to s/km for the UI.
+            pro_df = get_pro_pace_vs_grade_df()
+            pro_rows: list[dict[str, float]] = []
+            if pro_df is not None and not pro_df.empty:
+                expected_cols = {"grade_percent", "pace_s_per_km_pro"}
+                if expected_cols.issubset(set(pro_df.columns)):
+                    pro_df_sorted = pro_df.sort_values("grade_percent")
+                    for _, row in pro_df_sorted.iterrows():
+                        g = float(row["grade_percent"])
+                        p = float(row["pace_s_per_km_pro"])
+                        if not (math.isfinite(g) and math.isfinite(p)):
+                            continue
+                        pro_rows.append({"grade_percent": g, "pace_s_per_km_pro": p})
+
+            for _, row in data.iterrows():
+                grade_center = float(row["grade_center"])
+                pace_med_s = float(row["pace_med"]) * 60.0
+                pace_std_s = float(row["pace_std"]) * 60.0
+                pace_n = int(row.get("pace_n", 0) or 0)
+
+                pro_pace = _interp_pro_pace_s_per_km(grade_center, pro_rows)
+
+                bins.append(
+                    PaceVsGradeBin(
+                        grade_center=grade_center,
+                        pace_med_s_per_km=pace_med_s,
+                        pace_std_s_per_km=pace_std_s,
+                        pace_n=pace_n,
+                        pro_pace_s_per_km=pro_pace,
+                    )
+                )
+
+        # Always return pro_ref list (may be empty) for drawing the dashed curve.
+        pro_ref_points: list[ProPaceVsGradePoint] = []
+        pro_df = get_pro_pace_vs_grade_df()
+        if pro_df is not None and not pro_df.empty:
+            expected_cols = {"grade_percent", "pace_s_per_km_pro"}
+            if expected_cols.issubset(set(pro_df.columns)):
+                pro_df_sorted = pro_df.sort_values("grade_percent")
+                for _, row in pro_df_sorted.iterrows():
+                    g = float(row["grade_percent"])
+                    p = float(row["pace_s_per_km_pro"])
+                    if not (math.isfinite(g) and math.isfinite(p)):
+                        continue
+                    pro_ref_points.append(ProPaceVsGradePoint(grade_percent=g, pace_s_per_km_pro=p))
+
+        return PaceVsGradeResponse(bins=bins, pro_ref=pro_ref_points)
+
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to compute pace-vs-grade: {str(e)}")

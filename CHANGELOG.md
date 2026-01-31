@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.38] - 2026-01-31
+
+### Added
+- Backend: new endpoint `GET /activity/{id}/pace-vs-grade` returning binned pace-vs-grade (median + std + count) plus pro reference curve.
+
+### Changed
+- Climbs: "Allure vs Pente" now consumes backend-computed bins (frontend renders only; no heavy binning computation in UI).
+
+### Fixed
+- Tests: added smoke verification steps for `/pace-vs-grade` endpoint.
+
 ## [1.1.37] - 2026-01-31
 
 ### Fixed

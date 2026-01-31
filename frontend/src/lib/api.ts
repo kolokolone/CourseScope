@@ -6,6 +6,7 @@ import {
   ActivityMapResponse,
   ActivityMetadata,
   SeriesInfo,
+  PaceVsGradeResponse,
 } from '@/types/api';
 
 // Base URL strategy:
@@ -133,6 +134,7 @@ export const activityApi = {
 export const analysisApi = {
   getReal: async (activityId: string) => apiRequest<RealActivityResponse>(`/activity/${activityId}/real`),
   getTheoretical: async (activityId: string) => apiRequest<TheoreticalActivityResponse>(`/activity/${activityId}/theoretical`),
+  getPaceVsGrade: async (activityId: string) => apiRequest<PaceVsGradeResponse>(`/activity/${activityId}/pace-vs-grade`),
 };
 
 export const seriesApi = {

@@ -123,3 +123,22 @@ class SeriesRequest(BaseModel):
     from_val: Optional[float] = None
     to_val: Optional[float] = None
     downsample: Optional[int] = None
+
+
+# 7. GET /activity/{id}/pace-vs-grade - Response
+class PaceVsGradeBin(BaseModel):
+    grade_center: float
+    pace_med_s_per_km: float
+    pace_std_s_per_km: float
+    pace_n: int
+    pro_pace_s_per_km: Optional[float] = None
+
+
+class ProPaceVsGradePoint(BaseModel):
+    grade_percent: float
+    pace_s_per_km_pro: float
+
+
+class PaceVsGradeResponse(BaseModel):
+    bins: List[PaceVsGradeBin]
+    pro_ref: List[ProPaceVsGradePoint]

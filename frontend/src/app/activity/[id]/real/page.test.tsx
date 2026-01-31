@@ -11,6 +11,7 @@ vi.mock('@/hooks/useActivity', () => ({
   useRealActivity: useRealActivityMock,
   useMapData: () => ({ data: null }),
   useMultipleSeries: () => [],
+  usePaceVsGrade: () => ({ data: { bins: [], pro_ref: [] }, isLoading: false, error: null }),
 }));
 
 vi.mock('next/navigation', () => ({

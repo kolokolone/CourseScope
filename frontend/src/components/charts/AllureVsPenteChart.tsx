@@ -13,15 +13,15 @@ import {
   YAxis,
 } from 'recharts';
 
-import { useMultipleSeries } from '@/hooks/useActivity';
+import { usePaceVsGrade } from '@/hooks/useActivity';
 import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
-import { PRO_PACE_VS_GRADE } from '@/lib/proPaceVsGrade';
 
 type BinPoint = {
   grade: number;
   paceMean: number;
   paceStd: number;
   n: number;
+  proPace?: number | null;
 };
 
 type TooltipPayload = { payload?: unknown };
@@ -36,7 +36,7 @@ function AllureVsPenteTooltip({ active, payload }: TooltipContentProps) {
     | BinPoint
     | undefined;
   if (!p) return null;
-  const pro = proPaceAtGrade(p.grade);
+  const pro = typeof p.proPace === 'number' && Number.isFinite(p.proPace) ? p.proPace : null;
   return (
     <div className="rounded-md border bg-background/95 px-3 py-2 text-sm shadow-sm">
       <div className="font-medium">{`Mon allure: ${formatPaceSecondsPerKm(p.paceMean)}`}</div>
@@ -46,107 +46,47 @@ function AllureVsPenteTooltip({ active, payload }: TooltipContentProps) {
   );
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function mean(values: number[]) {
-  if (values.length === 0) return NaN;
-  let sum = 0;
-  for (const v of values) sum += v;
-  return sum / values.length;
-}
-
-function std(values: number[], m: number) {
-  if (values.length < 2) return 0;
-  let acc = 0;
-  for (const v of values) {
-    const d = v - m;
-    acc += d * d;
-  }
-  return Math.sqrt(acc / (values.length - 1));
-}
-
-function proPaceAtGrade(grade: number) {
-  const pts = PRO_PACE_VS_GRADE;
-  if (pts.length === 0) return null;
-
-  if (grade <= pts[0].gradePercent) return pts[0].paceSPerKm;
-  if (grade >= pts[pts.length - 1].gradePercent) return pts[pts.length - 1].paceSPerKm;
-
-  for (let i = 0; i < pts.length - 1; i += 1) {
-    const a = pts[i];
-    const b = pts[i + 1];
-    if (grade >= a.gradePercent && grade <= b.gradePercent) {
-      const t = (grade - a.gradePercent) / (b.gradePercent - a.gradePercent);
-      return a.paceSPerKm + t * (b.paceSPerKm - a.paceSPerKm);
-    }
-  }
-  return null;
-}
-
 export function AllureVsPenteChart({ activityId }: { activityId: string }) {
-  const binSizePct = 1;
-  const gradeMaxAbsClamp = 20;
-
-  const queries = useMultipleSeries(activityId, ['pace', 'grade'], { x_axis: 'time' });
-  const pace = queries[0]?.data?.y;
-  const grade = queries[1]?.data?.y;
+  const query = usePaceVsGrade(activityId);
 
   const { points, domainAbs } = React.useMemo(() => {
     const out: BinPoint[] = [];
-    if (!Array.isArray(pace) || !Array.isArray(grade)) return { points: out, domainAbs: 0 };
+    const bins = query.data?.bins ?? [];
+    if (bins.length === 0) return { points: out, domainAbs: 0 };
 
-    const len = Math.min(pace.length, grade.length);
-    const bins = new Map<number, number[]>();
     let minG = Infinity;
     let maxG = -Infinity;
+    for (const b of bins) {
+      if (!Number.isFinite(b.grade_center)) continue;
+      minG = Math.min(minG, b.grade_center);
+      maxG = Math.max(maxG, b.grade_center);
 
-    for (let i = 0; i < len; i += 1) {
-      const p = pace[i];
-      const g = grade[i];
-      if (typeof p !== 'number' || typeof g !== 'number') continue;
-      if (!Number.isFinite(p) || !Number.isFinite(g)) continue;
-      if (p <= 0) continue;
-
-      const gClamped = clamp(g, -gradeMaxAbsClamp, gradeMaxAbsClamp);
-      minG = Math.min(minG, gClamped);
-      maxG = Math.max(maxG, gClamped);
-
-      const key = Math.round(gClamped / binSizePct) * binSizePct;
-      const arr = bins.get(key);
-      if (arr) arr.push(p);
-      else bins.set(key, [p]);
-    }
-
-    if (!Number.isFinite(minG) || !Number.isFinite(maxG)) return { points: out, domainAbs: 0 };
-
-    const maxAbs = Math.min(gradeMaxAbsClamp, Math.max(Math.abs(minG), Math.abs(maxG)));
-    const absRounded = Math.max(binSizePct, Math.ceil(maxAbs / binSizePct) * binSizePct);
-
-    for (const [g, values] of bins.entries()) {
-      const m = mean(values);
-      const s = std(values, m);
-      if (!Number.isFinite(m) || !Number.isFinite(s)) continue;
-      out.push({ grade: g, paceMean: m, paceStd: s, n: values.length });
+      out.push({
+        grade: b.grade_center,
+        paceMean: b.pace_med_s_per_km,
+        paceStd: b.pace_std_s_per_km,
+        n: b.pace_n,
+        proPace: b.pro_pace_s_per_km ?? null,
+      });
     }
 
     out.sort((a, b) => a.grade - b.grade);
+    if (!Number.isFinite(minG) || !Number.isFinite(maxG)) return { points: out, domainAbs: 0 };
+
+    const maxAbs = Math.min(20, Math.max(Math.abs(minG), Math.abs(maxG)));
+    const absRounded = Math.max(1, Math.ceil(maxAbs));
     return { points: out, domainAbs: absRounded };
-  }, [pace, grade]);
+  }, [query.data?.bins]);
 
   const { chartData, yDomain } = React.useMemo(() => {
     const data = points.map((p) => {
       const lower = p.paceMean - p.paceStd;
       const upper = p.paceMean + p.paceStd;
-      const pro = proPaceAtGrade(p.grade);
-
       return {
         ...p,
         paceLower: lower,
         paceUpper: upper,
         paceRange: [lower, upper] as [number, number],
-        proPace: pro,
       };
     });
 
@@ -166,11 +106,18 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
       max = Math.max(max, v);
     }
 
-    const pad = Math.max(5, (max - min) * 0.06);
+    const range = max - min;
+    const pad = Math.max(2, range * 0.04);
     const domain: [number, number] = [Math.max(1, Math.floor(min - pad)), Math.ceil(max + pad)];
     return { chartData: data, yDomain: domain };
   }, [points]);
 
+  if (query.isLoading) {
+    return <div className="text-sm text-muted-foreground">Chargement...</div>;
+  }
+  if (query.error) {
+    return <div className="text-sm text-red-600">Erreur de chargement.</div>;
+  }
   if (points.length === 0 || domainAbs === 0) return null;
 
   return (
@@ -189,10 +136,12 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
               />
               <YAxis
                 dataKey="paceMean"
+                type="number"
                 tickFormatter={(v) => formatPaceSecondsPerKm(Number(v))}
                 tick={{ fontSize: 12 }}
-                domain={yDomain}
+                domain={yDomain ?? ['dataMin', 'dataMax']}
                 allowDataOverflow
+                tickCount={6}
               />
               <Tooltip content={<AllureVsPenteTooltip />} cursor={{ strokeWidth: 1 }} isAnimationActive={false} />
 

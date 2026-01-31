@@ -112,6 +112,24 @@ export interface SeriesRequest {
   downsample?: number;
 }
 
+export interface PaceVsGradeBin {
+  grade_center: number;
+  pace_med_s_per_km: number;
+  pace_std_s_per_km: number;
+  pace_n: number;
+  pro_pace_s_per_km?: number | null;
+}
+
+export interface ProPaceVsGradePoint {
+  grade_percent: number;
+  pace_s_per_km_pro: number;
+}
+
+export interface PaceVsGradeResponse {
+  bins: PaceVsGradeBin[];
+  pro_ref: ProPaceVsGradePoint[];
+}
+
 export interface ChartPoint {
   x: number;
   y: number;
