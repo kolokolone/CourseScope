@@ -1,4 +1,4 @@
-"""Statistiques de base (sans Streamlit).
+"""Statistiques de base (sans couche UI).
 
 Ce module centralise les definitions de statistiques "socle" (distance, duree,
 D+, etc.). Il reste volontairement leger pour etre reutilise dans d'autres

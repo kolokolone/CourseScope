@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Orchestration activite theorique (prediction) (sans Streamlit)."""
+"""Orchestration activite theorique (prediction) (sans couche UI)."""
 
 import math
 from datetime import datetime

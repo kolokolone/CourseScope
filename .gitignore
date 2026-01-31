@@ -237,9 +237,6 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Streamlit
-.streamlit/secrets.toml
-
 # Local profiling outputs
 profiles/
 

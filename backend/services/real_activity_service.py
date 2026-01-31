@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Orchestration activite reelle (sans Streamlit)."""
+"""Orchestration activite reelle (sans couche UI)."""
 
 import math
 from typing import Any
@@ -164,7 +164,7 @@ def compute_map_df(
 ) -> pd.DataFrame:
     """Compute the map-ready DataFrame used by build_map_payload.
 
-    This function is Streamlit-free and intentionally testable.
+This function is UI-free and intentionally testable.
     """
 
     if df.empty:

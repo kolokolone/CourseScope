@@ -1,1 +1,1 @@
-"""Helpers de statistiques (sans Streamlit)."""
+"""Helpers de statistiques (sans couche UI)."""

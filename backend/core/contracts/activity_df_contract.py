@@ -1,4 +1,4 @@
-"""Contrat DataFrame activite canonique (sans Streamlit).
+"""Contrat DataFrame activite canonique (sans couche UI).
 
 Ce projet utilise un DataFrame canonique "par point" (sortie des loaders GPX/FIT).
 Objectifs :
@@ -6,7 +6,7 @@ Objectifs :
 - valider les entrees aux frontieres service/API
 - proposer des coercions "sans danger" (sans masquer les problemes de donnees)
 
-Ce module ne doit pas importer Streamlit.
+Ce module ne doit pas importer de couche UI.
 """
 
 from __future__ import annotations

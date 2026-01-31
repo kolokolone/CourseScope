@@ -1,9 +1,9 @@
-"""Points d'entree backend de haut niveau (sans Streamlit).
+"""Points d'entree backend de haut niveau (sans couche UI).
 
 Ce module expose des points d'entree compatibles FastAPI qui travaillent sur
 des bytes et renvoient des objets metier ou des payloads JSON-serialisables.
 
-L'UI Streamlit peut continuer d'utiliser les services plus bas niveau.
+Ce module est consomme par l'API (FastAPI).
 """
 
 from __future__ import annotations

@@ -13,10 +13,10 @@ Préparation théorique et pacing sur données théoriques
 Visualisation avancée
 - Table et courbe de "temps cumulé vs distance" avec curseur pour voir l'avance/retard par rapport à une cible.
 - Carte interactive avec heatmap d'allure ou de fréquence cardiaque si disponible; points d'eau/ravitaillement épinglés.
-- Mode recon : vue 3D du profil (pydeck Deck.gl TerrainLayer) ou mini roadbook (liste des côtes avec distance/pente/longueur).
+- Mode recon : vue 3D du profil ou mini roadbook (liste des côtes avec distance/pente/longueur).
 
 Optimisations : 
-- Cache Streamlit : mémoïser les étapes coûteuses (lecture/parse GPX, construction du DataFrame, calculs d’allure/pente/GAP, histos/figures) avec st.cache_data (résultats) et st.cache_resource (objets lourds). Éviter de recalculer quand seuls des sliders de visualisation changent.
+- Cache UI : memoiser les etapes couteuses (lecture/parse GPX, construction du DataFrame, calculs allure/pente/GAP, histos/figures). Eviter de recalculer quand seuls des sliders de visualisation changent.
 - Partager les dérivés : calculer une fois les colonnes dérivées (pente lissée, moving_mask, pace lissé, GAP, bins) et les réutiliser dans tous les graphes. Actuellement plusieurs fonctions recalculent la pente et filtrent le mouvement.
 - Déplacer le lissage : si les sliders ne changent que le rendu (ex. cap, smoothing), appliquer ces transformations sur des séries déjà prêtes plutôt que de refaire les stats de base (pente/pace) à chaque interaction.
 
@@ -27,4 +27,4 @@ Calculs répétitifs qu'on peut regroupper :
 - Lecture/parse GPX + DataFrame de base : 1 parse par fichier et non à chaque interaction (via cache).
 
 Ajout d'une courbe pro dans allure vs pente (chercher les données avec ce prompt sur chatgpt) : 
-Contexte app : - App Streamlit d’analyse de traces GPX (stats, carte, allure vs pente, heatmap, résidus, GAP, etc.). Objectif : - Ajouter au graphique “Allure en fonction de la pente” une courbe de référence “coureur pro” en pointillés pour comparaison. Ta tâche : - Fournis une table réaliste allure vs pente pour un coureur élite route (allure plat ~3:20 min/km ≈ 200 s/km). - Plage de pentes : -10 % à +15 % avec pas de 1 %. - Colonnes : grade_percent (float), pace_s_per_km_pro (float, s/km). - Comportement réaliste : plus rapide en descente modérée, ralentissement progressif en montée, transition lissée autour de 0 %. - Format de réponse STRICT : CSV avec en-tête, aucune prose ni commentaire. Exemple de format (ne pas réutiliser ces chiffres) : grade_percent,pace_s_per_km_pro -10,170 -9,172 ... 0,200 ... +15,310
+Contexte app : - App legacy UI d’analyse de traces GPX (stats, carte, allure vs pente, heatmap, residus, GAP, etc.). Objectif : - Ajouter au graphique "Allure en fonction de la pente" une courbe de reference "coureur pro" en pointilles pour comparaison. Ta tache : - Fournis une table realiste allure vs pente pour un coureur elite route (allure plat ~3:20 min/km ~= 200 s/km). - Plage de pentes : -10 % a +15 % avec pas de 1 %. - Colonnes : grade_percent (float), pace_s_per_km_pro (float, s/km). - Comportement realiste : plus rapide en descente moderee, ralentissement progressif en montee, transition lissee autour de 0 %. - Format de reponse STRICT : CSV avec en-tete, aucune prose ni commentaire. Exemple de format (ne pas reutiliser ces chiffres) : grade_percent,pace_s_per_km_pro -10,170 -9,172 ... 0,200 ... +15,310

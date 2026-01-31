@@ -1,4 +1,4 @@
-"""Constantes partagees (sans Streamlit).
+"""Constantes partagees (sans couche UI).
 
 Ce module centralise les seuils et valeurs par defaut utilises dans core/ et services/.
 Garder ce module sans dependances (hors stdlib).

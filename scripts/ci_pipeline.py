@@ -1,188 +1,93 @@
 #!/usr/bin/env python3
-"""
-Script d'intégration continue pour CourseScope
-Exécute tous les tests et valide la compatibilité entre les composants
+"""CourseScope CI helper.
+
+v1.1.22+: legacy UI removed. This script runs the real backend + frontend test
+suites and produces `ci_report.json`.
 """
 
-import sys
-import subprocess
-import os
-import time
+from __future__ import annotations
+
 import json
-from pathlib import Path
+import shutil
+import subprocess
+import sys
+import time
 from datetime import datetime
+from pathlib import Path
 
 
-def run_command(cmd, description, timeout=300):
-    """Exécute une commande et retourne le résultat"""
-    print(f"\n{'='*60}")
-    print(f"🔧 {description}")
-    print(f"{'='*60}")
-    
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def run_command(cmd: str, description: str, *, cwd: Path, timeout: int = 900):
+    print(f"\n{'=' * 60}")
+    print(f"[RUN] {description}")
+    print(f"[CMD] {cmd}")
+    print(f"{'=' * 60}")
+
     start_time = time.time()
-    
     try:
         result = subprocess.run(
-            cmd, 
-            shell=True, 
-            capture_output=True, 
-            text=True, 
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
             timeout=timeout,
-            cwd=Path(__file__).parent.parent
+            cwd=cwd,
         )
-        
-        duration = time.time() - start_time
-        
-        if result.returncode == 0:
-            print(f"✅ {description} : SUCCESS ({duration:.2f}s)")
-            return True, result.stdout, duration
-        else:
-            print(f"❌ {description} : FAILED ({duration:.2f}s)")
-            print(f"STDERR: {result.stderr}")
-            return False, result.stderr, duration
-            
     except subprocess.TimeoutExpired:
-        print(f"⏰ {description} : TIMEOUT ({timeout}s)")
-        return False, f"Command timeout after {timeout}s", timeout
-    except Exception as e:
-        print(f"💥 {description} : ERROR - {str(e)}")
-        return False, str(e), 0
+        duration = time.time() - start_time
+        print(f"[FAIL] {description} (timeout after {timeout}s)")
+        return False, f"Command timeout after {timeout}s", duration
+    except Exception as e:  # pragma: no cover
+        duration = time.time() - start_time
+        print(f"[FAIL] {description} (error: {e})")
+        return False, str(e), duration
+
+    duration = time.time() - start_time
+    if result.returncode == 0:
+        print(f"[OK] {description} ({duration:.2f}s)")
+        return True, result.stdout, duration
+
+    print(f"[FAIL] {description} ({duration:.2f}s)")
+    if result.stdout:
+        print("STDOUT:\n" + result.stdout)
+    if result.stderr:
+        print("STDERR:\n" + result.stderr)
+    return False, result.stderr or result.stdout, duration
 
 
-def run_unit_tests():
-    """Exécute les tests unitaires"""
-    success, output, duration = run_command(
-        "python -m pytest tests/unit_tests.py -v",
-        "Tests unitaires"
-    )
-    return success, duration
+def run_backend_tests(results: list[dict]):
+    for cmd, name in [
+        ("python -m pytest tests/unit -v", "Backend: pytest tests/unit"),
+        ("python -m pytest tests/pytest -v", "Backend: pytest tests/pytest"),
+    ]:
+        success, _, duration = run_command(cmd, name, cwd=REPO_ROOT)
+        results.append({"name": name, "success": success, "duration": duration})
 
 
-def run_api_tests():
-    """Exécute les tests API"""
-    # Démarrer le serveur API pour les tests
-    print("\n🚀 Démarrage du serveur API pour les tests...")
-    
-    api_process = None
-    try:
-        # Lancer le serveur en arrière-plan
-        api_process = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        
-        # Attendre que le serveur soit prêt
-        time.sleep(5)
-        
-        success, output, duration = run_command(
-            "python -m pytest tests/api_tests.py -v",
-            "Tests API"
-        )
-        
-        return success, duration
-        
-    finally:
-        if api_process:
-            api_process.terminate()
-            api_process.wait()
+def run_frontend_tests(results: list[dict]):
+    frontend_dir = REPO_ROOT / "frontend"
+    name = "Frontend: npm test"
 
+    if not frontend_dir.exists():
+        results.append({"name": name, "success": False, "duration": 0, "error": "frontend/ not found"})
+        return
 
-def run_compatibility_tests():
-    """Exécute les tests de compatibilité"""
-    success, output, duration = run_command(
-        "python -m pytest tests/compat_tests.py -v",
-        "Tests de compatibilité Streamlit/API"
-    )
-    return success, duration
+    if shutil.which("npm") is None:
+        results.append({"name": name, "success": False, "duration": 0, "error": "npm not found"})
+        return
 
+    lockfile = frontend_dir / "package-lock.json"
+    install_cmd = "npm ci" if lockfile.exists() else "npm install"
 
-def run_sync_tests():
-    """Exécute les tests de synchronisation"""
-    # Démarrer les deux serveurs pour les tests de sync
-    api_process = None
-    streamlit_process = None
-    
-    try:
-        print("\n🚀 Démarrage des serveurs pour les tests de synchronisation...")
-        
-        # Démarrer API
-        api_process = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        
-        # Démarrer Streamlit
-        streamlit_process = subprocess.Popen(
-            [sys.executable, "-m", "streamlit", "run", "CourseScope.py", "--server.port", "8501", "--server.headless", "true"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        
-        # Attendre que les serveurs soient prêts
-        time.sleep(10)
-        
-        success, output, duration = run_command(
-            "python -m pytest tests/sync_tests.py -v",
-            "Tests de synchronisation"
-        )
-        
-        return success, duration
-        
-    finally:
-        if api_process:
-            api_process.terminate()
-            api_process.wait()
-        if streamlit_process:
-            streamlit_process.terminate()
-            streamlit_process.wait()
+    ok_install, _, dur_install = run_command(install_cmd, "Frontend: install", cwd=frontend_dir)
+    results.append({"name": "Frontend: install", "success": ok_install, "duration": dur_install})
+    if not ok_install:
+        return
 
-
-def run_load_tests():
-    """Exécute les tests de charge"""
-    print("\n🔥 Démarrage des tests de charge...")
-    
-    try:
-        # Simuler un test de charge
-        success, output, duration = run_command(
-            "python tests/api_tests.py",
-            "Tests de charge API"
-        )
-        
-        return success, duration
-    except Exception as e:
-        print(f"⚠️ Tests de charge non disponibles: {e}")
-        return True, 0  # Non bloquant
-
-
-def run_code_quality_checks():
-    """Exécute les vérifications de qualité du code"""
-    checks = [
-        ("black --check .", "Formatage Black"),
-        ("isort --check-only .", "Import sorting"),
-        ("flake8 . --max-line-length=100", "Linting Flake8"),
-        ("mypy . --ignore-missing-imports", "Type checking MyPy")
-    ]
-    
-    all_success = True
-    total_duration = 0
-    
-    for cmd, description in checks:
-        success, _, duration = run_command(cmd, description)
-        all_success = all_success and success
-        total_duration += duration
-    
-    return all_success, total_duration
-
-
-def check_dependencies():
-    """Vérifie que toutes les dépendances sont installées"""
-    success, _, duration = run_command(
-        "pip list | findstr -i \"streamlit fastapi uvicorn pandas numpy\"",
-        "Vérification des dépendances"
-    )
-    return success, duration
+    ok_test, _, dur_test = run_command("npm test", name, cwd=frontend_dir)
+    results.append({"name": name, "success": ok_test, "duration": dur_test})
 
 
 def generate_report(results):
@@ -209,85 +114,19 @@ def generate_report(results):
 
 def main():
     """Fonction principale d'intégration continue"""
-    print(f"\n🎯 DÉMARRAGE DE L'INTÉGRATION CONTINUE - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+    print(f"\n[CI] START {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
     results = []
-    
-    # 1. Vérification des dépendances
-    success, duration = check_dependencies()
-    results.append({
-        "name": "Vérification des dépendances",
-        "success": success,
-        "duration": duration
-    })
-    
-    if not success:
-        print("❌ Dépendances manquantes. Arrêt.")
-        return False
-    
-    # 2. Tests unitaires
-    success, duration = run_unit_tests()
-    results.append({
-        "name": "Tests unitaires",
-        "success": success,
-        "duration": duration
-    })
-    
-    # 3. Vérification de qualité du code
-    success, duration = run_code_quality_checks()
-    results.append({
-        "name": "Qualité du code",
-        "success": success,
-        "duration": duration
-    })
-    
-    # 4. Tests API
-    success, duration = run_api_tests()
-    results.append({
-        "name": "Tests API",
-        "success": success,
-        "duration": duration
-    })
-    
-    # 5. Tests de compatibilité
-    success, duration = run_compatibility_tests()
-    results.append({
-        "name": "Tests de compatibilité",
-        "success": success,
-        "duration": duration
-    })
-    
-    # 6. Tests de synchronisation (optionnel)
-    try:
-        success, duration = run_sync_tests()
-        results.append({
-            "name": "Tests de synchronisation",
-            "success": success,
-            "duration": duration
-        })
-    except Exception as e:
-        print(f"⚠️ Tests de synchronisation ignorés: {e}")
-        results.append({
-            "name": "Tests de synchronisation",
-            "success": True,
-            "duration": 0,
-            "skipped": True
-        })
-    
-    # 7. Tests de charge (optionnel)
-    success, duration = run_load_tests()
-    results.append({
-        "name": "Tests de charge",
-        "success": success,
-        "duration": duration
-    })
+
+    run_backend_tests(results)
+    run_frontend_tests(results)
     
     # Générer le rapport
     report = generate_report(results)
     
     # Afficher le résumé
     print(f"\n{'='*80}")
-    print("📊 RAPPORT D'INTÉGRATION CONTINUE")
+    print("CI REPORT")
     print(f"{'='*80}")
     
     total_duration = report["total_duration"]
@@ -295,38 +134,27 @@ def main():
     failed = report["summary"]["failed"]
     success_rate = report["summary"]["success_rate"]
     
-    print(f"⏱️ Durée totale: {total_duration:.2f}s")
-    print(f"✅ Tests réussis: {passed}")
-    print(f"❌ Tests échoués: {failed}")
-    print(f"📈 Taux de réussite: {success_rate}")
+    print(f"Total duration: {total_duration:.2f}s")
+    print(f"Passed: {passed}")
+    print(f"Failed: {failed}")
+    print(f"Success rate: {success_rate}")
     
     if failed > 0:
-        print(f"\n🔍 Tests échoués:")
+        print("\nFailed steps:")
         for result in results:
             if not result["success"]:
-                print(f"   ❌ {result['name']}")
+                print(f"  - {result['name']}")
     
-    print(f"\n📄 Rapport détaillé: ci_report.json")
-    
-    # Nettoyer
-    try:
-        import shutil
-        if Path("./test_activities").exists():
-            shutil.rmtree("./test_activities")
-        if Path("./test_sync").exists():
-            shutil.rmtree("./test_sync")
-    except:
-        pass
+    print("\nReport: ci_report.json")
     
     # Retourner le résultat global
     overall_success = failed == 0
     
     if overall_success:
-        print(f"\n🎉 INTÉGRATION CONTINUE : SUCCESS ✅")
+        print("\n[CI] SUCCESS")
         return True
-    else:
-        print(f"\n💥 INTÉGRATION CONTINUE : FAILED ❌")
-        return False
+    print("\n[CI] FAILED")
+    return False
 
 
 if __name__ == "__main__":

@@ -164,7 +164,7 @@ The application provides specific error guidance:
 - **URL errors**: "Check NEXT_PUBLIC_API_URL formatting"
 - **API errors**: Detailed messages from backend
 
-### API Base URL Rules (v1.1.21)
+### API Base URL Rules (v1.1.22)
 - Default (no env): `/api` (Next.js rewrite)
 - If `NEXT_PUBLIC_API_URL` is set: used as base URL after trimming trailing slashes
 - Do NOT set `NEXT_PUBLIC_API_URL` to a value ending with `/api`
@@ -263,7 +263,7 @@ CMD ["npm", "start"]
 
 ## Version History
 
-### v1.1.21 (Current)
+### v1.1.22 (Current)
 - **Unified API client**: one `apiRequest()` for JSON + uploads (FormData)
 - **Base URL rules**: defaults to `/api` rewrite; `NEXT_PUBLIC_API_URL` must be backend root (no `/api`)
 - **Better debugging**: dev logs include request timing and `X-Request-ID` when present

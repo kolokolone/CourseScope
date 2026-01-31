@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Chargement d'activite + metadonnees legeres.
 
-Ce module est sans Streamlit et peut etre reutilise depuis une future API.
+Ce module est sans couche UI et peut etre reutilise depuis une API.
 """
 
 import io

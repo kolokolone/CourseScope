@@ -45,7 +45,7 @@ class CacheStats:
 
 
 class MemoryCache:
-    """Petit cache LRU reutilisable cote API (sans Streamlit)."""
+    """Petit cache LRU reutilisable cote API (sans couche UI)."""
 
     def __init__(self, max_items: int = 32):
         self._max_items = int(max_items)

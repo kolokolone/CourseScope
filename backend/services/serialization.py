@@ -1,10 +1,10 @@
-"""Helpers de serialisation (sans Streamlit).
+"""Helpers de serialisation (sans couche UI).
 
 Convertit des objets backend (dataclasses, pandas, numpy, figures plotly)
 en structures 100% JSON-serialisables, compatibles avec une future integration
 FastAPI/React.
 
-Ce module ne doit pas importer Streamlit.
+Ce module ne doit pas importer de couche UI.
 """
 
 from __future__ import annotations

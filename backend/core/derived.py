@@ -1,4 +1,4 @@
-"""Paquet de series derivees (sans Streamlit)."""
+"""Paquet de series derivees (sans couche UI)."""
 
 from __future__ import annotations
 

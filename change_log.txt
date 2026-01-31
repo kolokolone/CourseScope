@@ -1,4 +1,21 @@
 CHANGE LOG
+Version: v1.1.21 -> v1.1.22
+Date: 2026-01-31
+
+Objectif
+- Suppression de l'UI legacy, migration complete vers FastAPI + Next.js.
+
+Changements
+- Suppression: CourseScope.py, backend/ui/, tests/sync_tests.py.
+- Deps: retrait des dependances UI legacy dans requirements.txt.
+- Lancement: run_win.bat + run_linux.sh demarrent API (uvicorn) + frontend (Next.js).
+- CI: scripts/ci_pipeline.py et .github/workflows/ci_cd.yml alignes sur les tests reels (backend + frontend).
+
+Tests
+- Backend: python -m pytest tests/unit -v; python -m pytest tests/pytest -v
+- Frontend: cd frontend && npm ci && npm test
+
+
 Version: v1.1.20 -> v1.1.21
 Date: 2026-01-31
 
@@ -92,10 +109,10 @@ Validation
 - Backend: compile et répond à /health
 - Frontend: build réussi et proxy fonctionnel
 - Upload testé avec curl: succès
-- Streamlit legacy: reste fonctionnel
+- UI legacy: reste fonctionnelle
 
 Notes migration
-- Aucun impact sur Streamlit legacy (CourseScope.py)
+- Aucun impact sur l'UI legacy (CourseScope.py)
 - Backward compatibility préservée pour production
 - Proxy seulement actif si NEXT_PUBLIC_API_URL non défini
 
@@ -104,7 +121,7 @@ Version: v1.1.6 -> v1.1.7
 Date: 2026-01-30
 
 Objectif
-- Polir l'UI "metrics-only" (coach-friendly, plus lisible) et exposer les metriques cardio manquantes via l'API, sans casser Streamlit.
+- Polir l'UI "metrics-only" (coach-friendly, plus lisible) et exposer les metriques cardio manquantes via l'API, sans casser l'UI legacy.
 
 Nouveautes
 - Backend: ajout d'un bloc stable `summary.cardio` (FC moyenne/max/min) pour les activites FIT.
@@ -117,7 +134,7 @@ Changements
 - Version uniforme v1.1.7 (README, API, package.json).
 
 Notes migration
-- Streamlit legacy reste fonctionnel (CourseScope.py).
+- UI legacy reste fonctionnelle (CourseScope.py).
 
 
 Version: v1.1.5 -> v1.1.6
@@ -325,7 +342,7 @@ UI (Streamlit)
     - calcul de la serie d'allure (mode temps reel vs temps mouvement + lissage + cap)
     - construction figures Plotly
     - preparation "map-ready" (color/labels/climb points/pause points)
-  - L'UI conserve: widgets, layout, st.plotly_chart, st.pydeck_chart, tables.
+  - L'UI conserve: widgets, layout, st.plotly_chart, tables.
 
 - ui/theoretical_view.py
   - Cache UI:
@@ -336,7 +353,7 @@ UI (Streamlit)
     - splits
     - meteo + split bias + cap avance
     - simulation avancee + pacing categories + export CSV
-  - L'UI conserve: widgets, layout, st.plotly_chart, st.pydeck_chart, download_button.
+  - L'UI conserve: widgets, layout, st.plotly_chart, download_button.
 
 Core (pur Python)
 
@@ -368,7 +385,7 @@ Services (pur Python)
 Compatibilite
 - Aucun comportement utilisateur volontairement modifie.
 - `grade_table.py` a la racine reste importable (shim).
-- La couche services reste Streamlit-free.
+- La couche services reste decouplee de l'UI.
 
 
 Verification / validation v1.1
@@ -376,7 +393,7 @@ Verification / validation v1.1
 1) Lancer l'app
 - Windows: run_win.bat
 - Linux/macOS: run_linux.sh
-- Manuel: streamlit run CourseScope.py
+- Manuel: lancer backend + UI (legacy, historique)
 
 2) Smoke tests (recommande via venv)
 - Windows: .venv/Scripts/python.exe tests/smoke_test.py

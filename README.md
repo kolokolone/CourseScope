@@ -1,45 +1,29 @@
-# CourseScope (v1.1.21)
+# CourseScope (v1.1.22)
 
-CourseScope est une application double-stack pour analyser des traces running GPX/FIT :
-- **UI legacy Streamlit** : interface complète avec cartes, graphiques, et analyses avancées
-- **Backend FastAPI** : API moderne pour les données d'activité avec registre de métriques centralisé
-- **Frontend Next.js** : interface complète avec 100+ métriques, graphiques interactifs, et optimisations performance
+CourseScope est une application web locale pour analyser des traces running GPX/FIT :
+- **Backend FastAPI** : API moderne pour les données d'activite
+- **Frontend Next.js** : interface complete (100+ metriques, graphiques, cartes)
 
 ## 🚀 Démarrage rapide
 
-### Option 1 - Streamlit (recommandé pour usage complet)
+Prerequis: Python 3.11+, Node.js (npm).
+
 ```bash
 # Windows
 ./run_win.bat
 
-# Linux/macOS  
+# Linux/macOS
 ./run_linux.sh
-
-# Manuel
-python -m streamlit run CourseScope.py
 ```
 
-### Option 2 - API + Frontend (développement)
-
-**Backend API :**
-```bash
-cd "C:\Users\domin\Documents\Python Scripts\CourseScope"
-uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-**Frontend Next.js :**
-```bash
-cd frontend
-npm install
-npm run dev    # développement
-npm run build  # production
-```
+URLs:
+- Frontend: http://localhost:3000
+- API: http://localhost:8000 (docs: /docs)
 
 ## 📁 Architecture du projet
 
 ```
 CourseScope/
-├── CourseScope.py                 # Entry point Streamlit legacy
 ├── run_win.bat / run_linux.sh     # Scripts de lancement rapide
 ├── requirements.txt               # Dépendances Python
 ├── backend/
@@ -63,17 +47,16 @@ CourseScope/
 │   │   ├── cache.py           # Cache portable
 │   │   └── serialization.py   # Conversion JSON
 │   ├── storage/                  # Persistance locale
-│   └── ui/                      # Interface Streamlit
 ├── frontend/
 │   ├── src/
 │   │   ├── lib/api.ts          # Client API avec proxy
 │   │   ├── components/upload/    # Upload dropzone
 │   │   └── app/               # Pages Next.js
 │   └── next.config.ts           # Configuration proxy API
-└── tests/                       # Tests unitaires + intégration
+└── tests/                       # Tests unitaires + pytest
 ```
 
-## 🔌 Configuration API (v1.1.21)
+## 🔌 Configuration API (v1.1.22)
 
 ### Stratégie de communication
 - **Développement local (par défaut)** : Proxy Next.js (`/api/*` → `http://localhost:8000/*`)
@@ -84,7 +67,7 @@ CourseScope/
   - Exemple OK : `NEXT_PUBLIC_API_URL=https://api.example.com`
   - Exemple KO : `NEXT_PUBLIC_API_URL=https://api.example.com/api`
 
-### Robustesse (v1.1.21)
+### Robustesse (v1.1.22)
 - **Backend** : supporte maintenant les routes *avec* et *sans* préfixe `/api`
   - `/activity/load` et `/api/activity/load` fonctionnent tous les deux
 - **Observabilité** : chaque requête a un `X-Request-ID` et un fichier log est créé à chaque run (`./logs/backend_<timestamp>.log`)
@@ -124,17 +107,6 @@ GET    /api/health                  # Compatible
 ```
 
 ## 🏃 Fonctionnalités
-
-### Streamlit Legacy (usage complet)
-- **Upload** : Glisser-déposer GPX/FIT
-- **Cartographie** : Trace interactive avec Leaflet/pydeck
-- **Graphiques** : Allure, altitude, fréquence cardiaque, puissance
-- **Analyses avancées** : 
-  - Splits automatiques (1000m, 1km, 5km)
-  - Zones d'allure type Garmin
-  - Grade Adjusted Pace (GAP)
-  - Estimations temps théoriques
-- **Métriques FIT** : Running dynamics, puissance normalisée (NP), TSS
 
 ### Frontend Next.js (interface complète)
 - **Upload rapide** : Dropzone react-dropzone avec gestion d'erreur réseau avancée
@@ -189,10 +161,10 @@ python tools/profile_pipeline.py --input tests/course.fit --mode all --repeat 3
 
 ### Python (requirements.txt)
 ```txt
-# Streamlit
-streamlit, gpxpy, fitparse, pandas, numpy, plotly, pydeck
+# Runtime
+gpxpy, fitparse, pandas, numpy, plotly
 
-# API FastAPI
+# API
 fastapi, uvicorn[standard], python-multipart, pydantic, httpx
 
 # Utilitaires
@@ -230,23 +202,20 @@ curl -X POST http://localhost:8000/api/activity/load \
 ```
 
 ### Ports par défaut
-- Streamlit : `8501`
 - Backend API : `8000` 
 - Frontend Next.js : `3000` (ou `3001` si 3000 occupé)
 
 ## 📝 Notes développement
 
 ### Règles d'architecture
-- `backend/core/` et `backend/services/` : **pas d'import Streamlit**
-- `backend/ui/` : **uniquement Streamlit** 
+- `backend/core/` et `backend/services/` : pas d'import UI
 - `frontend/` : **pas de dépendance backend directe** (API only)
 
 ### Ajout fonctionnalité
 1. **Core** : Implémenter calcul dans `backend/core/`
 2. **Services** : Orchestrer dans `backend/services/`  
 3. **API** : Exposer via `backend/api/routes/`
-4. **UI Streamlit** : Widgets dans `backend/ui/`
-5. **UI Frontend** : Composants React dans `frontend/src/`
+4. **UI Frontend** : Composants React dans `frontend/src/`
 
 ---
 
@@ -254,7 +223,7 @@ curl -X POST http://localhost:8000/api/activity/load \
 
 Voir `frontend/CHANGELOG.md` pour l'historique détaillé des versions.
 
-**v1.1.21** (2026-01-31) - **Upload + debug robustes**
+**v1.1.22** (2026-01-31) - **Legacy UI removed (migration complete)**
 - **Backend compat /api** : mêmes routes disponibles avec et sans préfixe `/api`
 - **Request tracing** : `X-Request-ID` sur chaque réponse + logs corrélables
 - **Logs backend par run** : création automatique dans `./logs/backend_<timestamp>.log`
