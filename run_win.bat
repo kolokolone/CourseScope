@@ -40,7 +40,7 @@ echo [INFO] Lancement de l'API (fenetre dediee): http://localhost:8000
 start "CourseScope API" /D "%PROJECT_DIR%" cmd /k "\"%PYTHON_EXE%\" -m uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000"
 
 echo [INFO] Lancement du Frontend (fenetre dediee): http://localhost:3000
-start "CourseScope Frontend" /D "%FRONTEND_DIR%" cmd /k "set NEXT_PUBLIC_API_URL=http://localhost:8000&& if not exist node_modules\ (if exist package-lock.json (npm ci||npm install) else (npm install)) else (echo [INFO] node_modules present - skip install) && npm run dev"
+start "CourseScope Frontend" /D "%FRONTEND_DIR%" cmd /k "if not exist node_modules\ (if exist package-lock.json (npm ci||npm install) else (npm install)) else (echo [INFO] node_modules present - skip install) && npm run dev"
 
 echo [INFO] Ouverture du navigateur: http://localhost:3000
 start "" "http://localhost:3000"

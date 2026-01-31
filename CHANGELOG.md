@@ -34,6 +34,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Fixed
 - Windows launcher: skip reinstalling frontend deps when `frontend/node_modules/` already exists (much faster subsequent starts).
 
+## [1.1.28] - 2026-01-31
+
+### Fixed
+- Upload networking: default dev flow now uses Next.js `/api/*` proxy (no direct browser calls), avoiding CORS/host edge cases.
+
 ## [1.1.22] - 2026-01-31
 
 ### Changed

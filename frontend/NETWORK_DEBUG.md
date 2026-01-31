@@ -7,17 +7,19 @@ The "Failed to fetch" error you encountered typically indicates:
 1. **Backend not running** - API server at localhost:8000 is down
 2. **CORS issues** - Backend not configured to allow frontend origin
 3. **Network connectivity** - Firewall or network blocking the request
-4. **Wrong API URL** - NEXT_PUBLIC_API_URL not set correctly
+4. **Wrong API URL** - NEXT_PUBLIC_API_URL not set correctly (or should be unset in dev)
 
 ## Current Configuration
 
 Your frontend is configured with:
-- **Default base URL**: `/api` (uses Next.js rewrite)
-- **Next.js proxy**: Routes `/api/*` to `http://localhost:8000/*` (next.config.ts)
-- **Optional env**: `NEXT_PUBLIC_API_URL=http://localhost:8000` (.env.local)
+- **Recommended in dev**: leave `NEXT_PUBLIC_API_URL` unset and use the Next.js proxy.
+  - Base URL: `/api`
+  - Next.js rewrite: `/api/*` -> `http://127.0.0.1:8000/*` (next.config.ts)
+- **Optional env (advanced)**: `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000`
+  - Only use this if you intentionally want direct browser calls (no proxy).
   - IMPORTANT: must be backend root (do NOT add `/api`)
-  - OK: `NEXT_PUBLIC_API_URL=http://localhost:8000`
-  - KO: `NEXT_PUBLIC_API_URL=http://localhost:8000/api`
+  - OK: `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000`
+  - KO: `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api`
 
 ## Debugging Steps
 
@@ -37,8 +39,9 @@ curl http://localhost:3000/api/health
 
 ### 3. Verify environment configuration
 ```bash
-# Check .env.local exists and contains:
-NEXT_PUBLIC_API_URL=http://localhost:8000
+# In dev, prefer NO .env.local (use proxy).
+# If you do use .env.local, it must contain:
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 ```
 
 ### 4. Test network connectivity

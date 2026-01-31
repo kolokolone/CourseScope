@@ -1,4 +1,4 @@
-# CourseScope (v1.1.27)
+# CourseScope (v1.1.28)
 
 CourseScope est une application web locale pour analyser des traces running GPX/FIT :
 - **Backend FastAPI** : API moderne pour les données d'activite
@@ -23,6 +23,7 @@ URLs:
 Note Windows:
 - Le premier lancement peut prendre du temps (installation `npm` dans `frontend/`).
 - Les lancements suivants sont rapides (si `frontend/node_modules/` existe, l'installation est skip).
+- En dev, le frontend passe par le proxy Next.js (`/api/*`) par defaut (recommande) pour eviter les problemes CORS/URL.
 
 ## CI (local)
 
@@ -66,7 +67,7 @@ CourseScope/
 └── tests/                       # Tests unitaires + pytest
 ```
 
-## 🔌 Configuration API (v1.1.27)
+## 🔌 Configuration API (v1.1.28)
 
 ### Stratégie de communication
 - **Développement local (par défaut)** : Proxy Next.js (`/api/*` → `http://localhost:8000/*`)
@@ -77,7 +78,7 @@ CourseScope/
   - Exemple OK : `NEXT_PUBLIC_API_URL=https://api.example.com`
   - Exemple KO : `NEXT_PUBLIC_API_URL=https://api.example.com/api`
 
-### Robustesse (v1.1.27)
+### Robustesse (v1.1.28)
 - **Backend** : supporte maintenant les routes *avec* et *sans* préfixe `/api`
   - `/activity/load` et `/api/activity/load` fonctionnent tous les deux
 - **Observabilité** : chaque requête a un `X-Request-ID` et un fichier log est créé à chaque run (`./logs/backend_<timestamp>.log`)
@@ -233,7 +234,7 @@ curl -X POST http://localhost:8000/api/activity/load \
 
 Voir `CHANGELOG.md` pour l'historique detaille des versions.
 
-**v1.1.27** (2026-01-31) - **Windows launcher: reliable API + frontend windows**
+**v1.1.28** (2026-01-31) - **Windows launcher: reliable API + frontend windows**
 - **Backend compat /api** : mêmes routes disponibles avec et sans préfixe `/api`
 - **Request tracing** : `X-Request-ID` sur chaque réponse + logs corrélables
 - **Logs backend par run** : création automatique dans `./logs/backend_<timestamp>.log`
@@ -242,7 +243,7 @@ Voir `CHANGELOG.md` pour l'historique detaille des versions.
 - **Frontend API unifié** : `apiRequest()` unique (JSON + FormData), base par défaut `/api`, `NEXT_PUBLIC_API_URL` = racine backend sans `/api`
 - **Formatters** : support explicite `text` + `boolean` dans `metricsFormat.ts` + tests
 
-**v1.1.27** (2025-01-30) - **Version majeure frontend**
+**v1.1.28** (2025-01-30) - **Version majeure frontend**
 - **Registre de métriques complet** : 100+ métriques avec formatage intelligent et affichage conditionnel GPX/FIT
 - **Graphiques Recharts optimisés** : Échantillonnage dynamique, multi-axes, tooltips interactifs
 - **Gestion d'erreur réseau avancée** : Messages utilisateur spécifiques, documentation de debug NETWORK_DEBUG.md
@@ -250,8 +251,8 @@ Voir `CHANGELOG.md` pour l'historique detaille des versions.
 - **Tests étendus** : Couverture registre métriques, formatters, simulation erreurs réseau
 - **Architecture modulaire** : Séparation formatting/logic, registry-driven rendering
 
-**v1.1.27** : Nouveaux métriques backend + optimisations calcul + correction FIT datetime + tests/Docs a jour  
-**v1.1.27** : Fix upload "Failed to fetch" + proxy Next.js + logs améliorés  
-**v1.1.27** : UI metrics-only + métriques cardio  
-**v1.1.27** : Backend consolidé + API endpoints  
-**v1.1.27** : Transition FastAPI + Next.js initiée
+**v1.1.28** : Nouveaux métriques backend + optimisations calcul + correction FIT datetime + tests/Docs a jour  
+**v1.1.28** : Fix upload "Failed to fetch" + proxy Next.js + logs améliorés  
+**v1.1.28** : UI metrics-only + métriques cardio  
+**v1.1.28** : Backend consolidé + API endpoints  
+**v1.1.28** : Transition FastAPI + Next.js initiée
