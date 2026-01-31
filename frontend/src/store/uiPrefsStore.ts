@@ -9,6 +9,9 @@ type UiPrefsState = {
   chartsXAxis: XAxis;
   setChartsXAxis: (axis: XAxis) => void;
 
+  chartsSmoothWindow: number;
+  setChartsSmoothWindow: (value: number) => void;
+
   mapColorByPace: boolean;
   setMapColorByPace: (value: boolean) => void;
 
@@ -21,6 +24,9 @@ export const useUiPrefsStore = create<UiPrefsState>()(
     (set) => ({
       chartsXAxis: 'time',
       setChartsXAxis: (axis) => set({ chartsXAxis: axis }),
+
+      chartsSmoothWindow: 10,
+      setChartsSmoothWindow: (value) => set({ chartsSmoothWindow: value }),
 
       mapColorByPace: false,
       setMapColorByPace: (value) => set({ mapColorByPace: value }),
