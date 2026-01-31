@@ -91,7 +91,25 @@ export function formatPercent(value: number) {
   return formatNumber(value, { decimals: 1 });
 }
 
-export function formatMetricValue(value: number, format: MetricFormat) {
+export function formatMetricValue(value: unknown, format: MetricFormat) {
+  if (value === null || value === undefined) {
+    return format === 'text' ? '' : '';
+  }
+
+  if (format === 'text') {
+    return String(value);
+  }
+
+  if (format === 'boolean') {
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (typeof value === 'number') return value !== 0 ? 'Yes' : 'No';
+    return String(value);
+  }
+
+  if (typeof value !== 'number') {
+    return String(value);
+  }
+
   switch (format) {
     case 'duration':
       return formatDurationSeconds(value);

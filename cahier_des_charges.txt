@@ -1,9 +1,9 @@
-1. Contexte general (v1.1.20)
+1. Contexte general (v1.1.21)
 
 Application web locale en Python (Streamlit) pour analyser et preparer des courses a pied a partir de traces GPX/FIT.
 Transition termine vers une API FastAPI et un frontend Next.js moderne, sans casser l'UI legacy.
 
-Etat transition v1.1.20:
+Etat transition v1.1.21:
 - FastAPI expose /activity/load, /activity/{id}/real, /activity/{id}/theoretical, series, map.
 - API expose des metriques etendues avec registre centralise de 100+ metriques.
 - Frontend Next.js "interface complete" avec registre de metriques, graphiques Recharts optimises, gestion erreur reseau avancee.
@@ -37,7 +37,14 @@ Objectif v1.1.20 (registre metriques complet)
 - **Tests etendus**: Couverture registre metriques, formatters, simulation erreurs reseau, tests integration.
 - **Documentation complete**: README frontend, CHANGELOG detaille, architecture metrics, benchmarks performance.
 
-Realise en v1.1.20: Complete metrics registry with charts and enhanced error handling
+Realise en v1.1.21: Upload + debug robustes (compat /api, request_id, logs par run, FIT running dynamics optionnelles)
+
+Objectif v1.1.21 (upload/debug)
+- Backend: supporter /activity/* et /api/activity/* (compatibilite proxy/config).
+- Backend: logging standard + fichier ./logs/backend_<timestamp>.log a chaque run.
+- Backend: middleware request_id + header X-Request-ID pour correlation front/back.
+- Frontend: client API unifie (JSON + FormData) base par defaut /api, NEXT_PUBLIC_API_URL = racine backend sans /api.
+- Frontend: formatters 'text' et 'boolean' supportes et testes.
 
 Objectif v1.1 (refacto interne) :
 - Aucune fonctionnalite supprimee.
@@ -191,7 +198,7 @@ backend/storage/
   activity_store.py
 
 frontend/
-  (Next.js app v1.1.20)
+  (Next.js app v1.1.21)
   src/
     lib/
       metricsRegistry.ts     # NEW v1.1.20 - Registre centralise 100+ metriques

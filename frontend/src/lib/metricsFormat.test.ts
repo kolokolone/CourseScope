@@ -38,4 +38,18 @@ describe('metricsFormat', () => {
     expect(formatMetricValue(42.5, 'meters')).toBe('43');
     expect(formatMetricValue(9.99, 'percent')).toBe('10.0');
   });
+
+  it('handles text and boolean formats explicitly', () => {
+    expect(formatMetricValue(undefined, 'text')).toBe('');
+    expect(formatMetricValue(null, 'text')).toBe('');
+    expect(formatMetricValue('hello', 'text')).toBe('hello');
+    expect(formatMetricValue(123, 'text')).toBe('123');
+
+    expect(formatMetricValue(undefined, 'boolean')).toBe('');
+    expect(formatMetricValue(null, 'boolean')).toBe('');
+    expect(formatMetricValue(true, 'boolean')).toBe('Yes');
+    expect(formatMetricValue(false, 'boolean')).toBe('No');
+    expect(formatMetricValue(1, 'boolean')).toBe('Yes');
+    expect(formatMetricValue(0, 'boolean')).toBe('No');
+  });
 });

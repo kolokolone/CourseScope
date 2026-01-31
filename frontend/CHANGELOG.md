@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.21] - 2026-01-31
+
+### Fixed
+- Unified API client: consistent base URL + safe FormData handling (no forced multipart Content-Type)
+- URL normalization: trailing slash tolerated in env input, never emitted in requests
+
+### Added
+- Dev-time structured API logs including request timing and `X-Request-ID` when present
+- Explicit metric formatting for `text` and `boolean`
+
 ## [1.1.20] - 2025-01-30
 
 ### Added

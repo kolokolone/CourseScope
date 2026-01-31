@@ -8,12 +8,19 @@ import {
   SeriesInfo,
 } from '@/types/api';
 
-// Use proxy in development, direct URL in production
-const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
-  (process.env.NODE_ENV === 'production' ? 'http://localhost:8000' : '');
-const API_BASE_URL = RAW_API_BASE_URL.trim().replace(/\/+$/, '');
+// Base URL: use explicit env if provided, otherwise use Next rewrite prefix
+// Rule: NEXT_PUBLIC_API_URL must be the backend root (no trailing "/api").
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? '/api')
+  .trim()
+  .replace(/\/+$/, '');
 
-class ApiError extends Error {
+// Small helper so "/activity/load" and "activity/load" both work
+export function buildUrl(endpoint: string) {
+  const ep = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${API_BASE_URL}${ep}`;
+}
+
+export class ApiError extends Error {
   public status: number;
   public data?: unknown;
 
@@ -25,79 +32,95 @@ class ApiError extends Error {
   }
 }
 
-async function apiRequest<T>(
-  endpoint: string,
-  options?: RequestInit,
-  baseUrl: string = API_BASE_URL
-): Promise<T> {
-  const config = {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    ...options,
-  };
+function nowMs() {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') return performance.now();
+  return Date.now();
+}
 
-  const response = await fetch(`${baseUrl}${endpoint}`, config);
+function isDev() {
+  return process.env.NODE_ENV !== 'production';
+}
+
+function extractDetailMessage(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  if (!('detail' in data)) return undefined;
+  const detail = (data as { detail?: unknown }).detail;
+  return typeof detail === 'string' ? detail : undefined;
+}
+
+export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const url = buildUrl(endpoint);
+
+  const headers = new Headers(options.headers);
+
+  // IMPORTANT: don't force Content-Type when using FormData
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
+  if (!isFormData && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const method = (options.method ?? 'GET').toUpperCase();
+  const start = nowMs();
+
+  if (isDev()) {
+    console.debug('[API] request', {
+      baseUrl: API_BASE_URL,
+      endpoint,
+      method,
+      url,
+      isFormData,
+    });
+  }
+
+  const response = await fetch(url, { ...options, headers });
+  const durationMs = nowMs() - start;
+  const requestId = response.headers.get('X-Request-ID');
+
+  if (isDev()) {
+    const level = response.ok ? 'info' : 'error';
+    console[level]('[API] response', {
+      baseUrl: API_BASE_URL,
+      endpoint,
+      method,
+      url,
+      status: response.status,
+      durationMs: Math.round(durationMs),
+      requestId,
+    });
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new ApiError(errorData.detail || `API Error: ${response.statusText}`, {
-      status: response.status,
-      data: errorData,
-    });
+    const detail = extractDetailMessage(errorData);
+    const message = detail ?? `API Error: ${response.status} ${response.statusText}`;
+    throw new ApiError(message, { status: response.status, data: errorData });
   }
 
   return response.json() as Promise<T>;
 }
 
 export const activityApi = {
-  load: async (file: File, name: string): Promise<ActivityLoadResponse> => {
+  load: async (file: File, name: string) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('name', name);
 
-    // Use relative URL for proxy in dev, absolute URL in prod
-    const url = API_BASE_URL ? `${API_BASE_URL}/activity/load` : '/api/activity/load';
-    console.log('Upload URL:', url); // Debug log
-
-    const response = await fetch(url, {
+    // Now consistent with everything else
+    return apiRequest<ActivityLoadResponse>('/activity/load', {
       method: 'POST',
       body: formData,
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new ApiError(errorData.detail || `Upload failed: ${response.statusText}`, {
-        status: response.status,
-        data: errorData,
-      });
-    }
-
-    return response.json() as Promise<ActivityLoadResponse>;
   },
 
-  list: async (): Promise<{ activities: ActivityMetadata[] }> => {
-    return apiRequest('/activities');
-  },
-
-  delete: async (activityId: string): Promise<{ message: string }> => {
-    return apiRequest(`/activity/${activityId}`, { method: 'DELETE' });
-  },
-
-  cleanup: async (): Promise<{ message: string }> => {
-    return apiRequest('/activities', { method: 'DELETE' });
-  },
+  list: async () => apiRequest<{ activities: ActivityMetadata[] }>('/activities'),
+  delete: async (activityId: string) => apiRequest<{ message: string }>(`/activity/${activityId}`, { method: 'DELETE' }),
+  cleanup: async () => apiRequest<{ message: string }>('/activities', { method: 'DELETE' }),
 };
 
 export const analysisApi = {
-  getReal: async (activityId: string): Promise<RealActivityResponse> => {
-    return apiRequest(`/activity/${activityId}/real`);
-  },
-
-  getTheoretical: async (activityId: string): Promise<TheoreticalActivityResponse> => {
-    return apiRequest(`/activity/${activityId}/theoretical`);
-  },
+  getReal: async (activityId: string) => apiRequest<RealActivityResponse>(`/activity/${activityId}/real`),
+  getTheoretical: async (activityId: string) => apiRequest<TheoreticalActivityResponse>(`/activity/${activityId}/theoretical`),
 };
 
 export const seriesApi = {
@@ -110,7 +133,7 @@ export const seriesApi = {
       to?: number;
       downsample?: number;
     }
-  ): Promise<SeriesResponse> => {
+  ) => {
     const searchParams = new URLSearchParams();
 
     if (params?.x_axis) searchParams.append('x_axis', params.x_axis);
@@ -121,30 +144,24 @@ export const seriesApi = {
     const queryString = searchParams.toString();
     const endpoint = `/activity/${activityId}/series/${seriesName}${queryString ? `?${queryString}` : ''}`;
 
-    return apiRequest(endpoint);
+    return apiRequest<SeriesResponse>(endpoint);
   },
 
-  list: async (activityId: string): Promise<{ activity_id: string; series: SeriesInfo[] }> => {
-    return apiRequest(`/activity/${activityId}/series`);
-  },
+  list: async (activityId: string) => apiRequest<{ activity_id: string; series: SeriesInfo[] }>(`/activity/${activityId}/series`),
 };
 
 export const mapApi = {
-  get: async (activityId: string, downsample?: number): Promise<ActivityMapResponse> => {
+  get: async (activityId: string, downsample?: number) => {
     const searchParams = new URLSearchParams();
     if (downsample) searchParams.append('downsample', String(downsample));
 
     const queryString = searchParams.toString();
     const endpoint = `/activity/${activityId}/map${queryString ? `?${queryString}` : ''}`;
 
-    return apiRequest(endpoint);
+    return apiRequest<ActivityMapResponse>(endpoint);
   },
 };
 
 export const healthApi = {
-  check: async (): Promise<{ status: string; storage: string; registry: string }> => {
-    return apiRequest('/health', undefined, API_BASE_URL);
-  },
+  check: async () => apiRequest<{ status: string; storage: string; registry: string }>('/health'),
 };
-
-export { ApiError };

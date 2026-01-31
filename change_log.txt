@@ -1,4 +1,37 @@
 CHANGE LOG
+Version: v1.1.20 -> v1.1.21
+Date: 2026-01-31
+
+Objectif
+- Fiabiliser l'upload GPX/FIT (frontend + backend) et rendre le debug exploitable (correlation front/back).
+
+Problemes identifies
+- Backend: routes /api/* inexistantes -> POST /api/activity/load retournait 404.
+- Frontend: logique API incoherente (mix proxy vs URL absolue) + risque de boundary multipart casse si Content-Type est force.
+- Observabilite: logs via print + erreurs peu exploitables / non correlables.
+
+Corrections
+- Backend: compatibilite dynamique des routes avec et sans prefixe /api (routers montes 2 fois, /api cache du schema).
+- Backend: logging standard (module logging) + middleware request_id + header X-Request-ID.
+- Backend: creation d'un fichier de log par run dans ./logs/backend_<YYYYMMDD_HHMMSS>.log.
+- Backend: endpoint upload loggue les metadonnees (filename, extension, size, content-type), jamais le binaire.
+- Backend: erreurs de validation du contrat DF retournees en 400 (au lieu de 500).
+- Storage: ecriture parquet explicite via engine="pyarrow".
+- FIT: running dynamics optionnelles (expect_running_dynamics_all_nan=None).
+
+Frontend
+- Client API unifie: apiRequest() unique (JSON + FormData) et base par defaut /api.
+- Regle d'or: NEXT_PUBLIC_API_URL = racine backend (sans /api) + normalisation du trailing slash.
+- Logs dev: request/response (baseUrl, endpoint, method, timing, status, X-Request-ID si present).
+- metricsFormat: support explicite des formats 'text' et 'boolean' + tests.
+- network-handling.test: aligne sur la normalisation reelle (trailing slash autorise en entree).
+
+Tests
+- Backend: ajout d'un test running dynamics optionnelles.
+- Backend: pytest OK.
+- Frontend: vitest OK.
+
+
 Version: v1.1.8 -> v1.1.9
 Date: 2026-01-30
 

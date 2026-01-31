@@ -1,4 +1,4 @@
-# CourseScope (v1.1.20)
+# CourseScope (v1.1.21)
 
 CourseScope est une application double-stack pour analyser des traces running GPX/FIT :
 - **UI legacy Streamlit** : interface complète avec cartes, graphiques, et analyses avancées
@@ -73,40 +73,54 @@ CourseScope/
 └── tests/                       # Tests unitaires + intégration
 ```
 
-## 🔌 Configuration API (v1.1.9)
+## 🔌 Configuration API (v1.1.21)
 
 ### Stratégie de communication
-- **Développement local** : Proxy Next.js (`/api/*` → `http://localhost:8000/*`)
+- **Développement local (par défaut)** : Proxy Next.js (`/api/*` → `http://localhost:8000/*`)
   - Évite les problèmes CORS
-  - URLs relatives dans le frontend (`/api/activity/load`)
-- **Production** : Appels directs si `NEXT_PUBLIC_API_URL` défini
+  - Le frontend utilise `API_BASE_URL = '/api'` par défaut
+- **Option production / déploiement** : Appels directs si `NEXT_PUBLIC_API_URL` est défini
+  - IMPORTANT : `NEXT_PUBLIC_API_URL` doit être la racine du backend, sans suffixe `/api`
+  - Exemple OK : `NEXT_PUBLIC_API_URL=https://api.example.com`
+  - Exemple KO : `NEXT_PUBLIC_API_URL=https://api.example.com/api`
+
+### Robustesse (v1.1.21)
+- **Backend** : supporte maintenant les routes *avec* et *sans* préfixe `/api`
+  - `/activity/load` et `/api/activity/load` fonctionnent tous les deux
+- **Observabilité** : chaque requête a un `X-Request-ID` et un fichier log est créé à chaque run (`./logs/backend_<timestamp>.log`)
 
 ### Variables d'environnement
 ```bash
-# Production - appels directs API
+# Optionnel - appels directs API
 NEXT_PUBLIC_API_URL=http://localhost:8000
 
-# Développement - utilisation proxy (par défaut)
-# NEXT_PUBLIC_API_URL non défini = mode proxy
+# Par défaut (dev) : pas d'env => base "/api" (proxy Next)
 ```
 
 ## 📡 Endpoints API
 
 ```bash
 # Upload et gestion
-POST   /api/activity/load           # Upload GPX/FIT (multipart)
-GET    /api/activities             # Lister activités
-DELETE /api/activity/{id}          # Supprimer activité
-DELETE /api/activities             # Vider toutes
+POST   /activity/load               # Upload GPX/FIT (multipart)
+POST   /api/activity/load           # Upload GPX/FIT (multipart) - compatible
+GET    /activities                  # Lister activités
+GET    /api/activities              # Lister activités - compatible
+DELETE /activity/{id}               # Supprimer activité
+DELETE /api/activity/{id}           # Supprimer activité - compatible
+DELETE /activities                  # Vider toutes
+DELETE /api/activities              # Vider toutes - compatible
 
 # Analyses  
-GET    /api/activity/{id}/real        # Données course réalisée
-GET    /api/activity/{id}/theoretical # Prédictions temps/allure
-GET    /api/activity/{id}/series/{name} # Séries de données
-GET    /api/activity/{id}/map         # Données cartographiques
+GET    /activity/{id}/real            # Données course réalisée
+GET    /activity/{id}/theoretical     # Prédictions temps/allure
+GET    /activity/{id}/series/{name}   # Séries de données
+GET    /activity/{id}/map             # Données cartographiques
+
+# Toutes les routes ci-dessus existent aussi sous /api/* (compatibilité)
 
 # Santé
-GET    /api/health                  # Status backend + logs
+GET    /health                      # Status backend + logs
+GET    /api/health                  # Compatible
 ```
 
 ## 🏃 Fonctionnalités
@@ -239,6 +253,15 @@ curl -X POST http://localhost:8000/api/activity/load \
 ## 📈 Changelog
 
 Voir `frontend/CHANGELOG.md` pour l'historique détaillé des versions.
+
+**v1.1.21** (2026-01-31) - **Upload + debug robustes**
+- **Backend compat /api** : mêmes routes disponibles avec et sans préfixe `/api`
+- **Request tracing** : `X-Request-ID` sur chaque réponse + logs corrélables
+- **Logs backend par run** : création automatique dans `./logs/backend_<timestamp>.log`
+- **Parquet explicite** : écriture `engine="pyarrow"`
+- **FIT** : running dynamics optionnelles (ne bloque plus les FIT sans ces métriques)
+- **Frontend API unifié** : `apiRequest()` unique (JSON + FormData), base par défaut `/api`, `NEXT_PUBLIC_API_URL` = racine backend sans `/api`
+- **Formatters** : support explicite `text` + `boolean` dans `metricsFormat.ts` + tests
 
 **v1.1.20** (2025-01-30) - **Version majeure frontend**
 - **Registre de métriques complet** : 100+ métriques avec formatage intelligent et affichage conditionnel GPX/FIT

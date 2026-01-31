@@ -6,12 +6,16 @@ import json
 import uuid
 import hashlib
 import shutil
+import logging
 
 import pandas as pd
 
 from api.schemas import ActivityMetadata, SidebarStats
 from core.stats.basic_stats import compute_basic_stats
 from services.models import LoadedActivity as ServiceLoadedActivity
+
+
+logger = logging.getLogger("coursescope")
 
 
 def _model_to_dict(model):
@@ -108,7 +112,24 @@ class LocalTempStorage(ActivityStorage):
             for column in df_to_store.columns:
                 if isinstance(df_to_store[column].dtype, pd.DatetimeTZDtype):
                     df_to_store[column] = df_to_store[column].dt.tz_convert("UTC").dt.tz_localize(None)
-            df_to_store.to_parquet(df_path)
+            logger.info(
+                "store_parquet_start",
+                extra={
+                    "request_id": "-",
+                    "activity_id": activity_id,
+                    "rows": int(df_to_store.shape[0]),
+                    "cols": int(df_to_store.shape[1]),
+                },
+            )
+            df_to_store.to_parquet(df_path, engine="pyarrow")
+            logger.info(
+                "store_parquet_ok",
+                extra={
+                    "request_id": "-",
+                    "activity_id": activity_id,
+                    "path": str(df_path),
+                },
+            )
 
             activity_type = "real" if activity.gpx_type.type == "real_run" else "theoretical"
 
@@ -189,7 +210,14 @@ class LocalTempStorage(ActivityStorage):
 
                     activities.append(ActivityMetadata(**metadata_dict))
                 except Exception as e:
-                    print(f"Warning: Failed to load metadata for {activity_dir.name}: {e}")
+                    logger.warning(
+                        "metadata_load_failed",
+                        extra={
+                            "request_id": "-",
+                            "activity_id": activity_dir.name,
+                            "error": str(e),
+                        },
+                    )
                     continue
 
         return activities

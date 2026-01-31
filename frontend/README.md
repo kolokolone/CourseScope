@@ -39,7 +39,7 @@ A comprehensive cycling analytics dashboard built with Next.js, React, and TypeS
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 18+
 - Backend API running on `http://localhost:8000` (see Network Debugging section)
 
 ### Installation
@@ -52,7 +52,8 @@ cd cycling-stats-frontend
 # Install dependencies
 npm install
 
-# Set up environment variables
+# Optional: set up environment variables (direct backend calls)
+# IMPORTANT: NEXT_PUBLIC_API_URL must be the backend root (no trailing "/api")
 echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
 ```
 
@@ -163,6 +164,11 @@ The application provides specific error guidance:
 - **URL errors**: "Check NEXT_PUBLIC_API_URL formatting"
 - **API errors**: Detailed messages from backend
 
+### API Base URL Rules (v1.1.21)
+- Default (no env): `/api` (Next.js rewrite)
+- If `NEXT_PUBLIC_API_URL` is set: used as base URL after trimming trailing slashes
+- Do NOT set `NEXT_PUBLIC_API_URL` to a value ending with `/api`
+
 For complete debugging guide, see [NETWORK_DEBUG.md](./NETWORK_DEBUG.md).
 
 ## Testing
@@ -257,7 +263,18 @@ CMD ["npm", "start"]
 
 ## Version History
 
-### v1.1.20 (Current)
+### v1.1.21 (Current)
+- **Unified API client**: one `apiRequest()` for JSON + uploads (FormData)
+- **Base URL rules**: defaults to `/api` rewrite; `NEXT_PUBLIC_API_URL` must be backend root (no `/api`)
+- **Better debugging**: dev logs include request timing and `X-Request-ID` when present
+- **Formatters**: explicit handling for `text` + `boolean` metric formats
+- **Complete Metrics Registry**: 100+ metrics with intelligent formatting
+- **Enhanced Charts**: Performance-optimized Recharts integration
+- **Network Error Handling**: User-friendly error messages and debugging
+- **Test Coverage**: Comprehensive test suite with network handling tests
+- **UI Improvements**: Responsive design and accessibility enhancements
+
+### v1.1.20
 - **Complete Metrics Registry**: 100+ metrics with intelligent formatting
 - **Enhanced Charts**: Performance-optimized Recharts integration
 - **Network Error Handling**: User-friendly error messages and debugging

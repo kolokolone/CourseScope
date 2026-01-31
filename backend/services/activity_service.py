@@ -31,10 +31,18 @@ def load_activity_from_bytes(data: bytes, name: str) -> LoadedActivity:
 
     # Coerce schema/dtypes canoniques et valide une seule fois a la frontiere service.
     # Pour une entree GPX, les colonnes running dynamics sont typiquement a NaN.
+    # Pour une entree FIT, les running dynamics sont optionnelles (beaucoup de FIT n'en ont pas).
     df = coerce_activity_df(df)
+    if extension == ".fit":
+        # FIT : running dynamics optionnelles (pas d'attente)
+        expect_running_dynamics_all_nan = None
+    else:
+        # GPX : attendu que toutes les running dynamics soient a NaN
+        expect_running_dynamics_all_nan = True
+    
     report = validate_activity_df(
         df,
-        expect_running_dynamics_all_nan=(extension != ".fit"),
+        expect_running_dynamics_all_nan=expect_running_dynamics_all_nan,
     )
     report.raise_for_issues()
 

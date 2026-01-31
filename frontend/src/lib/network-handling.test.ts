@@ -1,6 +1,11 @@
 /// <reference types="vitest" />
 import { describe, expect, it, vi } from 'vitest';
 
+async function importFreshApiModule() {
+  vi.resetModules();
+  return import('./api');
+}
+
 // Test the network error handling logic directly without complex component testing
 describe('Network Error Handling', () => {
   it('provides helpful error messages for different failure types', () => {
@@ -51,25 +56,31 @@ describe('Network Error Handling', () => {
     expect(isBackendDown(new Error('Server error'))).toBe(false);
   });
 
-  it('validates API URL configuration', () => {
-    // Test API URL validation logic
-    const validateApiUrl = (url: string): { valid: boolean; issue?: string } => {
-      if (!url) {
-        return { valid: false, issue: 'NEXT_PUBLIC_API_URL is not set' };
-      }
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        return { valid: false, issue: 'URL must start with http:// or https://' };
-      }
-      if (url.endsWith('/')) {
-        return { valid: false, issue: 'URL should not end with /' };
-      }
-      return { valid: true };
-    };
+  it('normalizes base URL and avoids double slashes', async () => {
+    const original = process.env.NEXT_PUBLIC_API_URL;
 
-    expect(validateApiUrl('')).toEqual({ valid: false, issue: 'NEXT_PUBLIC_API_URL is not set' });
-    expect(validateApiUrl('localhost:8000')).toEqual({ valid: false, issue: 'URL must start with http:// or https://' });
-    expect(validateApiUrl('http://localhost:8000/')).toEqual({ valid: false, issue: 'URL should not end with /' });
-    expect(validateApiUrl('http://localhost:8000')).toEqual({ valid: true });
-    expect(validateApiUrl('https://api.example.com')).toEqual({ valid: true });
+    try {
+      // Default: no env -> Next rewrite prefix
+      delete process.env.NEXT_PUBLIC_API_URL;
+      const mod1 = await importFreshApiModule();
+      expect(mod1.buildUrl('/health')).toBe('/api/health');
+      expect(mod1.buildUrl('activity/load')).toBe('/api/activity/load');
+
+      // Trailing slash is allowed; implementation trims it.
+      process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000/';
+      const mod2 = await importFreshApiModule();
+      expect(mod2.buildUrl('/health')).toBe('http://localhost:8000/health');
+      expect(mod2.buildUrl('health')).toBe('http://localhost:8000/health');
+
+      // Ensure we don't end up with double slashes
+      expect(mod2.buildUrl('/activity/load')).toBe('http://localhost:8000/activity/load');
+      expect(mod2.buildUrl('activity/load')).toBe('http://localhost:8000/activity/load');
+    } finally {
+      if (original === undefined) {
+        delete process.env.NEXT_PUBLIC_API_URL;
+      } else {
+        process.env.NEXT_PUBLIC_API_URL = original;
+      }
+    }
   });
 });

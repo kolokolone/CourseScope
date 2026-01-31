@@ -12,9 +12,12 @@ The "Failed to fetch" error you encountered typically indicates:
 ## Current Configuration
 
 Your frontend is configured with:
+- **Default base URL**: `/api` (uses Next.js rewrite)
 - **Next.js proxy**: Routes `/api/*` to `http://localhost:8000/*` (next.config.ts)
-- **Environment variable**: `NEXT_PUBLIC_API_URL=http://localhost:8000` (.env.local)
-- **Fallback**: Uses relative URLs in development when API URL not set
+- **Optional env**: `NEXT_PUBLIC_API_URL=http://localhost:8000` (.env.local)
+  - IMPORTANT: must be backend root (do NOT add `/api`)
+  - OK: `NEXT_PUBLIC_API_URL=http://localhost:8000`
+  - KO: `NEXT_PUBLIC_API_URL=http://localhost:8000/api`
 
 ## Debugging Steps
 
@@ -56,7 +59,7 @@ The frontend now includes:
 2. **Network handling tests** in `src/lib/network-handling.test.ts`:
    - Error message generation logic
    - Backend detection logic
-   - API URL validation
+   - Base URL normalization (trailing slash allowed in input, trimmed in output)
 
 3. **Improved user feedback** with specific guidance for different error types.
 
@@ -94,7 +97,7 @@ echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
 1. Start backend server
 2. Start frontend with correct environment
 3. Try uploading a GPX/FIT file
-4. Check browser console for the "Upload URL:" log message
+4. Check browser console for `[API] request` / `[API] response` logs (dev)
 5. Verify successful upload or get helpful error message
 
 The tests confirm that error handling logic works correctly. The main issue is likely backend availability or configuration.
