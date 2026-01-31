@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.33] - 2026-01-31
+
+### Added
+- **UI Grid Layout**: Optional 6-column grid layout for better metric organization
+- **Cardio Drift Metrics**: Cardiac drift percentage and slope metrics moved to cardio section
+- **Summary Reorganization**: Improved ordering of key metrics in summary section
+- **Zones Redesign**: Tab-based zones display with Z6..Z1 ordering and visual bars
+- **Power Duration Curve**: Interactive power duration curve chart moved below zones section
+- **Collapsible Pauses**: Pauses table now collapsible for better space management
+- **Climbs Enhancement**: Added pace column to climbs analysis
+- **Charts Improvements**: 
+  - Stacked chart layout for better readability
+  - Improved chart ordering (pace, heart rate, elevation, grade, speed, power, cadence, moving)
+  - Distance-based X-axis with kilometer formatting
+  - Enhanced tooltips showing both X and Y axis values
+- **Map Enhancements**:
+  - Toggle for pace-colored trace display
+  - Toggle for pause point visualization
+  - Better legend and control placement
+
+### Changed
+- **Power Zones**: Moved power zones to hidden section (legacy compatibility)
+- **Chart Grid**: Changed from 2-column to stacked single-column layout for mobile optimization
+- **Pacing Section**: Removed pacing drift metrics (moved to cardio section)
+- **Map Integration**: Enhanced map with activity ID for better data fetching
+
 ## [1.1.32] - 2026-01-31
 
 ### Fixed

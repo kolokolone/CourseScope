@@ -1,4 +1,4 @@
-# CourseScope (v1.1.32)
+# CourseScope (v1.1.33)
 
 CourseScope est une application web locale pour analyser des traces running GPX/FIT :
 - **Backend FastAPI** : API moderne pour les données d'activite
@@ -67,7 +67,7 @@ CourseScope/
 └── tests/                       # Tests unitaires + pytest
 ```
 
-## 🔌 Configuration API (v1.1.32)
+## 🔌 Configuration API (v1.1.33)
 
 ### Stratégie de communication
 - **Développement local (par défaut)** : Proxy Next.js (`/api/*` → `http://localhost:8000/*`)
@@ -78,7 +78,7 @@ CourseScope/
   - Exemple OK : `NEXT_PUBLIC_API_URL=https://api.example.com`
   - Exemple KO : `NEXT_PUBLIC_API_URL=https://api.example.com/api`
 
-### Robustesse (v1.1.32)
+### Robustesse (v1.1.33)
 - **Backend** : supporte maintenant les routes *avec* et *sans* préfixe `/api`
   - `/activity/load` et `/api/activity/load` fonctionnent tous les deux
 - **Observabilité** : chaque requête a un `X-Request-ID` et un fichier log est créé à chaque run (`./logs/backend_<timestamp>.log`)
