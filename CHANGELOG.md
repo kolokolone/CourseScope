@@ -19,6 +19,16 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Windows launcher: run_win.bat now relaunches itself into a dedicated console and starts API + frontend more reliably.
 - CI: pipeline remains strict (fails on any test/build failure) and matches the real repo.
 
+## [1.1.25] - 2026-01-31
+
+### Fixed
+- Windows launcher: simplified execution flow and added `--smoke` prereq check.
+
+## [1.1.26] - 2026-01-31
+
+### Fixed
+- Windows launcher: start API + frontend in dedicated windows and keep the launcher open for diagnostics.
+
 ## [1.1.22] - 2026-01-31
 
 ### Changed

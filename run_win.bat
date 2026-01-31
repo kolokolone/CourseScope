@@ -9,7 +9,7 @@ set "PYTHON_EXE=%VENV_DIR%\Scripts\python.exe"
 set "FRONTEND_DIR=%PROJECT_DIR%frontend"
 
 rem Usage:
-rem   run_win.bat            -> start API (background) + frontend (foreground)
+rem   run_win.bat            -> start API + frontend in two windows
 rem   run_win.bat --smoke    -> quick non-interactive checks (no dev servers)
 
 if /i "%~1"=="--smoke" goto :smoke
@@ -36,26 +36,19 @@ if not exist "%FRONTEND_DIR%\package.json" (
     goto :fail
 )
 
-echo [INFO] Installation des dependances Frontend...
-pushd "%FRONTEND_DIR%" || goto :fail
-if exist package-lock.json (
-    npm ci || npm install || goto :fail
-) else (
-    npm install || goto :fail
-)
-popd
+echo [INFO] Lancement de l'API (fenetre dediee): http://localhost:8000
+start "CourseScope API" /D "%PROJECT_DIR%" cmd /k "\"%PYTHON_EXE%\" -m uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000"
 
-echo [INFO] Demarrage API: http://localhost:8000
-start "CourseScope API" /b "%PYTHON_EXE%" -m uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
+echo [INFO] Lancement du Frontend (fenetre dediee): http://localhost:3000
+start "CourseScope Frontend" /D "%FRONTEND_DIR%" cmd /k "set NEXT_PUBLIC_API_URL=http://localhost:8000&& (if exist package-lock.json (npm ci||npm install) else (npm install)) && npm run dev"
 
 echo [INFO] Ouverture du navigateur: http://localhost:3000
 start "" "http://localhost:3000"
 
-echo [INFO] Demarrage Frontend: http://localhost:3000
-pushd "%FRONTEND_DIR%" || goto :fail
-set "NEXT_PUBLIC_API_URL=http://localhost:8000"
-call npm run dev
-popd
+echo.
+echo [INFO] Deux fenetres ont ete lancees (API + Frontend).
+echo [INFO] Si une fenetre se ferme, elle contient la cause (erreur).
+pause
 
 endlocal
 exit /b 0
