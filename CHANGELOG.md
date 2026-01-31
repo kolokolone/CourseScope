@@ -29,6 +29,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Fixed
 - Windows launcher: start API + frontend in dedicated windows and keep the launcher open for diagnostics.
 
+## [1.1.27] - 2026-01-31
+
+### Fixed
+- Windows launcher: skip reinstalling frontend deps when `frontend/node_modules/` already exists (much faster subsequent starts).
+
 ## [1.1.22] - 2026-01-31
 
 ### Changed
