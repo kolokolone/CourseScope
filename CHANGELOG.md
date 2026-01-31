@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.31] - 2026-01-31
+
+### Fixed
+- Windows launcher: do not block frontend start if backend health check is slow; wait up to 60s then start with warning.
+
 ## [1.1.30] - 2026-01-31
 
 ### Fixed

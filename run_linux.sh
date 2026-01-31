@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# CourseScope launcher (v1.1.30+)
+# CourseScope launcher (v1.1.31+)
 # Starts FastAPI (uvicorn) + Next.js dev server.
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

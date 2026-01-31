@@ -39,10 +39,11 @@ if not exist "%FRONTEND_DIR%\package.json" (
 echo [INFO] Lancement de l'API (fenetre dediee): http://localhost:8000
 start "CourseScope API" /D "%PROJECT_DIR%" cmd /k "\"%PYTHON_EXE%\" -m uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000"
 
-echo [INFO] Attente backend: http://127.0.0.1:8000/health
-"%PYTHON_EXE%" "%PROJECT_DIR%scripts\wait_for_http_200.py" "http://127.0.0.1:8000/health" --timeout 25 || (
-  echo [ERREUR] Backend non disponible (port 8000). Verifie la fenetre "CourseScope API".
-  goto :fail
+echo [INFO] Attente backend (max 60s): http://127.0.0.1:8000/health
+"%PYTHON_EXE%" "%PROJECT_DIR%scripts\wait_for_http_200.py" "http://127.0.0.1:8000/health" --timeout 60
+if errorlevel 1 (
+  echo [WARN] Backend pas pret. Le frontend va quand meme demarrer, mais les appels /api/* echoueront tant que l'API n'est pas OK.
+  echo [WARN] Verifie la fenetre "CourseScope API" (port 8000) et le health check: http://127.0.0.1:8000/health
 )
 
 echo [INFO] Lancement du Frontend (fenetre dediee): http://localhost:3000
