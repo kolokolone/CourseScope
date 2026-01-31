@@ -21,9 +21,10 @@ import type { SeriesInfo, SeriesResponse } from '@/types/api';
 const SERIES_COLORS = ['#0072B2', '#E69F00', '#009E73', '#D55E00', '#56B4E9', '#CC79A7', '#F0E442'];
 const MAX_POINTS = 8000;
 const RENDER_POINTS = 2500;
-const SMOOTH_WINDOW = 8;
 
 type ChartPoint = { x: number; y: number };
+
+const CHARTS_SYNC_ID = 'activity-charts';
 
 function buildSeriesData(series: SeriesResponse): ChartPoint[] {
   const points: ChartPoint[] = [];
@@ -70,6 +71,11 @@ function smoothMovingAverage(points: ChartPoint[], windowSize: number) {
   }
 
   return out;
+}
+
+function clampInt(value: number, min: number, max: number) {
+  const n = Math.round(value);
+  return Math.min(max, Math.max(min, n));
 }
 
 function formatYAxis(value: number, format?: MetricFormat) {
@@ -149,8 +155,9 @@ function SeriesChart({
   const rendered = React.useMemo(() => samplePoints(data, RENDER_POINTS), [data]);
 
   const chartData = React.useMemo(() => {
-    if (!smoothWindow) return rendered;
-    return smoothMovingAverage(rendered, smoothWindow);
+    const w = typeof smoothWindow === 'number' && Number.isFinite(smoothWindow) ? smoothWindow : 1;
+    if (w <= 1) return rendered;
+    return smoothMovingAverage(rendered, w);
   }, [rendered, smoothWindow]);
 
   const distanceScale = React.useMemo(() => {
@@ -160,6 +167,32 @@ function SeriesChart({
     // Heuristic: distances > 1000 are likely meters; display in km.
     return maxX > 1000 ? 1 / 1000 : 1;
   }, [axis, chartData]);
+
+  const distanceTicks = React.useMemo(() => {
+    if (axis !== 'distance' || chartData.length === 0) return undefined;
+
+    let minX = chartData[0].x;
+    let maxX = chartData[0].x;
+    for (const p of chartData) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+    }
+
+    const scale = distanceScale; // meters->km (1/1000) or 1 if already km
+    const minKm = minX * scale;
+    const maxKm = maxX * scale;
+    if (!Number.isFinite(minKm) || !Number.isFinite(maxKm)) return undefined;
+
+    const start = Math.ceil(minKm);
+    const end = Math.floor(maxKm);
+    if (end < start) return undefined;
+
+    const ticks: number[] = [];
+    for (let km = start; km <= end; km += 1) {
+      ticks.push(km / scale);
+    }
+    return ticks;
+  }, [axis, chartData, distanceScale]);
 
   const formatX = React.useCallback(
     (value: number) => {
@@ -181,11 +214,19 @@ function SeriesChart({
       </div>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
+            syncId={CHARTS_SYNC_ID}
+            syncMethod="value"
+          >
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="x"
-              tickFormatter={(value) => formatX(Number(value))}
+              ticks={axis === 'distance' ? distanceTicks : undefined}
+              tickFormatter={(value) =>
+                axis === 'distance' ? formatNumber(Number(value) * distanceScale, { decimals: 0 }) : formatX(Number(value))
+              }
               tick={{ fontSize: 12 }}
               minTickGap={20}
             />
@@ -257,6 +298,16 @@ export function ActivityCharts({
   const axis = useUiPrefsStore((s) => s.chartsXAxis);
   const setAxis = useUiPrefsStore((s) => s.setChartsXAxis);
 
+  const smoothWindow = useUiPrefsStore((s) => s.chartsSmoothWindow);
+  const setSmoothWindow = useUiPrefsStore((s) => s.setChartsSmoothWindow);
+
+  const smoothWindowClamped = React.useMemo(() => clampInt(smoothWindow, 1, 25), [smoothWindow]);
+
+  React.useEffect(() => {
+    // Keep store value clamped so persisted values stay sane.
+    if (smoothWindow !== smoothWindowClamped) setSmoothWindow(smoothWindowClamped);
+  }, [setSmoothWindow, smoothWindow, smoothWindowClamped]);
+
   const availableNames = React.useMemo(() => new Set(available.map((s) => s.name)), [available]);
 
   const seriesDefs = React.useMemo(() => {
@@ -317,7 +368,7 @@ export function ActivityCharts({
           yAxisReversed={def.name === 'pace'}
           yDomain={yDomain}
           trend={trend}
-          smoothWindow={def.name === 'pace' ? SMOOTH_WINDOW : undefined}
+          smoothWindow={smoothWindowClamped}
         />
       );
     })
@@ -345,7 +396,27 @@ export function ActivityCharts({
           </Button>
         </div>
       </div>
-      <div className="text-xs text-muted-foreground">{`Axe applique: ${axis === 'distance' ? 'Distance (km)' : 'Temps'}`}</div>
+      <div className="rounded-md border p-3 space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-sm text-muted-foreground">Lissage</div>
+          <div className="text-sm tabular-nums">{`Fenetre: ${smoothWindowClamped}`}</div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant={smoothWindowClamped === 1 ? 'outline' : 'ghost'} onClick={() => setSmoothWindow(1)}>
+            Off
+          </Button>
+          <Button size="sm" variant={smoothWindowClamped === 5 ? 'outline' : 'ghost'} onClick={() => setSmoothWindow(5)}>
+            5
+          </Button>
+          <Button size="sm" variant={smoothWindowClamped === 10 ? 'outline' : 'ghost'} onClick={() => setSmoothWindow(10)}>
+            10
+          </Button>
+          <Button size="sm" variant={smoothWindowClamped === 15 ? 'outline' : 'ghost'} onClick={() => setSmoothWindow(15)}>
+            15
+          </Button>
+        </div>
+        <div className="text-xs text-muted-foreground">{`Axe applique: ${axis === 'distance' ? 'Distance (km)' : 'Temps'}`}</div>
+      </div>
       {hasError ? <div className="text-sm text-red-600">Erreur de chargement des series.</div> : null}
       {isLoading && charts.length === 0 ? (
         <div className="text-sm text-muted-foreground">Chargement des series...</div>
