@@ -89,11 +89,11 @@ export default function RealActivityPage() {
           </SectionCard>
         ) : null}
 
-        {showMap && mapData ? (
-          <SectionCard title="Map" description="Trace GPS et marqueurs." accentColor={CATEGORY_COLORS.Map}>
-            <ActivityMap mapData={mapData} />
-          </SectionCard>
-        ) : null}
+         {showMap && mapData ? (
+           <SectionCard title="Map" description="Trace GPS et marqueurs." accentColor={CATEGORY_COLORS.Map}>
+            <ActivityMap mapData={mapData} activityId={activityId} />
+           </SectionCard>
+         ) : null}
       </div>
     </div>
   );

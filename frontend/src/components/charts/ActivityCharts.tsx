@@ -42,11 +42,6 @@ function samplePoints(points: ChartPoint[], maxPoints: number) {
   return sampled;
 }
 
-function formatXAxis(value: number, axis: 'time' | 'distance') {
-  if (axis === 'time') return formatDurationSeconds(value);
-  return formatNumber(value, { decimals: 2 });
-}
-
 function formatYAxis(value: number, format?: MetricFormat) {
   if (format && format !== 'boolean' && format !== 'text') return formatMetricValue(value, format);
   return formatNumber(value, { decimals: 2 });
@@ -71,6 +66,22 @@ function SeriesChart({
   const tooManyPoints = data.length > MAX_POINTS;
   const rendered = React.useMemo(() => samplePoints(data, RENDER_POINTS), [data]);
 
+  const distanceScale = React.useMemo(() => {
+    if (axis !== 'distance' || rendered.length === 0) return 1;
+    let maxX = 0;
+    for (const p of rendered) maxX = Math.max(maxX, p.x);
+    // Heuristic: distances > 1000 are likely meters; display in km.
+    return maxX > 1000 ? 1 / 1000 : 1;
+  }, [axis, rendered]);
+
+  const formatX = React.useCallback(
+    (value: number) => {
+      if (axis === 'time') return formatDurationSeconds(value);
+      return formatNumber(value * distanceScale, { decimals: 2 });
+    },
+    [axis, distanceScale]
+  );
+
   return (
     <div className="rounded-lg border p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -87,19 +98,22 @@ function SeriesChart({
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="x"
-              tickFormatter={(value) => formatXAxis(value, axis)}
+              tickFormatter={(value) => formatX(Number(value))}
               tick={{ fontSize: 12 }}
               minTickGap={20}
             />
             <YAxis tickFormatter={(value) => formatYAxis(value, format)} tick={{ fontSize: 12 }} />
             <Tooltip
               cursor={{ stroke: CATEGORY_COLORS.Charts, strokeWidth: 1 }}
-              formatter={(value: number | string | undefined) =>
-                value === undefined
-                  ? '—'
-                  : `${formatYAxis(typeof value === 'number' ? value : Number(value), format)}${unit ? ` ${unit}` : ''}`
+              formatter={(value: number | string | undefined) => {
+                if (value === undefined) return ['—', label];
+                const y = typeof value === 'number' ? value : Number(value);
+                const yText = formatYAxis(y, format);
+                return [`${yText}${unit ? ` ${unit}` : ''}`, label];
+              }}
+              labelFormatter={(value) =>
+                axis === 'distance' ? `${formatX(Number(value))} km` : formatX(Number(value))
               }
-              labelFormatter={(value) => `${formatXAxis(value as number, axis)}${axis === 'distance' ? ' km' : ''}`}
               isAnimationActive={false}
             />
             <Line
@@ -127,10 +141,23 @@ export function ActivityCharts({
   const [axis, setAxis] = React.useState<'time' | 'distance'>('time');
 
   const availableNames = React.useMemo(() => new Set(available.map((s) => s.name)), [available]);
-  const seriesDefs = React.useMemo(
-    () => CHART_SERIES.filter((s) => availableNames.has(s.name)),
-    [availableNames]
-  );
+
+  const seriesDefs = React.useMemo(() => {
+    const preferredOrder = ['pace', 'heart_rate', 'elevation', 'grade', 'speed', 'power', 'cadence', 'moving'] as const;
+
+    const byName = new Map(CHART_SERIES.map((s) => [s.name, s] as const));
+    const ordered: typeof CHART_SERIES = [];
+
+    for (const name of preferredOrder) {
+      if (!availableNames.has(name)) continue;
+      const def = byName.get(name);
+      if (def) ordered.push(def);
+    }
+
+    const preferredSet = new Set<string>(preferredOrder);
+    const rest = CHART_SERIES.filter((s) => availableNames.has(s.name) && !preferredSet.has(s.name));
+    return [...ordered, ...rest];
+  }, [availableNames]);
   const seriesNames = React.useMemo(() => seriesDefs.map((s) => s.name), [seriesDefs]);
 
   const queries = useMultipleSeries(activityId, seriesNames, { x_axis: axis });
@@ -181,7 +208,7 @@ export function ActivityCharts({
       {isLoading && charts.length === 0 ? (
         <div className="text-sm text-muted-foreground">Chargement des series...</div>
       ) : null}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">{charts}</div>
+      <div className="space-y-4">{charts}</div>
     </div>
   );
 }

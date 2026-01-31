@@ -26,6 +26,8 @@ export type MetricSection = {
   description?: string;
   category: string;
   kind: 'grid' | 'table' | 'list' | 'dataframe';
+  gridColumns?: 4 | 6;
+  hidden?: boolean;
   items?: MetricItem[];
   rowsPath?: string;
   columns?: MetricTableColumn[];
@@ -158,10 +160,19 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     description: "Lecture simple de l'effort (si FC presente).",
     category: 'Cardio',
     kind: 'grid',
+    gridColumns: 6,
     items: [
       { id: 'hr_avg_bpm', path: 'summary.cardio.hr_avg_bpm', label: 'FC moyenne', format: 'integer', unit: 'bpm' },
-      { id: 'hr_max_bpm', path: 'summary.cardio.hr_max_bpm', label: 'FC max', format: 'integer', unit: 'bpm' },
       { id: 'hr_min_bpm', path: 'summary.cardio.hr_min_bpm', label: 'FC min', format: 'integer', unit: 'bpm' },
+      { id: 'hr_max_bpm', path: 'summary.cardio.hr_max_bpm', label: 'FC max', format: 'integer', unit: 'bpm' },
+      { id: 'cardiac_drift_pct', path: 'pacing.cardiac_drift_pct', label: 'Derive cardio', format: 'percent', unit: '%' },
+      {
+        id: 'cardiac_drift_slope_pct',
+        path: 'pacing.cardiac_drift_slope_pct',
+        label: 'Pente derive cardio',
+        format: 'percent',
+        unit: '%',
+      },
     ],
   },
   {
@@ -170,11 +181,12 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Resume Garmin et variabilite.',
     category: 'Resume',
     kind: 'grid',
+    gridColumns: 6,
     items: [
+      { id: 'garmin_distance', path: 'garmin_summary.distance_km', label: 'Distance', format: 'number', unit: 'km' },
       { id: 'garmin_total_time', path: 'garmin_summary.total_time_s', label: 'Temps total', format: 'duration' },
       { id: 'garmin_moving_time', path: 'garmin_summary.moving_time_s', label: 'Temps en mouvement', format: 'duration' },
       { id: 'garmin_pause_time', path: 'garmin_summary.pause_time_s', label: "Temps a l'arret", format: 'duration' },
-      { id: 'garmin_distance', path: 'garmin_summary.distance_km', label: 'Distance', format: 'number', unit: 'km' },
       {
         id: 'garmin_moving_distance',
         path: 'garmin_summary.moving_distance_km',
@@ -196,7 +208,6 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
         format: 'speed',
         unit: 'km/h',
       },
-      { id: 'garmin_max_speed', path: 'garmin_summary.max_speed_kmh', label: 'Vitesse max', format: 'speed', unit: 'km/h' },
       {
         id: 'garmin_best_pace',
         path: 'garmin_summary.best_pace_s_per_km',
@@ -204,6 +215,7 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
         format: 'pace',
         unit: '/ km',
       },
+      { id: 'garmin_max_speed', path: 'garmin_summary.max_speed_kmh', label: 'Vitesse max', format: 'speed', unit: 'km/h' },
       {
         id: 'garmin_gap_mean',
         path: 'garmin_summary.gap_mean_s_per_km',
@@ -211,12 +223,6 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
         format: 'pace',
         unit: '/ km',
       },
-      { id: 'pace_median_raw', path: 'garmin_summary.pace_median', label: 'Pace median', format: 'number' },
-      { id: 'pace_p10_raw', path: 'garmin_summary.pace_p10', label: 'Pace P10', format: 'number' },
-      { id: 'pace_p90_raw', path: 'garmin_summary.pace_p90', label: 'Pace P90', format: 'number' },
-      { id: 'pace_median', path: 'garmin_summary.pace_median_s_per_km', label: 'Allure mediane', format: 'pace', unit: '/ km' },
-      { id: 'pace_p10', path: 'garmin_summary.pace_p10_s_per_km', label: 'Allure P10', format: 'pace', unit: '/ km' },
-      { id: 'pace_p90', path: 'garmin_summary.pace_p90_s_per_km', label: 'Allure P90', format: 'pace', unit: '/ km' },
       { id: 'elev_gain', path: 'garmin_summary.elevation_gain_m', label: 'D+', format: 'meters', unit: 'm' },
       { id: 'elev_loss', path: 'garmin_summary.elevation_loss_m', label: 'D-', format: 'meters', unit: 'm' },
       {
@@ -242,6 +248,12 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
       { id: 'steps_total', path: 'garmin_summary.steps_total', label: 'Pas total', format: 'integer' },
       { id: 'step_length', path: 'garmin_summary.step_length_est_m', label: 'Longueur de pas', format: 'meters', unit: 'm' },
       { id: 'longest_pause', path: 'garmin_summary.longest_pause_s', label: 'Pause max', format: 'duration' },
+      { id: 'pace_median', path: 'garmin_summary.pace_median_s_per_km', label: 'Allure mediane', format: 'pace', unit: '/ km' },
+      { id: 'pace_p10', path: 'garmin_summary.pace_p10_s_per_km', label: 'Allure P10', format: 'pace', unit: '/ km' },
+      { id: 'pace_p90', path: 'garmin_summary.pace_p90_s_per_km', label: 'Allure P90', format: 'pace', unit: '/ km' },
+      { id: 'pace_median_raw', path: 'garmin_summary.pace_median', label: 'Pace median', format: 'number' },
+      { id: 'pace_p10_raw', path: 'garmin_summary.pace_p10', label: 'Pace P10', format: 'number' },
+      { id: 'pace_p90_raw', path: 'garmin_summary.pace_p90', label: 'Pace P90', format: 'number' },
     ],
   },
   {
@@ -250,6 +262,7 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Equilibre et regularite.',
     category: 'Pacing',
     kind: 'grid',
+    gridColumns: 6,
     items: [
       { id: 'pace_first_half', path: 'pacing.pace_first_half_s_per_km', label: '1re moitie', format: 'pace', unit: '/ km' },
       { id: 'pace_second_half', path: 'pacing.pace_second_half_s_per_km', label: '2e moitie', format: 'pace', unit: '/ km' },
@@ -260,14 +273,6 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
         label: 'Drift allure',
         format: 'number',
         unit: 's/km/km',
-      },
-      { id: 'cardiac_drift_pct', path: 'pacing.cardiac_drift_pct', label: 'Derive cardio', format: 'percent', unit: '%' },
-      {
-        id: 'cardiac_drift_slope_pct',
-        path: 'pacing.cardiac_drift_slope_pct',
-        label: 'Pente derive cardio',
-        format: 'percent',
-        unit: '%',
       },
       { id: 'stability_cv', path: 'pacing.stability_cv', label: 'Stabilite CV', format: 'number' },
       { id: 'stability_iqr', path: 'pacing.stability_iqr_ratio', label: 'Stabilite IQR', format: 'number' },
@@ -308,33 +313,6 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
       { id: 'normalized_power', path: 'power_advanced.normalized_power_w', label: 'Normalized power', format: 'integer', unit: 'W' },
       { id: 'intensity_factor', path: 'power_advanced.intensity_factor', label: 'Intensity factor', format: 'number' },
       { id: 'tss', path: 'power_advanced.tss', label: 'TSS', format: 'number' },
-    ],
-  },
-  {
-    id: 'power-duration-curve',
-    title: 'Power duration curve',
-    description: 'Puissance moyenne maximale par duree.',
-    category: 'Puissance',
-    kind: 'table',
-    rowsPath: 'power_advanced.power_duration_curve',
-    columns: [
-      { key: 'duration_s', label: 'Duree', format: 'duration' },
-      { key: 'power_w', label: 'Puissance', format: 'integer', unit: 'W' },
-    ],
-  },
-  {
-    id: 'power-zones',
-    title: 'Zones puissance (power.zones)',
-    description: 'Zones de puissance calculees.',
-    category: 'Zones',
-    kind: 'dataframe',
-    dataframes: [
-      {
-        id: 'power-zones',
-        title: 'Zones puissance',
-        path: 'power.zones',
-        columns: ['zone', 'range', 'time_s', 'time_pct'],
-      },
     ],
   },
   {
@@ -385,6 +363,34 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
       { id: 'zones-hr', title: 'Zones FC', path: 'zones.heart_rate', columns: ['zone', 'range', 'time_s', 'time_pct'] },
       { id: 'zones-pace', title: 'Zones allure', path: 'zones.pace', columns: ['zone', 'range', 'time_s', 'time_pct'] },
       { id: 'zones-power', title: 'Zones puissance', path: 'zones.power', columns: ['zone', 'range', 'time_s', 'time_pct'] },
+    ],
+  },
+  {
+    id: 'power-zones',
+    title: 'Zones puissance (power.zones)',
+    description: 'Zones de puissance calculees.',
+    category: 'Zones',
+    kind: 'dataframe',
+    hidden: true,
+    dataframes: [
+      {
+        id: 'power-zones',
+        title: 'Zones puissance',
+        path: 'power.zones',
+        columns: ['zone', 'range', 'time_s', 'time_pct'],
+      },
+    ],
+  },
+  {
+    id: 'power-duration-curve',
+    title: 'Power duration curve',
+    description: 'Puissance moyenne maximale par duree.',
+    category: 'Puissance',
+    kind: 'table',
+    rowsPath: 'power_advanced.power_duration_curve',
+    columns: [
+      { key: 'duration_s', label: 'Duree', format: 'duration' },
+      { key: 'power_w', label: 'Puissance', format: 'integer', unit: 'W' },
     ],
   },
   {
@@ -466,6 +472,7 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
       { key: 'distance_km', label: 'Distance', format: 'number', unit: 'km' },
       { key: 'elevation_gain_m', label: 'D+', format: 'meters', unit: 'm' },
       { key: 'avg_grade_percent', label: 'Pente moyenne', format: 'percent', unit: '%' },
+      { key: 'pace_s_per_km', label: 'Allure', format: 'pace', unit: '/ km' },
       { key: 'vam_m_h', label: 'VAM', format: 'number', unit: 'm/h' },
       { key: 'start_idx', label: 'Start', format: 'integer' },
       { key: 'end_idx', label: 'End', format: 'integer' },

@@ -4,8 +4,10 @@ import * as React from 'react';
 
 import { DataFrameTable, type DataFramePayload, isDataFramePayload } from '@/components/metrics/DataFrameTable';
 import { MetricGrid, type MetricGridItem } from '@/components/metrics/MetricGrid';
+import { ZonesBreakdown } from '@/components/metrics/ZonesBreakdown';
 import { SectionCard } from '@/components/metrics/SectionCard';
 import { SimpleTable } from '@/components/metrics/SimpleTable';
+import { PowerDurationCurveChart } from '@/components/charts/PowerDurationCurveChart';
 import { getValueAtPath } from '@/components/metrics/metricsUtils';
 import { CATEGORY_COLORS, type MetricSection } from '@/lib/metricsRegistry';
 
@@ -41,6 +43,7 @@ export function MetricsRegistryRenderer({
   const renderedSections = React.useMemo(() => {
     return sections
       .map((section) => {
+        if (section.hidden) return null;
         const accentColor = CATEGORY_COLORS[section.category];
 
         if (section.kind === 'grid') {
@@ -48,14 +51,41 @@ export function MetricsRegistryRenderer({
           if (items.length === 0) return null;
           return (
             <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
-              <MetricGrid items={items} />
+              <MetricGrid items={items} columnsClassName={section.gridColumns === 6 ? 'xl:grid-cols-6' : undefined} />
             </SectionCard>
           );
         }
 
         if (section.kind === 'table') {
+          if (section.id === 'power-duration-curve') {
+            const rows = section.rowsPath ? getValueAtPath(data, section.rowsPath) : undefined;
+            if (!Array.isArray(rows) || rows.length === 0) return null;
+            return (
+              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+                <PowerDurationCurveChart rows={rows} />
+              </SectionCard>
+            );
+          }
+
           const rows = section.rowsPath ? getValueAtPath(data, section.rowsPath) : undefined;
           if (!Array.isArray(rows) || rows.length === 0 || !section.columns) return null;
+
+          if (section.id === 'pauses') {
+            return (
+              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+                <details className="group">
+                  <summary className="cursor-pointer select-none list-none text-sm text-muted-foreground flex items-center justify-between">
+                    <span>{`Afficher le tableau (${rows.length})`}</span>
+                    <span className="tabular-nums transition-transform group-open:rotate-180">v</span>
+                  </summary>
+                  <div className="mt-3">
+                    <SimpleTable rows={rows} columns={section.columns} />
+                  </div>
+                </details>
+              </SectionCard>
+            );
+          }
+
           return (
             <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
               <SimpleTable rows={rows} columns={section.columns} />
@@ -80,6 +110,31 @@ export function MetricsRegistryRenderer({
         }
 
         if (section.kind === 'dataframe') {
+          if (section.id === 'zones') {
+            const hr = section.dataframes?.find((df) => df.id === 'zones-hr');
+            const pace = section.dataframes?.find((df) => df.id === 'zones-pace');
+            const power = section.dataframes?.find((df) => df.id === 'zones-power');
+
+            const hrValue = hr ? getValueAtPath(data, hr.path) : undefined;
+            const paceValue = pace ? getValueAtPath(data, pace.path) : undefined;
+            const powerValue = power ? getValueAtPath(data, power.path) : undefined;
+
+            const heartRate = isDataFramePayload(hrValue) ? hrValue : undefined;
+            const paceFrame = isDataFramePayload(paceValue) ? paceValue : undefined;
+            const powerFrame = isDataFramePayload(powerValue) ? powerValue : undefined;
+
+            if (!heartRate && !paceFrame && !powerFrame) return null;
+
+            const ftpWRaw = getValueAtPath(data, 'power.ftp_w');
+            const ftpW = typeof ftpWRaw === 'number' && Number.isFinite(ftpWRaw) ? ftpWRaw : undefined;
+
+            return (
+              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+                <ZonesBreakdown heartRate={heartRate} pace={paceFrame} power={powerFrame} ftpW={ftpW} />
+              </SectionCard>
+            );
+          }
+
           const frames = (section.dataframes ?? [])
             .map((frame) => ({
               ...frame,
