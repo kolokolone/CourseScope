@@ -21,6 +21,7 @@ import type { SeriesInfo, SeriesResponse } from '@/types/api';
 const SERIES_COLORS = ['#0072B2', '#E69F00', '#009E73', '#D55E00', '#56B4E9', '#CC79A7', '#F0E442'];
 const MAX_POINTS = 8000;
 const RENDER_POINTS = 2500;
+const SMOOTH_WINDOW = 8;
 
 type ChartPoint = { x: number; y: number };
 
@@ -41,6 +42,34 @@ function samplePoints(points: ChartPoint[], maxPoints: number) {
     sampled.push(points[i]);
   }
   return sampled;
+}
+
+function smoothMovingAverage(points: ChartPoint[], windowSize: number) {
+  const w = Math.max(1, Math.floor(windowSize));
+  if (w <= 1 || points.length === 0) return points;
+
+  const half = Math.floor(w / 2);
+  const out: ChartPoint[] = [];
+
+  for (let i = 0; i < points.length; i += 1) {
+    let sum = 0;
+    let count = 0;
+
+    const start = Math.max(0, i - half);
+    const end = Math.min(points.length - 1, i + half);
+
+    for (let j = start; j <= end; j += 1) {
+      const y = points[j]?.y;
+      if (!Number.isFinite(y)) continue;
+      sum += y;
+      count += 1;
+    }
+
+    if (count === 0) continue;
+    out.push({ x: points[i].x, y: sum / count });
+  }
+
+  return out;
 }
 
 function formatYAxis(value: number, format?: MetricFormat) {
@@ -102,6 +131,7 @@ function SeriesChart({
   yAxisReversed,
   yDomain,
   trend,
+  smoothWindow,
 }: {
   series: SeriesResponse;
   label: string;
@@ -112,18 +142,24 @@ function SeriesChart({
   yAxisReversed?: boolean;
   yDomain?: [number, number];
   trend?: ChartPoint[];
+  smoothWindow?: number;
 }) {
   const data = React.useMemo(() => buildSeriesData(series), [series]);
   const tooManyPoints = data.length > MAX_POINTS;
   const rendered = React.useMemo(() => samplePoints(data, RENDER_POINTS), [data]);
 
+  const chartData = React.useMemo(() => {
+    if (!smoothWindow) return rendered;
+    return smoothMovingAverage(rendered, smoothWindow);
+  }, [rendered, smoothWindow]);
+
   const distanceScale = React.useMemo(() => {
-    if (axis !== 'distance' || rendered.length === 0) return 1;
+    if (axis !== 'distance' || chartData.length === 0) return 1;
     let maxX = 0;
-    for (const p of rendered) maxX = Math.max(maxX, p.x);
+    for (const p of chartData) maxX = Math.max(maxX, p.x);
     // Heuristic: distances > 1000 are likely meters; display in km.
     return maxX > 1000 ? 1 / 1000 : 1;
-  }, [axis, rendered]);
+  }, [axis, chartData]);
 
   const formatX = React.useCallback(
     (value: number) => {
@@ -145,7 +181,7 @@ function SeriesChart({
       </div>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={rendered} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+          <LineChart data={chartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="x"
@@ -281,6 +317,7 @@ export function ActivityCharts({
           yAxisReversed={def.name === 'pace'}
           yDomain={yDomain}
           trend={trend}
+          smoothWindow={def.name === 'pace' ? SMOOTH_WINDOW : undefined}
         />
       );
     })
