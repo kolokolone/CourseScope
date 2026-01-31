@@ -2,9 +2,9 @@
 
 import * as React from 'react';
 import {
+  Area,
   CartesianGrid,
   ComposedChart,
-  ErrorBar,
   Line,
   ResponsiveContainer,
   Scatter,
@@ -135,11 +135,40 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
     return { points: out, domainAbs: absRounded };
   }, [pace, grade]);
 
-  const chartData = React.useMemo(() => {
-    return points.map((p) => ({
-      ...p,
-      proPace: proPaceAtGrade(p.grade),
-    }));
+  const { chartData, yDomain } = React.useMemo(() => {
+    const data = points.map((p) => {
+      const lower = p.paceMean - p.paceStd;
+      const upper = p.paceMean + p.paceStd;
+      const pro = proPaceAtGrade(p.grade);
+
+      return {
+        ...p,
+        paceLower: lower,
+        paceUpper: upper,
+        paceRange: [lower, upper] as [number, number],
+        proPace: pro,
+      };
+    });
+
+    const candidates: number[] = [];
+    for (const p of data) {
+      if (Number.isFinite(p.paceLower)) candidates.push(p.paceLower);
+      if (Number.isFinite(p.paceUpper)) candidates.push(p.paceUpper);
+      if (typeof p.proPace === 'number' && Number.isFinite(p.proPace)) candidates.push(p.proPace);
+    }
+
+    if (candidates.length === 0) return { chartData: data, yDomain: undefined as [number, number] | undefined };
+
+    let min = candidates[0];
+    let max = candidates[0];
+    for (const v of candidates) {
+      min = Math.min(min, v);
+      max = Math.max(max, v);
+    }
+
+    const pad = Math.max(5, (max - min) * 0.06);
+    const domain: [number, number] = [Math.max(1, Math.floor(min - pad)), Math.ceil(max + pad)];
+    return { chartData: data, yDomain: domain };
   }, [points]);
 
   if (points.length === 0 || domainAbs === 0) return null;
@@ -162,14 +191,27 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
                 dataKey="paceMean"
                 tickFormatter={(v) => formatPaceSecondsPerKm(Number(v))}
                 tick={{ fontSize: 12 }}
+                domain={yDomain}
+                allowDataOverflow
               />
               <Tooltip content={<AllureVsPenteTooltip />} cursor={{ strokeWidth: 1 }} isAnimationActive={false} />
+
+              <Area
+                type="monotone"
+                dataKey="paceRange"
+                isRange
+                stroke="none"
+                fill="#94a3b8"
+                fillOpacity={0.22}
+                isAnimationActive={false}
+                connectNulls={false}
+              />
 
               <Line
                 type="monotone"
                 dataKey="proPace"
                 stroke="#64748b"
-                strokeWidth={2}
+                strokeWidth={1}
                 strokeDasharray="6 4"
                 dot={false}
                 isAnimationActive={false}
@@ -185,9 +227,7 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
                 isAnimationActive={false}
               />
 
-              <Scatter dataKey="paceMean" fill="#0f172a">
-                <ErrorBar dataKey="paceStd" width={0} stroke="#0f172a" strokeOpacity={0.25} direction="y" />
-              </Scatter>
+              <Scatter dataKey="paceMean" fill="#0f172a" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
