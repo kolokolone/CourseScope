@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
-## [1.1.40] - 2026-01-31
+## [1.1.41] - 2026-01-31
 
 ### Changed
 - Docs/versioning: align README and package versions with the latest published tag history (v1.1.39 remains the code tag; this release publishes the docs/version bumps).

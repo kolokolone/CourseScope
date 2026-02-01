@@ -1,4 +1,4 @@
-# CourseScope (v1.1.34)
+# CourseScope (v1.1.42)
 
 CourseScope est une application web locale pour analyser des traces running GPX/FIT :
 - **Backend FastAPI** : API moderne pour les données d'activite
@@ -164,6 +164,30 @@ GET    /api/health                  # Compatible
 ```
 
 ## 🏃 Fonctionnalités
+
+## 📋 Vérification QA v1.1.42
+
+### ✅ Fonctionnalités vérifiées
+- **UI Layout**: Grille responsive 6 colonnes fonctionnelle
+- **Sections collapsibles**: Pauses, Splits, Segments, Records, Efforts correctement implémentées
+- **Réorganisation catégories**: Pauses sous Map, prédictions/charge sous Charts, efforts/records/segments sous Highlights
+- **Map toggles**: Coloration par allure et points de pause fonctionnels
+- **Graphiques**: Axe Y inversé pour allure, sélecteur temps/distance, tooltips corrects, graphique moving supprimé
+- **Zones**: 3 sous-sections (HR/pace/puissance) avec tables Strava-like Z6→Z1
+- **Power Duration Curve**: Graphique ligne W vs temps correct
+- **Nouveaux graphiques**: 
+  - "Temps intermédiaires" avec barres horizontales dans Pacing
+  - "Allure par split" histogramme vertical dans Splits
+- **Backend**: Calculs derive cardio vérifiés et cohérents
+
+### ⚠️ Problèmes identifiés
+- **Connexion Frontend/Backend**: Le frontend ne peut pas se connecter au backend (CORS/réseau)
+  - **Cause**: Erreur de configuration réseau ou environnement
+  - **Solution temporaire**: Vérifier configuration CORS et ports
+
+### 🧪 Tests unitaires
+- Test HorizontalSplitsTable créé pour validation des composants
+- Version bumpée à v1.1.42
 
 ### Frontend Next.js (interface complète)
 - **Upload rapide** : Dropzone react-dropzone avec gestion d'erreur réseau avancée

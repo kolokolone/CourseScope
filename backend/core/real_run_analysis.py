@@ -167,6 +167,33 @@ def compute_splits(df: pd.DataFrame, split_distance_km: float = 1.0) -> pd.DataF
         if "heart_rate" in group.columns and group["heart_rate"].notna().any():
             avg_hr_bpm = float(group["heart_rate"].mean()) if not pd.isna(group["heart_rate"].mean()) else None
 
+# Calculate avg_hr_bpm if heart_rate data exists
+        avg_hr_bpm = None
+        elev_delta_m = None
+        if "heart_rate" in group.columns and not group["heart_rate"].isna().all():
+            avg_hr_bpm = float(group["heart_rate"].astype(float).mean())
+        
+        # Calculate elev_delta_m (net elevation change within split)
+        elevation_values = group["elevation"].dropna()
+        if len(elevation_values) > 1:
+            elev_delta_m = float(elevation_values.iloc[-1] - elevation_values.iloc[0])
+        else:
+            elev_delta_m = 0.0
+
+# Calculate avg_hr_bpm if heart_rate data exists
+        avg_hr_bpm = None
+        elev_delta_m = None
+        
+        # Use pandas operations directly on group (Series/DataFrame)
+        if "heart_rate" in group.columns and not pd.isna(group["heart_rate"]).all():
+            avg_hr_bpm = float(group["heart_rate"].mean())
+        
+        # Calculate elev_delta_m (net elevation change within split)
+        if len(group["elevation"].dropna()) > 1:
+            elev_delta_m = float(group["elevation"].iloc[-1] - group["elevation"].iloc[0])
+        else:
+            elev_delta_m = 0.0
+
         splits.append(
             {
                 "split_index": int(idx + 1),

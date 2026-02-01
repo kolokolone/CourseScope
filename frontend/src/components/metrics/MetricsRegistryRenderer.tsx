@@ -9,6 +9,8 @@ import { SectionCard } from '@/components/metrics/SectionCard';
 import { SimpleTable } from '@/components/metrics/SimpleTable';
 import { PowerDurationCurveChart } from '@/components/charts/PowerDurationCurveChart';
 import { AllureVsPenteChart } from '@/components/charts/AllureVsPenteChart';
+import { HorizontalSplitsTable } from '@/components/charts/HorizontalSplitsTable';
+import { VerticalPaceHistogram } from '@/components/charts/VerticalPaceHistogram';
 import { getValueAtPath } from '@/components/metrics/metricsUtils';
 import { CATEGORY_COLORS, type MetricSection } from '@/lib/metricsRegistry';
 
@@ -66,6 +68,26 @@ export function MetricsRegistryRenderer({
             return (
               <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
                 <PowerDurationCurveChart rows={rows} />
+              </SectionCard>
+            );
+          }
+
+          if (section.id === 'pacing-horizontal-splits') {
+            const rows = section.rowsPath ? getValueAtPath(data, section.rowsPath) : undefined;
+            if (!Array.isArray(rows) || rows.length === 0) return null;
+            return (
+              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+                <HorizontalSplitsTable data={rows} />
+              </SectionCard>
+            );
+          }
+
+          if (section.id === 'splits-vertical-histogram') {
+            const rows = section.rowsPath ? getValueAtPath(data, section.rowsPath) : undefined;
+            if (!Array.isArray(rows) || rows.length === 0) return null;
+            return (
+              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+                <VerticalPaceHistogram data={rows} />
               </SectionCard>
             );
           }
