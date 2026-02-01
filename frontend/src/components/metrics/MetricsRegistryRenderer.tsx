@@ -9,8 +9,8 @@ import { SectionCard } from '@/components/metrics/SectionCard';
 import { SimpleTable } from '@/components/metrics/SimpleTable';
 import { PowerDurationCurveChart } from '@/components/charts/PowerDurationCurveChart';
 import { AllureVsPenteChart } from '@/components/charts/AllureVsPenteChart';
-import { HorizontalSplitsTable } from '@/components/charts/HorizontalSplitsTable';
-import { VerticalPaceHistogram } from '@/components/charts/VerticalPaceHistogram';
+import HorizontalSplitsTable from '@/components/charts/HorizontalSplitsTable';
+import VerticalPaceHistogram from '@/components/charts/VerticalPaceHistogram';
 import { getValueAtPath } from '@/components/metrics/metricsUtils';
 import { CATEGORY_COLORS, type MetricSection } from '@/lib/metricsRegistry';
 
