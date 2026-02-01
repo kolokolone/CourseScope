@@ -1,0 +1,175 @@
+# CourseScope - Metrics file-only (v1.1.9)
+
+Toutes les metriques ci-dessous sont calculees a partir d'un seul fichier GPX/FIT uploade.
+Certaines metriques sont conditionnelles aux champs disponibles (ex: HR, power, cadence).
+
+Legend:
+- [Both] GPX ou FIT
+- [FIT] necessite un FIT avec champs presents
+- [Cond] champ optionnel dans le fichier
+
+1) Activity Load (POST /activity/load)
+- stats_sidebar.distance_km [Both]
+- stats_sidebar.elapsed_time_s [Both]
+- stats_sidebar.moving_time_s [Both]
+- stats_sidebar.elevation_gain_m [Both]
+
+2) Real Activity (GET /activity/{id}/real)
+
+2.1 Summary (summary.*)
+- summary.distance_km [Both]
+- summary.total_time_s [Both]
+- summary.moving_time_s [Both]
+- summary.average_pace_s_per_km [Both]
+- summary.average_speed_kmh [Both]
+- summary.elevation_gain_m [Both]
+
+2.2 Cardio summary (summary.cardio.*)
+- summary.cardio.hr_avg_bpm [FIT]
+- summary.cardio.hr_max_bpm [FIT]
+- summary.cardio.hr_min_bpm [FIT]
+
+2.3 Garmin summary (garmin_summary.*)
+- garmin_summary.total_time_s [Both]
+- garmin_summary.moving_time_s [Both]
+- garmin_summary.pause_time_s [Both]
+- garmin_summary.distance_km [Both]
+- garmin_summary.moving_distance_km [Both]
+- garmin_summary.average_pace_s_per_km [Both]
+- garmin_summary.average_speed_kmh [Both]
+- garmin_summary.max_speed_kmh [Both]
+- garmin_summary.best_pace_s_per_km [Both]
+- garmin_summary.gap_mean_s_per_km [Both]
+- garmin_summary.pace_median [Both]
+- garmin_summary.pace_p10 [Both]
+- garmin_summary.pace_p90 [Both]
+- garmin_summary.pace_median_s_per_km [Both]
+- garmin_summary.pace_p10_s_per_km [Both]
+- garmin_summary.pace_p90_s_per_km [Both]
+- garmin_summary.elevation_gain_m [Both]
+- garmin_summary.elevation_loss_m [Both]
+- garmin_summary.elevation_gain_filtered_m [Both]
+- garmin_summary.elevation_loss_filtered_m [Both]
+- garmin_summary.elevation_min_m [Both]
+- garmin_summary.elevation_max_m [Both]
+- garmin_summary.grade_mean_pct [Both]
+- garmin_summary.grade_min_pct [Both]
+- garmin_summary.grade_max_pct [Both]
+- garmin_summary.vam_m_h [Both]
+- garmin_summary.steps_total [Cond cadence]
+- garmin_summary.step_length_est_m [Cond cadence]
+- garmin_summary.longest_pause_s [Both]
+
+2.4 Highlights
+- highlights.items[] [Both]
+
+2.5 Zones (dataframes)
+- zones.heart_rate.records[].zone, range, time_s, time_pct [FIT]
+- zones.pace.records[].zone, range, time_s, time_pct [Both]
+- zones.power.records[].zone, range, time_s, time_pct [FIT]
+
+2.6 Best efforts / PR / Segments
+- best_efforts.rows[].distance_km [Both]
+- best_efforts.rows[].time_s [Both]
+- best_efforts.rows[].pace_s_per_km [Both]
+- personal_records.rows[].distance_km [Both]
+- personal_records.rows[].time_s [Both]
+- personal_records.rows[].pace_s_per_km [Both]
+- segment_analysis.rows[].duration_s [Both]
+- segment_analysis.rows[].distance_km [Both]
+- segment_analysis.rows[].time_s [Both]
+- segment_analysis.rows[].pace_s_per_km [Both]
+- splits.rows[].split_index [Both]
+- splits.rows[].distance_km [Both]
+- splits.rows[].time_s [Both]
+- splits.rows[].pace_s_per_km [Both]
+- splits.rows[].elevation_gain_m [Both]
+
+2.7 Pacing / Regularite
+- pacing.pace_first_half_s_per_km [Both]
+- pacing.pace_second_half_s_per_km [Both]
+- pacing.pace_delta_s_per_km [Both]
+- pacing.drift_s_per_km_per_km [Both]
+- pacing.cardiac_drift_pct [FIT]
+- pacing.cardiac_drift_slope_pct [FIT]
+- pacing.stability_cv [Both]
+- pacing.stability_iqr_ratio [Both]
+- pacing.gap_residual_median_s [Both]
+- pacing.pace_threshold_s_per_km [Both]
+
+2.8 Training load
+- training_load.trimp [FIT]
+- training_load.method [FIT]
+
+2.9 Cadence
+- cadence.mean_spm [Cond cadence]
+- cadence.max_spm [Cond cadence]
+- cadence.target_spm [Cond cadence]
+- cadence.above_target_pct [Cond cadence]
+
+2.10 Power
+- power.mean_w [FIT]
+- power.max_w [FIT]
+- power.ftp_w [FIT]
+- power.ftp_estimated [FIT]
+- power.zones.records[].zone, range, time_s, time_pct [FIT]
+
+2.11 Power advanced
+- power_advanced.normalized_power_w [FIT]
+- power_advanced.intensity_factor [FIT]
+- power_advanced.tss [FIT]
+- power_advanced.power_duration_curve[].duration_s [FIT]
+- power_advanced.power_duration_curve[].power_w [FIT]
+
+2.12 Running dynamics
+- running_dynamics.stride_length_mean_m [FIT]
+- running_dynamics.vertical_oscillation_mean_cm [FIT]
+- running_dynamics.vertical_ratio_mean_pct [FIT]
+- running_dynamics.ground_contact_time_mean_ms [FIT]
+- running_dynamics.gct_balance_mean_pct [FIT]
+
+2.13 Performance predictions
+- performance_predictions.items[].target_distance_km [Both]
+- performance_predictions.items[].predicted_time_s [Both]
+- performance_predictions.items[].base_distance_km [Both]
+- performance_predictions.items[].base_time_s [Both]
+- performance_predictions.items[].exponent [Both]
+
+2.14 Pauses
+- pauses.items[].lat [Both]
+- pauses.items[].lon [Both]
+- pauses.items[].label [Both]
+
+2.15 Climbs
+- climbs.items[].distance_km [Both]
+- climbs.items[].elevation_gain_m [Both]
+- climbs.items[].avg_grade_percent [Both]
+- climbs.items[].vam_m_h [Both]
+- climbs.items[].start_idx [Both]
+- climbs.items[].end_idx [Both]
+
+2.16 Series data (GET /activity/{id}/series/{name})
+- speed [Both]
+- pace [Both]
+- elevation [Both]
+- heart_rate [FIT]
+- cadence [Cond cadence]
+- power [FIT]
+- grade [Both]
+- moving [Both]
+- hr_zones [FIT]
+- power_zones [FIT]
+
+3) Map data (GET /activity/{id}/map)
+- bbox [Both]
+- polyline [Both]
+- markers[].lat [Both]
+- markers[].lon [Both]
+- markers[].label [Both]
+- markers[].type [Both]
+
+4) Theoretical Activity (GET /activity/{id}/theoretical)
+- summary.total_time_s [Both]
+- summary.total_distance_km [Both]
+- summary.average_pace_s_per_km [Both]
+- summary.elevation_gain_m [Both]

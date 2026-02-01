@@ -6,10 +6,13 @@ from pathlib import Path
 
 TESTS_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = TESTS_DIR.parent
+BACKEND_DIR = PROJECT_DIR / "backend"
 GPX_PATH = TESTS_DIR / "course.gpx"
 FIT_PATH = TESTS_DIR / "course.fit"
 
 # Execution possible via: `python tests/smoke_test.py`
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
@@ -75,6 +78,7 @@ def smoke_real_pipeline() -> None:
         params=RealRunParams(use_moving_time=True),
     )
     assert "summary" in garmin
+    assert "training_load" in garmin
 
     summary = garmin["summary"]
     for key in [
@@ -92,6 +96,10 @@ def smoke_real_pipeline() -> None:
         assert key in summary
     assert "running_dynamics" in garmin
     assert "power_advanced" in garmin
+
+    result = real_activity_service.analyze_real_activity(df, base=base)
+    assert result.best_efforts_time is not None
+    assert isinstance(result.performance_predictions, list)
 
     cap = float(min(max(base.default_cap_min_per_km, 2.0), 15.0))
     pace_series = real_activity_service.compute_pace_series(
@@ -132,6 +140,8 @@ def smoke_real_pipeline() -> None:
     assert "summary" in garmin_fit
     assert "running_dynamics" in garmin_fit
     assert "power_advanced" in garmin_fit
+    if garmin_fit.get("power_advanced") is not None:
+        assert "power_duration_curve" in garmin_fit["power_advanced"]
 
 
 def smoke_theoretical_pipeline() -> None:

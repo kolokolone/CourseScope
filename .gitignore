@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -57,6 +57,7 @@ cover/
 
 # Django stuff:
 *.log
+api_docs.html
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -228,6 +229,7 @@ htmlcov/
 
 # Logs
 *.log
+api_docs.html
 
 # OS / Editor
 .DS_Store
@@ -235,12 +237,39 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Streamlit
-.streamlit/secrets.toml
-
 # Local profiling outputs
 profiles/
 
 # Local env files
 .env
 .env.*
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+.vercel/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Frontend build cache
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+# Data artifacts
+data/activities/
+temp_activities/
+temp_test_store/
+test_activity.gpx
+*.parquet
+*.feather
+*.pkl
+*.pickle
+
+# Security / reports
+bandit-report.json

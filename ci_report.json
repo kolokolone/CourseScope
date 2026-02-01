@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-01-31T16:54:40.096528",
+  "total_duration": 95.1359314918518,
+  "results": [
+    {
+      "name": "Backend: pytest tests/unit",
+      "success": true,
+      "duration": 31.304632663726807
+    },
+    {
+      "name": "Backend: pytest tests/pytest",
+      "success": true,
+      "duration": 18.116318941116333
+    },
+    {
+      "name": "Frontend: install (fallback)",
+      "success": true,
+      "duration": 30.801954746246338
+    },
+    {
+      "name": "Frontend: npm test",
+      "success": true,
+      "duration": 4.220911026000977
+    },
+    {
+      "name": "Frontend: npm run build",
+      "success": true,
+      "duration": 10.692114114761353
+    }
+  ],
+  "summary": {
+    "total_tests": 5,
+    "passed": 5,
+    "failed": 0,
+    "success_rate": "100.0%"
+  }
+}

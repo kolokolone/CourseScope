@@ -1,0 +1,419 @@
+# IMPLEMENTATIONS À FAIRE - COURSESCOPE FRONTEND
+
+## 📊 MÉTRIQUES MANQUANTES (ANALYSE COMPÉTITION)
+
+### **🔍 MÉTRIQUES IDENTIFIÉES CHEZ GARMIN/STRAVA/COROS**
+
+#### **Métriques Puissance (Premium)**
+```
+✅ Power Zones (basé sur FTP/Threshold)
+✅ Normalized Power (NP)  
+✅ Intensity Factor (IF)
+✅ Training Stress Score (TSS)
+✅ Power Profile (Watts/kg)
+⚠️ Peak Power/Watts
+⚠️ Power Duration Curve
+```
+
+#### **🏃️ Métriques Avancées Course**
+```
+✅ GAP (Grade Adjusted Pace)
+✅ Grade Analysis (pente moyenne/max)
+⚠️ Running Dynamics (stride, vertical oscillation, ground contact)
+✅ VAM (Velocity Ascent Meter/h)
+⚠️ Cardiac Drift (HRR analysis)
+✅ Pacing Stability (consistency)
+✅ Training Load (TRIMP)
+```
+
+#### **📈 Métriques Recovery & Fatigue**
+```
+⚠️ Recovery Time (post-activity)
+⚠️ Sleep Quality Integration
+⚠️ Training Readiness Score
+⚠️ Heart Rate Variability (HRV)
+⚠️ Fatigue Index
+⚠️ Daily Stress Score
+```
+
+#### **📊 Analyses de Performance**
+```
+✅ Performance Predictions (temps sur distance cible)
+✅ Race Time Prediction
+✅ Segment Analysis (best times on sections)
+⚠️ Weather Impact Analysis
+⚠️ Equipment Impact (chaussures, terrain)
+⚠️ Training Volume Analysis (weekly/monthly trends)
+✅ Personal Records tracking
+```
+
+#### **🎯 Social & Gamification**
+```
+⚠️ Achievement System
+⚠️ Virtual Challenges
+⚠️ Training Streaks
+⚠️ Badges/Milestones
+⚠️ Community Leaderboards
+⚠️ Social Sharing enhanced
+```
+
+---
+
+## 📈 GRAPHIQUES À IMPLÉMENTER (Next.js)
+
+### **🔥 GRAPHIQUES DYNAMIQUES PRIORITAIRES**
+
+#### **1. Graphique Allure vs Dénivelé (Core - Exist)**
+```typescript
+// Composant: PaceGradeChart.tsx
+interface Props {
+  data: Array<{distance: number, elevation: number, pace: number}>;
+  showGradeAnalysis?: boolean;
+  paceThreshold?: number;
+}
+
+Fonctionnalités:
+- Courbe allure (min/km) avec axe distance
+- Courbe dénivelé avec axe distance secondaire
+- Points colorés par pente (>10% = rouge, 0-10% = jaune, <0% = vert)
+- Seuil d'allure paramétrable
+- Analyse de la pente moyenne/max
+```
+
+#### **2. Graphique Cardiaque (Premium)**
+```typescript
+// Composant: HeartRateChart.tsx
+interface Props {
+  data: Array<{time: number, heartRate: number}>;
+  zones?: Array<{min: number, max: number, color: string, name: string}>;
+  showHRR?: boolean;
+}
+
+Fonctionnalités:
+- Courbe FC tout au long de l'activité
+- Zones FC colorées et personnalisables
+- Heart Rate Reserve (HRR) calculation
+- FC moyenne/max/min
+- Recovery analysis (temps retour à la normale)
+```
+
+#### **3. Graphique Puissance (Premium)**
+```typescript
+// Composant: PowerChart.tsx
+interface Props {
+  data: Array<{time: number, power: number, cadence?: number}>;
+  ftp?: number;
+  showNP?: boolean;
+  showTSS?: boolean;
+}
+
+Fonctionnalités:
+- Courbe puissance (Watts) vs temps
+- Normalized Power (NP) visualization
+- Power Zones avec FTP
+- TSS accumulation
+- Cadence overlay optionnel
+```
+
+#### **4. Graphique GAP Analysis (Amélioré)**
+```typescript
+// Composant: GAPAnalysisChart.tsx
+interface Props {
+  data: Array<{distance: number, elevation: number, actualPace: number, gradeAdjustedPace: number}>;
+}
+
+Fonctionnalités:
+- Scatter plot: Allure réelle vs Allure ajustée
+- Zones d'efficacité (positive/negative GAP)
+- Distribution des segments (+/-)
+- Identification des sections d'amélioration/régression
+```
+
+#### **5. Graphique Training Load (Advanced)**
+```typescript
+// Composant: TrainingLoadChart.tsx
+interface Props {
+  dailyData: Array<{date: string, load: number, activityType: string}>;
+  weeklyData: Array<{week: number, avgLoad: number}>;
+}
+
+Fonctionnalités:
+- Bar chart : Charge d'entraînement quotidienne
+- Tendance 7 jours (rolling average)
+- Zones de charge (optimale/overtraining/danger)
+- Activity type breakdown
+```
+
+#### **6. Graphique Performance Predictions**
+```typescript
+// Composant: PerformanceChart.tsx
+interface Props {
+  historicalData: Array<{date: string, distance: number, time: number}>;
+  targetDistance: number;
+  predictions?: Array<{method: string, predictedTime: number}>;
+}
+
+Fonctionnalités:
+- Courbe de performance historique
+- Prédictions de temps (méthodes multiples)
+- Target pacing visualization
+- Confidence intervals
+```
+
+---
+
+## 🚀 GRAPHIQUES SECONDAIRES
+
+#### **7. Distribution d'Allure**
+```typescript
+// Composant: PaceDistributionChart.tsx
+interface Props {
+  paceData: Array<{pace: number, duration: number}>;
+  showPercentiles?: boolean;
+}
+
+Fonctionnalités:
+- Histogramme des vitesses
+- Percentiles (25%, 50%, 75%, 90%)
+- Mode/Zones d'allure
+- Durée cumulée par zone
+```
+
+#### **8. Cadence & Running Dynamics**
+```typescript
+// Composant: CadenceChart.tsx
+interface Props {
+  cadenceData: Array<{time: number, cadence: number, strideLength?: number}>;
+  dynamicsData?: Array<{time: number, groundContactTime?: number, verticalOscillation?: number}>;
+}
+
+Fonctionnalités:
+- Courbe cadence (spm) vs temps
+- Running dynamics overlay
+- Stride length analysis
+- Ground contact time visualization
+```
+
+#### **9. Zones d'Entraînement Combinées**
+```typescript
+// Composant: CombinedZonesChart.tsx
+interface Props {
+  paceZones?: Array<{min: number, max: number, color: string}>;
+  powerZones?: Array<{min: number, max: number, color: string}>;
+  heartRateZones?: Array<{min: number, max: number, color: string}>;
+}
+
+Fonctionnalités:
+- Zones multi-critères (allure/puissance/FC)
+- Heatmap temps passé dans chaque zone
+- Transitions entre zones
+- Compteurs temps par zone
+```
+
+#### **10. Graphiques de Comparaison**
+```typescript
+// Composant: ComparisonChart.tsx
+interface Props {
+  activities: Array<{id: string, name: string, date: string, metrics: ActivityMetrics}>;
+  comparisonMetrics: Array<string>;
+  showRelativeDifferences?: boolean;
+}
+
+Fonctionnalités:
+- Comparaison multi-activités
+- Radar chart pour métriques clés
+- Tableau comparatif détaillé
+- Trend lines sur périodes
+```
+
+---
+
+## 🔧 IMPLEMENTATIONS TECHNIQUES
+
+### **📊 LIBRAIRIES GRAPHIQUES**
+```json
+// package.json additions
+{
+  "recharts": "^3.7.0",           // Graphiques de base
+  "d3": "^7.8.0",               // Visualisations avancées
+  "chart.js": "^4.4.0",           // Alternative
+  "react-chartjs-2": "^5.2.0"   // Canvas optimisé
+}
+```
+
+### **🎨 DATA PROCESSING**
+```typescript
+// services/chartDataService.ts
+export class ChartDataService {
+  static calculatePowerZones(ftp: number) { ... }
+  static calculateHeartRateZones(maxHR: number, age: number) { ... }
+  static calculatePaceDistribution(data: PaceData[]) { ... }
+  static performGAPAnalysis(data: ActivityData[]) { ... }
+}
+```
+
+### **🎯 PERFORMANCE OPTIMIZATIONS**
+```typescript
+// Optimisations recommandées
+- useMemo() pour calculs coûteux
+- Virtual scrolling pour grands datasets
+- Canvas-based charts pour >1000 points
+- Lazy loading des composants graphiques
+- Data aggregation pour visualisations temps réel
+```
+
+---
+
+## 📋 ROADMAP D'IMPLÉMENTATION
+
+### **PHASE 1 (1-2 semaines)**
+1. ✅ PaceGradeChart (amélioré avec analyse pente)
+2. ✅ HeartRateChart (zones + HRR)
+3. ✅ PowerChart (si FIT data disponible)
+4. ✅ GAPAnalysisChart (scatter plot amélioré)
+
+### **PHASE 2 (2-3 semaines)**
+5. ✅ TrainingLoadChart (intégration backend/api)
+6. ✅ PerformanceChart (prédictions)
+7. ✅ PaceDistributionChart (histogramme)
+8. ✅ CadenceChart (si running dynamics)
+
+### **PHASE 3 (3-4 semaines)**
+9. ✅ CombinedZonesChart (multi-zones)
+10. ✅ ComparisonChart (multi-activités)
+11. ✅ Carte thermique (performance sur parcours)
+12. ✅ Tableaux de métriques avancées
+
+---
+
+## 🎯 CRITÈRES DE SUCCÈS
+
+### **Fonctionnel**
+- ✅ Chaque graphique fonctionnel avec données réelles
+- ✅ Responsive design (mobile/desktop)
+- ✅ Performance acceptable (<1000ms rendering)
+- ✅ Accessibilité (ARIA labels, keyboard navigation)
+- ✅ Export des graphiques (PNG/SVG)
+
+### ** Technique**
+- ✅ TypeScript strict (pas de erreurs)
+- ✅ Tests unitaires (>90% coverage)
+- ✅ Components réutilisables
+- ✅ Documentation Storybook
+
+### ** UX/UI**
+- ✅ Design cohérent avec reste de l'application
+- ✅ Loading states et skeleton screens
+- ✅ Empty states avec messages clairs
+- ✅ Tooltips interactifs informatifs
+
+---
+
+## 🚨 NOTES TECHNIQUES
+
+### **Intégration API**
+```typescript
+// Exemple d'appel API pour graphiques
+const fetchChartData = async (activityId: string) => {
+  const response = await fetch(`/api/activity/${activityId}/chart-data`);
+  return response.json();
+};
+```
+
+### **Gestion des états**
+```typescript
+// Pattern pour graphiques avec états
+const [chartData, setChartData] = useState<ChartData | null>(null);
+const [isLoading, setIsLoading] = useState(false);
+const [error, setError] = useState<string | null>(null);
+```
+
+### **Personnalisation**
+```typescript
+// Configuration utilisateur pour graphiques
+interface UserPreferences {
+  preferredZones: 'garmin' | 'custom' | '5zone';
+  chartColors: string[];
+  defaultMetrics: string[];
+  animationSpeed: 'slow' | 'normal' | 'fast';
+}
+```
+
+---
+
+## 🏆 PRIORITY DÉVELOPPEMENT
+
+### **HIGH PRIORITY** (À implémenter en premier)
+1. **PaceGradeChart amélioré** - Fondamental, déjà existant
+2. **HeartRateChart** - Très demandé, données disponibles
+3. **PowerChart** - Différenciant majeur, données FIT
+
+### **MEDIUM PRIORITY** (Si temps disponible)
+4. **GAPAnalysisChart** - Valeur analytique forte
+5. **TrainingLoadChart** - Intégration continue required
+
+### **LOW PRIORITY** (Bon à avoir)
+6. **PerformanceChart** - Prédictions avancées
+7. **ComparisonChart** - Fonctionnalité sociale
+8. **CombinedZonesChart** - Complexe mais puissant
+
+---
+
+## 📊 MÉTRIQUES À AJOUTER AU BACKEND
+
+Pour supporter ces graphiques, le backend doit exposer :
+
+### **Nouveaux Endpoints API**
+```python
+# backend/api/routes/charts.py
+@router.get("/activity/{id}/charts/pace-grade")
+async def get_pace_grade_chart(activity_id: str):
+    # Données pour graphique allure vs dénivelé
+    
+@router.get("/activity/{id}/charts/heart-rate")
+async def get_heart_rate_chart(activity_id: str):
+    # Données FC + zones
+    
+@router.get("/activity/{id}/charts/power")
+async def get_power_chart(activity_id: str):
+    # Données puissance + NP + TSS
+```
+
+### **Extensions Services**
+```python
+# backend/services/chart_service.py
+class ChartService:
+    @staticmethod
+    def prepare_pace_grade_data(df: pd.DataFrame) -> dict:
+        # Préparation données pour graphique
+        
+    @staticmethod  
+    def calculate_zones(ftp: number, max_hr: number) -> dict:
+        # Calcul zones optimisées
+```
+
+---
+
+## 📈 DÉTAILS D'IMPLÉMENTATION
+
+### **Configuration Required**
+```env
+# .env.local
+NEXT_PUBLIC_ENABLE_CHARTS=true
+NEXT_PUBLIC_CHART_ANIMATION_SPEED=normal
+```
+
+### **File Structure**
+```
+frontend/src/components/charts/
+├── PaceGradeChart.tsx          # ✅ EXISTE (améliorer)
+├── HeartRateChart.tsx          # 🔥 HIGH PRIORITY
+├── PowerChart.tsx              # 🔥 HIGH PRIORITY  
+├── GAPAnalysisChart.tsx         # 🟡 MEDIUM PRIORITY
+├── TrainingLoadChart.tsx        # 🟡 MEDIUM PRIORITY
+└── index.ts                     # Exports
+```
+
+---
+
+**Ce document sert de feuille de route pour l'implémentation des graphiques avancés dans CourseScope Next.js. L'objectif est d'atteindre la parité fonctionnelle avec les meilleures applications de running analysis (Garmin Connect/Strava Premium).**

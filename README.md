@@ -1,12 +1,12 @@
-# CourseScope (v1.1.5)
+# CourseScope (v1.1.34)
 
-CourseScope est une app Streamlit locale pour analyser des traces running GPX/FIT (carte, graphes, splits, zones type Garmin, GAP/pente) et estimer un temps theorique sur un trace selon une allure de base et la pente. Backend Python prepare pour une future API.
+CourseScope est une application web locale pour analyser des traces running GPX/FIT :
+- **Backend FastAPI** : API moderne pour les données d'activite
+- **Frontend Next.js** : interface complete (100+ metriques, graphiques, cartes)
 
-La v1.1 est une refacto interne (aucune feature supprimee) qui separe:
-- `core/` (pur Python)
-- `services/` (orchestration, pur Python)
-- `ui/` (Streamlit, rendu uniquement)
+## 🚀 Démarrage rapide
 
+<<<<<<< HEAD
 Version courante: v1.1.5 (patch de v1.1)
 
 Depuis v1.1.1, le backend est durci pour preparer une migration FastAPI/React:
@@ -50,202 +50,245 @@ Ce script:
 ### Linux/macOS
 
 Depuis le dossier du projet:
+=======
+Prerequis: Python 3.11+, Node.js (npm).
+>>>>>>> f883b1962db91518a963ebb58addd72333107403
 
 ```bash
+# Windows
+./run_win.bat
+
+# Linux/macOS
 ./run_linux.sh
 ```
 
-### Manuel
+URLs:
+- Frontend: http://localhost:3000
+- API: http://localhost:8000 (docs: /docs)
 
-Creer un venv puis installer les dependances.
+Note Windows:
+- Le premier lancement peut prendre du temps (installation `npm` dans `frontend/`).
+- Les lancements suivants sont rapides (si `frontend/node_modules/` existe, l'installation est skip).
+- En dev, le frontend passe par le proxy Next.js (`/api/*`) par defaut (recommande) pour eviter les problemes CORS/URL.
 
-Creer le venv:
-
-```bash
-python -m venv .venv
-```
-
-Activer le venv:
-
-Windows (cmd):
-
-```bat
-.venv\Scripts\activate
-```
-
-Windows (PowerShell):
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-Linux/macOS:
+## CI (local)
 
 ```bash
-source .venv/bin/activate
+python scripts/ci_pipeline.py
 ```
 
-Installer et lancer:
+## 📁 Architecture du projet
+
+```
+CourseScope/
+├── run_win.bat / run_linux.sh     # Scripts de lancement rapide
+├── requirements.txt               # Dépendances Python
+├── backend/
+│   ├── api/                     # API FastAPI
+│   │   ├── main.py             # Serveur FastAPI + CORS + logs
+│   │   └── routes/
+│   │       ├── activities.py    # POST /activity/load (upload)
+│   │       ├── analysis.py      # Analyses real/theoretical
+│   │       ├── series.py       # Séries de données
+│   │       └── maps.py         # Données cartographiques
+│   ├── core/                     # Logique métier pure Python
+│   │   ├── gpx_loader.py       # Parser GPX → DataFrame
+│   │   ├── fit_loader.py       # Parser FIT → DataFrame  
+│   │   ├── contracts/          # Validation DataFrame canonique
+│   │   ├── metrics.py          # Calculs style Garmin
+│   │   ├── theoretical_model.py # Prédictions temps/allure
+│   │   └── ...
+│   ├── services/                 # Orchestration backend
+│   │   ├── activity_service.py  # Chargement + validation
+│   │   ├── analysis_service.py  # Entry points API
+│   │   ├── cache.py           # Cache portable
+│   │   └── serialization.py   # Conversion JSON
+│   ├── storage/                  # Persistance locale
+├── frontend/
+│   ├── src/
+│   │   ├── lib/api.ts          # Client API avec proxy
+│   │   ├── components/upload/    # Upload dropzone
+│   │   └── app/               # Pages Next.js
+│   └── next.config.ts           # Configuration proxy API
+└── tests/                       # Tests unitaires + pytest
+```
+
+## 🔌 Configuration API (v1.1.33)
+
+### Stratégie de communication
+- **Développement local (par défaut)** : Proxy Next.js (`/api/*` → `http://localhost:8000/*`)
+  - Évite les problèmes CORS
+  - Le frontend utilise `API_BASE_URL = '/api'` par défaut
+- **Option production / déploiement** : Appels directs si `NEXT_PUBLIC_API_URL` est défini
+  - IMPORTANT : `NEXT_PUBLIC_API_URL` doit être la racine du backend, sans suffixe `/api`
+  - Exemple OK : `NEXT_PUBLIC_API_URL=https://api.example.com`
+  - Exemple KO : `NEXT_PUBLIC_API_URL=https://api.example.com/api`
+
+### Robustesse (v1.1.33)
+- **Backend** : supporte maintenant les routes *avec* et *sans* préfixe `/api`
+  - `/activity/load` et `/api/activity/load` fonctionnent tous les deux
+- **Observabilité** : chaque requête a un `X-Request-ID` et un fichier log est créé à chaque run (`./logs/backend_<timestamp>.log`)
+
+### Variables d'environnement
+```bash
+# Optionnel - appels directs API
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# Par défaut (dev) : pas d'env => base "/api" (proxy Next)
+```
+
+## 📡 Endpoints API
 
 ```bash
-pip install -r requirements.txt
-streamlit run CourseScope.py
+# Upload et gestion
+POST   /activity/load               # Upload GPX/FIT (multipart)
+POST   /api/activity/load           # Upload GPX/FIT (multipart) - compatible
+GET    /activities                  # Lister activités
+GET    /api/activities              # Lister activités - compatible
+DELETE /activity/{id}               # Supprimer activité
+DELETE /api/activity/{id}           # Supprimer activité - compatible
+DELETE /activities                  # Vider toutes
+DELETE /api/activities              # Vider toutes - compatible
+
+# Analyses  
+GET    /activity/{id}/real            # Données course réalisée
+GET    /activity/{id}/theoretical     # Prédictions temps/allure
+GET    /activity/{id}/series/{name}   # Séries de données
+GET    /activity/{id}/map             # Données cartographiques
+
+# Toutes les routes ci-dessus existent aussi sous /api/* (compatibilité)
+
+# Santé
+GET    /health                      # Status backend + logs
+GET    /api/health                  # Compatible
 ```
 
+## 🏃 Fonctionnalités
 
-## Utilisation
+### Frontend Next.js (interface complète)
+- **Upload rapide** : Dropzone react-dropzone avec gestion d'erreur réseau avancée
+- **Métriques complètes** : 100+ métriques organisées par catégories (Summary, Power, Performance, Pacing, Garmin, Series, Map)
+- **KPI header** : Distance, temps, dénivelé, allure moyenne avec affichage conditionnel
+- **Tableaux intelligents** : Splits, best efforts, statistiques avec formatage automatique
+- **Graphiques interactifs** : Recharts optimisés avec échantillonnage dynamique (>2500 points)
+- **Métriques étendues** : FC, puissance, cadence, dynamique de course (FIT), zones Garmin
+- **Registre centralisé** : Définitions unifiées des métriques avec rendu conditionnel GPX/FIT
+- **Performance optimisée** : React.memo, useMemo, lazy loading, sampling intelligent
+- **Responsive** : Mobile-friendly design avec adaptations automatiques
 
-1) Ouvrir l'app dans le navigateur (URL affichee par Streamlit).
-2) Uploader un fichier `.gpx` ou `.fit`.
-3) Choisir la vue:
-   - "Donnees de la course realisee"
-   - "Donnees theoriques (prevision)"
+## 🧪 Tests
 
-Notes:
-- L'historique est stocke en session (sidebar) et permet de recharger rapidement un fichier.
-- Les allures sont affichees en min/km.
+### Backend
+```bash
+# Compilation
+python -m compileall backend
 
+# Tests unitaires
+python -m unittest discover -s tests -p "test_*.py" -v
 
-## Metriques FIT (optionnelles)
-
-Quand le fichier `.fit` contient les champs, l'app calcule/affiche des metriques supplementaires (style Garmin), par ex:
-- Running dynamics: `stride_length_m`, `vertical_oscillation_cm`, `vertical_ratio_pct`, `ground_contact_time_ms`, `gct_balance_pct`
-- Puissance avancee (si power dispo): `normalized_power_w` (NP), `intensity_factor`, `tss`
-
-Compatibilite:
-- GPX reste supporte: ces colonnes existent dans le DataFrame canonique mais restent `NaN`.
-- Si une metrique FIT est absente: valeur `NaN`/`None` et l'UI masque les panneaux associes.
-
-
-## Profilage (perf)
-
-Un harness de profilage (sans Streamlit) est fourni pour mesurer rapidement le backend sur un fichier GPX/FIT.
-
-Depuis la racine du projet (Windows, venv actif):
-
-```bat
-.venv\Scripts\python.exe tools\profile_pipeline.py --input tests\course.gpx --mode all --repeat 3 --json-out profiles\profile_gpx.json
-.venv\Scripts\python.exe tools\profile_pipeline.py --input tests\course.fit --mode all --repeat 3 --json-out profiles\profile_fit.json
+# Tests ciblés (pytest)
+python -m pytest tests/pytest/
 ```
 
-Notes:
-- `profiles/` est un dossier local (ignore par git).
-- `--tracemalloc` existe mais ajoute un surcout important (a reserver a des diagnostics memoire).
-
-
-## Tests
-
-La v1.1.4 fournit:
-- des smoke tests minimalistes (sans framework) pour eviter les regressions
-- des tests unitaires (unittest) pour valider les fonctions de base apres refacto
+### Frontend  
+```bash
+cd frontend
+npm test          # Tests unitaires + intégration
+npm run build     # Vérification TypeScript
+```
 
 ### Smoke tests
-
-Sous Windows (avec le venv cree par `run_win.bat`):
-
-```bat
-.venv\Scripts\python.exe tests\smoke_test.py
-```
-
-Sous Linux/macOS:
-
 ```bash
-.venv/bin/python tests/smoke_test.py
+# Validation rapide upload/parsing
+python tests/smoke_test.py
 ```
 
-Ces tests utilisent les fichiers demo:
-- `tests/course.gpx`
-- `tests/course.fit`
+## 🔧 Outils de développement
 
-### Tests unitaires
-
-Depuis le dossier du projet (avec le venv actif):
-
+### Profilage performance
 ```bash
-python -m unittest discover -s tests -p "test_*.py" -v
+# Profilage GPX
+python tools/profile_pipeline.py --input tests/course.gpx --mode all --repeat 3
+
+# Profilage FIT  
+python tools/profile_pipeline.py --input tests/course.fit --mode all --repeat 3
 ```
 
-### Tests pytest
+## 📋 Dépendances
 
-La suite pytest (tests cibles) vit dans `tests/pytest/`.
+### Python (requirements.txt)
+```txt
+# Runtime
+gpxpy, fitparse, pandas, numpy, plotly
 
+# API
+fastapi, uvicorn[standard], python-multipart, pydantic, httpx
+
+# Utilitaires
+pytest, pyarrow
+```
+
+### Frontend (package.json)
+```json
+{
+  "dependencies": {
+    "next": "16.1.5",
+    "react": "19.2.3", 
+    "react-dom": "19.2.3",
+    "react-dropzone": "^14.3.8",
+    "@tanstack/react-query": "^5.90.20",
+    "lucide-react": "^0.563.0",
+    "tailwindcss": "^4"
+  }
+}
+```
+
+## 🐛 Dépannage
+
+### Erreur "Failed to proxy" / "ECONNREFUSED 127.0.0.1:8000"
+- Le backend n'est pas demarre (ou pas encore pret). Lance l'app via `run_win.bat` / `run_linux.sh`.
+- Verifie le health check: `curl http://127.0.0.1:8000/health`
+
+### Problèmes d'upload
 ```bash
-python -m pytest -q
+# Vérifier backend
+curl http://127.0.0.1:8000/health
+
+# Vérifier upload direct
+curl -X POST http://127.0.0.1:8000/api/activity/load \
+     -F "file=@test.gpx" -F "name=test"
+
+# Logs frontend (console)
+# Vérifier les erreurs réseau/CORS
 ```
 
-### Compilation (sanity check)
+### PowerShell: commandes manuelles
 
-```bash
-python -m compileall -q core services ui tests CourseScope.py
+PowerShell ne supporte pas l'execution `"path" -m ...` sans l'operateur `&`.
+
+```powershell
+& .\.venv\Scripts\python.exe -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
+Invoke-WebRequest http://127.0.0.1:8000/health -UseBasicParsing
 ```
 
+### Ports par défaut
+- Backend API : `8000` 
+- Frontend Next.js : `3000` (ou `3001` si 3000 occupé)
 
-## Structure du projet (v1.1.4)
+## 📝 Notes développement
 
-```
-  CourseScope/
-  CourseScope.py
-  run_win.bat
-  run_linux.sh
-  requirements.txt
-  core/
-  services/
-  ui/
-  tests/
-  tools/
-```
+### Règles d'architecture
+- `backend/core/` et `backend/services/` : pas d'import UI
+- `frontend/` : **pas de dépendance backend directe** (API only)
 
-### Core (pur Python)
-- `core/gpx_loader.py`, `core/fit_loader.py`: parsing -> DataFrame canonique
-- `core/contracts/activity_df_contract.py`: contrat/validation DF canonique
-- `core/constants.py`: constantes partagees (seuils, defaults)
-- `core/stats/basic_stats.py`: stats de base unifiees
-- `core/derived.py`: bundle de series derivees
-- `core/real_run_analysis.py`: calculs + figures Plotly (reel)
-- `core/ref_data.py`: providers de donnees de reference (ex: Ref pro)
-- `core/transform_report.py`: reporting testable (rows_in/rows_out)
-- `core/metrics.py`: stats style Garmin + zones
-- `core/theoretical_model.py`: modele theorique + figures Plotly
-- `core/formatting.py`, `core/parsing.py`: helpers partages
-- `core/grade_table.py`: correction d'allure selon la pente (canonical)
-- `core/resources/pro_pace_vs_grade.csv`: table de reference "Ref pro" (optionnelle)
+### Ajout fonctionnalité
+1. **Core** : Implémenter calcul dans `backend/core/`
+2. **Services** : Orchestrer dans `backend/services/`  
+3. **API** : Exposer via `backend/api/routes/`
+4. **UI Frontend** : Composants React dans `frontend/src/`
 
-Pour utiliser une table personnalisable par l'utilisateur:
-- definir `COURSESCOPE_PRO_PACE_VS_GRADE_PATH` vers un fichier CSV (meme schema)
+---
 
-### Services (backend applicatif, pur Python)
-- `services/activity_service.py`: chargement + type detection + stats sidebar
-- `services/real_activity_service.py`: orchestration analyse reel
-- `services/theoretical_service.py`: orchestration prevision
-- `services/history_service.py`: helpers d'historique (pure functions)
-- `services/models.py`: dataclasses (contrats)
-- `services/cache.py`: cache portable (preparation migration API)
-- `services/serialization.py`: conversion en structures JSON-serialisables
-- `services/analysis_service.py`: points d'entree backend de haut niveau (cache injectable)
+## 📈 Changelog
 
-### UI (Streamlit)
-- `ui/layout.py`: navigation + uploader + historique
-- `ui/real_run_view.py`: widgets + rendu reel
-- `ui/theoretical_view.py`: widgets + rendu theorique
-
-
-## Notes pour developpement / contributions
-
-Regle principale v1.1.4:
-- `core/` et `services/` ne doivent pas importer Streamlit.
-- Streamlit reste confine a `ui/`.
-
-Regle v1.1.4 (prepa API):
-- valider le DataFrame canonique a la frontiere service (voir services/activity_service.py)
-- pour une future API, utiliser services/analysis_service.py + services/serialization.py
-
-Si tu ajoutes une nouvelle fonctionnalite:
-1) Implementer le calcul dans `core/`.
-2) Orchestrer dans `services/` (structures de retour stables).
-3) Ajouter les widgets/rendu dans `ui/`.
-4) Ajouter/etendre `tests/smoke_test.py` si pertinent.
-
-
-## Changelog
-
-Voir `change_log.txt`.
+Voir `CHANGELOG.md`.
