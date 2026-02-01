@@ -1,4 +1,4 @@
-1. Contexte general (v1.1.4)
+1. Contexte general (v1.1.5)
 
 Application web locale en Python (Streamlit) pour analyser et preparer des courses a pied a partir de traces GPX/FIT.
 
