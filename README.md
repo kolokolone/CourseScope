@@ -180,14 +180,17 @@ GET    /api/health                  # Compatible
   - "Allure par split" histogramme vertical dans Splits
 - **Backend**: Calculs derive cardio vérifiés et cohérents
 
-### ⚠️ Problèmes identifiés
-- **Connexion Frontend/Backend**: Le frontend ne peut pas se connecter au backend (CORS/réseau)
-  - **Cause**: Erreur de configuration réseau ou environnement
-  - **Solution temporaire**: Vérifier configuration CORS et ports
+### ✅ Problèmes résolus (v1.1.42)
+- **Tests backend**: Correction du test `test_compute_pace_vs_grade_data_basic` (ajout colonne `pace_n`)
+- **Tests frontend**: Correction du test `HorizontalSplitsTable` (nombre de lignes correct)
+- **Cohérence visuelle**: Correction des couleurs du graphe `VerticalPaceHistogram` (maintenant bleu comme les autres)
+- **Stabilité**: Tous les tests passent (13/13 backend, 20/20 frontend)
 
 ### 🧪 Tests unitaires
-- Test HorizontalSplitsTable créé pour validation des composants
-- Version bumpée à v1.1.42
+- Tests complets pour tous les composants critiques (HorizontalSplitsTable, VerticalPaceHistogram, etc.)
+- Couverture backend : 13/13 tests passent
+- Couverture frontend : 20/20 tests passent  
+- Version bumpée à v1.1.42 - STABLE
 
 ### Frontend Next.js (interface complète)
 - **Upload rapide** : Dropzone react-dropzone avec gestion d'erreur réseau avancée

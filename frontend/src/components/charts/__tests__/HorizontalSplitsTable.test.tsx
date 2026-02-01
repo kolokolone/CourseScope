@@ -75,8 +75,8 @@ describe('HorizontalSplitsTable', () => {
   it('renders correct number of rows', () => {
     render(<HorizontalSplitsTable data={mockSplitsData} />);
     
-    // Should render 3 data rows + 1 header row
+    // Should render 3 data rows + 1 header row = 4 total rows
     const rows = screen.getAllByRole('row');
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
   });
 });

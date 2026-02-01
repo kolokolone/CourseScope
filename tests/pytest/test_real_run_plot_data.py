@@ -25,7 +25,7 @@ def test_compute_pace_vs_grade_data_basic() -> None:
 
     out = compute_pace_vs_grade_data(df, pace_series=df["pace_s_per_km"], grade_series=grade_series)
 
-    assert list(out.columns) == ["grade_center", "pace_med", "pace_std"]
+    assert list(out.columns) == ["grade_center", "pace_med", "pace_std", "pace_n"]
     assert not out.empty
     assert bool(out["grade_center"].is_monotonic_increasing)
 

@@ -36,7 +36,7 @@ const VerticalPaceHistogram: React.FC<VerticalPaceHistogramProps> = ({ data, cla
     if (paceRange === 0) return '#009E73'; // Default Splits color
     const normalizedPace = (maxPace - paceSec) / paceRange;
     const lightness = 85 - (normalizedPace * 40); // 85% (light) -> 45% (dark)
-    return `hsl(142, 70%, ${lightness}%)`; // Green hue, same logic
+    return `hsl(210, 70%, ${lightness}%)`; // Blue hue, same logic as pacing
   };
 
   // Prepare data for vertical bar chart
