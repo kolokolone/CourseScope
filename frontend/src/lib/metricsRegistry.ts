@@ -292,6 +292,7 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Disponible si la cadence est presente.',
     category: 'Cadence',
     kind: 'grid',
+    gridColumns: 6,
     items: [
       { id: 'mean_spm', path: 'cadence.mean_spm', label: 'Cadence moyenne', format: 'integer', unit: 'spm' },
       { id: 'max_spm', path: 'cadence.max_spm', label: 'Cadence max', format: 'integer', unit: 'spm' },
@@ -305,6 +306,7 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Disponible si la puissance est presente.',
     category: 'Puissance',
     kind: 'grid',
+    gridColumns: 6,
     items: [
       { id: 'mean_w', path: 'power.mean_w', label: 'Puissance moyenne', format: 'integer', unit: 'W' },
       { id: 'max_w', path: 'power.max_w', label: 'Puissance max', format: 'integer', unit: 'W' },
@@ -321,6 +323,7 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Disponible si le fichier contient les running dynamics.',
     category: 'Running dynamics',
     kind: 'grid',
+    gridColumns: 6,
     items: [
       { id: 'stride_length', path: 'running_dynamics.stride_length_mean_m', label: 'Longueur de foulee', format: 'meters', unit: 'm' },
       {
@@ -499,6 +502,7 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Charge interne (TRIMP).',
     category: 'Training load',
     kind: 'grid',
+    gridColumns: 6,
     items: [
       { id: 'trimp', path: 'training_load.trimp', label: 'TRIMP', format: 'number' },
       { id: 'method', path: 'training_load.method', label: 'Methode', format: 'text' },
@@ -533,6 +537,7 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Infos techniques sur les donnees retournees.',
     category: 'Limits',
     kind: 'grid',
+    gridColumns: 6,
     items: [
       { id: 'downsampled', path: 'limits.downsampled', label: 'Downsampled', format: 'boolean' },
       { id: 'original_points', path: 'limits.original_points', label: 'Points originaux', format: 'integer' },
@@ -549,6 +554,7 @@ export const THEORETICAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Resume theorique.',
     category: 'Resume',
     kind: 'grid',
+    gridColumns: 6,
     items: [
       { id: 'total_time_s', path: 'summary.total_time_s', label: 'Temps total', format: 'duration' },
       { id: 'total_distance_km', path: 'summary.total_distance_km', label: 'Distance', format: 'number', unit: 'km' },
@@ -577,6 +583,7 @@ export const THEORETICAL_METRIC_SECTIONS: MetricSection[] = [
     description: 'Infos techniques sur les donnees retournees.',
     category: 'Limits',
     kind: 'grid',
+    gridColumns: 6,
     items: [
       { id: 'downsampled', path: 'limits.downsampled', label: 'Downsampled', format: 'boolean' },
       { id: 'original_points', path: 'limits.original_points', label: 'Points originaux', format: 'integer' },

@@ -418,12 +418,12 @@ export function ActivityCharts({
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">Axes</div>
         <div className="flex gap-2">
-          <Button size="sm" variant={axis === 'time' ? 'outline' : 'ghost'} onClick={() => setAxis('time')}>
+          <Button size="sm" variant={axis === 'time' ? 'default' : 'outline'} onClick={() => setAxis('time')}>
             Temps
           </Button>
           <Button
             size="sm"
-            variant={axis === 'distance' ? 'outline' : 'ghost'}
+            variant={axis === 'distance' ? 'default' : 'outline'}
             onClick={() => setAxis('distance')}
           >
             Distance

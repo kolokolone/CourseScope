@@ -1,4 +1,4 @@
-# CourseScope (v1.1.40)
+# CourseScope (v1.1.34)
 
 CourseScope est une application web locale pour analyser des traces running GPX/FIT :
 - **Backend FastAPI** : API moderne pour les données d'activite
