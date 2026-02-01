@@ -135,7 +135,7 @@ def compute_splits(df: pd.DataFrame, split_distance_km: float = 1.0) -> pd.DataF
     if "elevation" not in working.columns:
         working["elevation"] = np.nan
     
-    working["split_index"] = (working["distance_m"] // split_distance_m).astype(int)
+    working["split_index"] = (np.where(working["distance_m"] == 0, 0, (working["distance_m"] - 1) // split_distance_m)).astype(int)
 
     splits = []
     for idx, group in working.groupby("split_index"):
