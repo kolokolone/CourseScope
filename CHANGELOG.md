@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.40] - 2026-01-31
+
+### Changed
+- Docs/versioning: align README and package versions with the latest published tag history (v1.1.39 remains the code tag; this release publishes the docs/version bumps).
+
+## [1.1.39] - 2026-01-31
+
+### Fixed
+- Charts: improve Y-axis auto-domain so each chart focuses on the real value range.
+- Climbs: show the Climbs card even when no climbs are detected (so the pace-vs-grade chart can still render).
+
 ## [1.1.38] - 2026-01-31
 
 ### Added
