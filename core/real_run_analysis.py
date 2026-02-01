@@ -102,14 +102,39 @@ def compute_summary_stats(df: pd.DataFrame, moving_mask: pd.Series | None = None
 
 
 def compute_splits(df: pd.DataFrame, split_distance_km: float = 1.0) -> pd.DataFrame:
-    """Decoupe la course en splits de ~1 km."""
+    """Decoupe la course en splits de ~1 km.
+    
+    Retourne pour chaque split:
+    - split_index: Numéro du split (commence à 1)
+    - distance_km: Distance du split en km
+    - time_s: Temps du split en secondes
+    - pace_s_per_km: Allure du split (s/km)
+    - elevation_gain_m: Dénivelé positif du split (m)
+    - avg_hr_bpm: Fréquence cardiaque moyenne du split (bpm) si disponible
+    - elev_delta_m: Variation d'altitude totale du split (m)
+    """
     if df.empty:
         return pd.DataFrame(
-            columns=["split_index", "distance_km", "time_s", "pace_s_per_km", "elevation_gain_m"]
+            columns=["split_index", "distance_km", "time_s", "pace_s_per_km", "elevation_gain_m", "avg_hr_bpm", "elev_delta_m"]
         )
 
     split_distance_m = split_distance_km * 1000.0
-    working = df[["distance_m", "elapsed_time_s", "elevation"]].dropna(subset=["distance_m"]).copy()
+    
+    # Colonnes de base requises
+    base_cols = ["distance_m", "elapsed_time_s"]
+    if "elevation" in df.columns:
+        base_cols.append("elevation")
+    
+    working = df[base_cols].dropna(subset=["distance_m"]).copy()
+    
+    # Ajouter la colonne heart_rate si elle existe dans le dataframe original
+    if "heart_rate" in df.columns:
+        working["heart_rate"] = df["heart_rate"]
+    
+    # S'assurer que elevation existe pour les calculs
+    if "elevation" not in working.columns:
+        working["elevation"] = np.nan
+    
     working["split_index"] = (working["distance_m"] // split_distance_m).astype(int)
 
     splits = []
@@ -125,10 +150,22 @@ def compute_splits(df: pd.DataFrame, split_distance_km: float = 1.0) -> pd.DataF
 
         pace_s_per_km = time_s / distance_km if distance_km > 0 and time_s == time_s else math.nan
 
-        elevation_series = group["elevation"].ffill().bfill().to_numpy()
-        elevation_gain_m = (
-            float(np.clip(np.diff(elevation_series), 0, None).sum()) if len(elevation_series) > 1 else 0.0
-        )
+        # Gérer le cas où l'élévation n'est pas disponible
+        if group["elevation"].isna().all():
+            elevation_gain_m = 0.0
+            elev_delta_m = 0.0
+        else:
+            elevation_series = group["elevation"].ffill().bfill().to_numpy()
+            elevation_gain_m = (
+                float(np.clip(np.diff(elevation_series), 0, None).sum()) if len(elevation_series) > 1 else 0.0
+            )
+            # Calcul de la variation d'altitude totale (négatif et positif)
+            elev_delta_m = float(elevation_series[-1] - elevation_series[0]) if len(elevation_series) > 1 else 0.0
+
+        # Calcul de la fréquence cardiaque moyenne si disponible
+        avg_hr_bpm = None
+        if "heart_rate" in group.columns and group["heart_rate"].notna().any():
+            avg_hr_bpm = float(group["heart_rate"].mean()) if not pd.isna(group["heart_rate"].mean()) else None
 
         splits.append(
             {
@@ -137,6 +174,8 @@ def compute_splits(df: pd.DataFrame, split_distance_km: float = 1.0) -> pd.DataF
                 "time_s": time_s,
                 "pace_s_per_km": pace_s_per_km,
                 "elevation_gain_m": elevation_gain_m,
+                "avg_hr_bpm": avg_hr_bpm,
+                "elev_delta_m": elev_delta_m,
             }
         )
 
