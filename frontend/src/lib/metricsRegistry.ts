@@ -503,6 +503,11 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
       { key: 'vam_m_h', label: 'VAM', format: 'number', unit: 'm/h' },
       { key: 'duration_s', label: 'Durée', format: 'duration' },
 
+      // Backend-provided helper fields (kept for docs/coverage, hidden in UI).
+      { key: 'start_km', label: 'Début (km)', format: 'number', unit: 'km', decimals: 2, hidden: true },
+      { key: 'end_km', label: 'Fin (km)', format: 'number', unit: 'km', decimals: 2, hidden: true },
+      { key: 'distance_m_end', label: 'Fin (m)', format: 'number', unit: 'm', hidden: true },
+
       // Keep in the registry for docs/coverage, but hide in UI.
       { key: 'start_idx', label: 'Start', format: 'integer', hidden: true },
       { key: 'end_idx', label: 'End', format: 'integer', hidden: true },

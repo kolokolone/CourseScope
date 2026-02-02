@@ -41,6 +41,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Changed
 - Docs: updated metrics catalog/list with new climbs and pace-vs-grade fields; added documentation update runbook.
 
+## [1.1.49] - 2026-02-02
+
+### Fixed
+- Docs tooling: include hidden climbs helper fields in metrics registry so `docs/metrics_list.txt` stays in sync with registry coverage tests.
+
 ## [1.1.41] - 2026-01-31
 
 ### Changed
