@@ -1381,6 +1381,8 @@ def compute_climbs(
     # Build output items from segments.
     dist_arr = distance_m.to_numpy(dtype=float)
     time_arr = moving_time_s.to_numpy(dtype=float)
+    dt_arr = delta_t.to_numpy(dtype=float)
+    moving_arr = moving.to_numpy(dtype=bool)
     pace_arr = pace.to_numpy(dtype=float)
 
     climbs: list[dict[str, float | int]] = []
@@ -1401,9 +1403,18 @@ def compute_climbs(
         if not math.isfinite(seg_dist_m) or seg_dist_m < min_distance_m:
             continue
 
-        seg_time_s = float(time_arr[end_idx] - time_arr[start_idx])
+        # Moving time spent inside the segment (excludes pauses where dd~0).
+        seg_dt = dt_arr[start_idx : end_idx + 1]
+        seg_moving = moving_arr[start_idx : end_idx + 1]
+        seg_time_s = float(np.nansum(seg_dt[(seg_moving) & (seg_dt > 0)]))
         if not math.isfinite(seg_time_s) or seg_time_s < min_duration_s:
             continue
+
+        start_km = float(dist_arr[start_idx] / 1000.0) if math.isfinite(dist_arr[start_idx]) else math.nan
+        end_km = float(dist_arr[end_idx] / 1000.0) if math.isfinite(dist_arr[end_idx]) else math.nan
+        start_end_km = (
+            f"{start_km:.2f} -> {end_km:.2f}" if math.isfinite(start_km) and math.isfinite(end_km) else "-"
+        )
 
         # Gain from smoothed elevation on the grid for robustness.
         seg_elev = elev_smooth[gs : ge + 1]
@@ -1430,6 +1441,12 @@ def compute_climbs(
                 "vam_m_h": float(vam) if math.isfinite(vam) else math.nan,
                 "pace_s_per_km": float(pace_med) if math.isfinite(pace_med) else math.nan,
                 "distance_m_end": float(dist_arr[end_idx]) if math.isfinite(dist_arr[end_idx]) else math.nan,
+
+                # Additional UI-friendly fields (optional):
+                "start_km": float(start_km),
+                "end_km": float(end_km),
+                "start_end_km": start_end_km,
+                "duration_s": float(seg_time_s),
             }
         )
 

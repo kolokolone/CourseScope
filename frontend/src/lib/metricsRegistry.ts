@@ -19,6 +19,8 @@ export type MetricTableColumn = {
   format?: MetricFormat;
   unit?: string;
   integer?: boolean;
+  decimals?: number;
+  hidden?: boolean;
 };
 
 export type MetricSection = {
@@ -493,13 +495,17 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     kind: 'table',
     rowsPath: 'climbs.items',
     columns: [
+      { key: 'start_end_km', label: 'Début -> Fin (km)' },
       { key: 'distance_km', label: 'Distance', format: 'number', unit: 'km' },
-      { key: 'elevation_gain_m', label: 'D+', format: 'meters', unit: 'm' },
+      { key: 'elevation_gain_m', label: 'D+', format: 'number', unit: 'm', decimals: 2 },
       { key: 'avg_grade_percent', label: 'Pente moyenne', format: 'percent', unit: '%' },
       { key: 'pace_s_per_km', label: 'Allure', format: 'pace', unit: '/ km' },
       { key: 'vam_m_h', label: 'VAM', format: 'number', unit: 'm/h' },
-      { key: 'start_idx', label: 'Start', format: 'integer' },
-      { key: 'end_idx', label: 'End', format: 'integer' },
+      { key: 'duration_s', label: 'Durée', format: 'duration' },
+
+      // Keep in the registry for docs/coverage, but hide in UI.
+      { key: 'start_idx', label: 'Start', format: 'integer', hidden: true },
+      { key: 'end_idx', label: 'End', format: 'integer', hidden: true },
     ],
   },
   {

@@ -30,6 +30,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Backend (climbs): return all detected climbs (sorted by elevation gain) instead of truncating to top 3.
 - Tests: added synthetic non-regression coverage for climb detection (noise, replats, descent split, stops).
 
+## [1.1.47] - 2026-02-02
+
+### Changed
+- Climbs table: replace Start/End with "Début -> Fin (km)" and "Durée"; reorder columns.
+- Climbs table: show D+ with 2 decimals; add backend-provided `start_end_km` and `duration_s`.
+
 ## [1.1.41] - 2026-01-31
 
 ### Changed

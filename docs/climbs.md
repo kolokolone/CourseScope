@@ -46,7 +46,7 @@ Detecter des segments de montee de facon robuste, en evitant:
 - Distance: `distance_m[end] - distance_m[start]`
 - D+: somme des increments positifs sur l'altitude lissee
 - Pente moyenne: `D+ / distance * 100`
-- VAM: `D+ / duree * 3600`
+- VAM: `D+ / duree * 3600` (duree = moving time, pauses exclues)
 - Allure: mediane de `pace_s_per_km` sur le segment
 
 ## Output (contrat API conserve)
@@ -59,5 +59,10 @@ Chaque item renvoye conserve les champs attendus par le frontend:
 - `vam_m_h`
 - `start_idx`, `end_idx`
 - `distance_m_end`
+
+Champs additionnels (optionnels, UI):
+- `start_km`, `end_km`
+- `start_end_km` (string avec centiemes)
+- `duration_s` (moving time)
 
 Les items sont tries par `elevation_gain_m` (descendant). Aucun "top 3" n'est force: le frontend affiche la liste telle quelle.
