@@ -24,6 +24,7 @@ from core.real_run_analysis import (
     compute_climbs,
     compute_derived_series,
     compute_pause_markers,
+    compute_pace_series as compute_pace_series_core,
     compute_splits,
     compute_summary_stats,
 )
@@ -220,22 +221,13 @@ def build_map_payload(
 def _compute_pace_series(
     df: pd.DataFrame, *, derived: RealRunDerived, view: RealRunViewParams, cap_min_per_km: float
 ) -> pd.Series:
-    if view.pace_mode == "real_time":
-        pace_series = df["pace_s_per_km"]
-    else:
-        delta_time = df["delta_time_s"].fillna(0)
-        delta_dist = df["delta_distance_m"].fillna(0)
-        moving_time_cum = delta_time.where(derived.moving_mask, 0).cumsum()
-        moving_dist_cum = delta_dist.where(derived.moving_mask, 0).cumsum() / 1000.0
-        moving_dist_cum = moving_dist_cum.replace({0: float("nan")})
-        pace_series = moving_time_cum / moving_dist_cum
-
-    if view.smoothing_points > 0:
-        window = int(view.smoothing_points) + 1
-        pace_series = pace_series.rolling(window=window, min_periods=1, center=True).mean()
-
-    pace_series = pace_series.clip(upper=float(cap_min_per_km) * 60.0)
-    return pace_series
+    return compute_pace_series_core(
+        df,
+        moving_mask=derived.moving_mask,
+        pace_mode=view.pace_mode,
+        smoothing_points=view.smoothing_points,
+        cap_min_per_km=cap_min_per_km,
+    )
 
 
 def compute_pace_series(
@@ -286,12 +278,19 @@ def build_figures(
     *,
     pace_series: pd.Series,
     grade_series: pd.Series,
+    moving_mask: pd.Series,
 ) -> RealRunFigures:
     pro_ref = get_pro_pace_vs_grade_df()
     return RealRunFigures(
         pace_elevation=build_pace_elevation_plot(df, pace_series=pace_series),
         distributions=build_distribution_plots(df, pace_series=pace_series, grade_series=grade_series),
-        pace_vs_grade=build_pace_vs_grade_plot(df, pace_series=pace_series, grade_series=grade_series, pro_ref=pro_ref),
+        pace_vs_grade=build_pace_vs_grade_plot(
+            df,
+            pace_series=pace_series,
+            grade_series=grade_series,
+            moving_mask=moving_mask,
+            pro_ref=pro_ref,
+        ),
         residuals_vs_grade=build_residuals_vs_grade(df, pace_series=pace_series, grade_series=grade_series),
         pace_grade_scatter=build_pace_grade_scatter(df, pace_series=pace_series, grade_series=grade_series),
         pace_grade_heatmap=build_pace_grade_heatmap(df, pace_series=pace_series, grade_series=grade_series),
@@ -323,7 +322,12 @@ def analyze_real_activity(
     pace_series = _compute_pace_series(df, derived=base.derived, view=view, cap_min_per_km=cap_min_per_km)
 
     splits = base.splits
-    figures = build_figures(df, pace_series=pace_series, grade_series=base.derived.grade_series)
+    figures = build_figures(
+        df,
+        pace_series=pace_series,
+        grade_series=base.derived.grade_series,
+        moving_mask=base.derived.moving_mask,
+    )
 
     map_payload = build_map_payload(
         df,

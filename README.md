@@ -1,58 +1,13 @@
-# CourseScope (v1.1.42)
+# CourseScope
 
-CourseScope est une application web locale pour analyser des traces running GPX/FIT :
-- **Backend FastAPI** : API moderne pour les données d'activite
-- **Frontend Next.js** : interface complete (100+ metriques, graphiques, cartes)
-
-## 🚀 Démarrage rapide
-
-<<<<<<< HEAD
-Version courante: v1.1.5 (patch de v1.1)
-
-Depuis v1.1.1, le backend est durci pour preparer une migration FastAPI/React:
-- contrat DataFrame canonique (validation/coercion)
-- cache portable injectable
-- serialisation JSON
-- batterie de tests unitaires
-
-Depuis v1.1.2, la racine du projet est simplifiee:
-- suppression du shim `grade_table.py` (utiliser `core/grade_table.py`)
-- table "Ref pro" embarquee dans `core/resources/pro_pace_vs_grade.csv` (surcharge possible via `COURSESCOPE_PRO_PACE_VS_GRADE_PATH`)
-
+CourseScope est une application web locale pour analyser des traces running GPX/FIT.
 
 ## Prerequis
 
-- Python 3.11+ (recommande)
-- Acces internet au premier lancement (installation pip)
+- Python 3.11+
+- Node.js (npm)
 
-Dependances principales (voir `requirements.txt`):
-- streamlit
-- gpxpy
-- fitparse
-- pandas, numpy
-- plotly
-- pydeck
-
-
-## Lancer l'application
-
-### Windows (recommande)
-
-Depuis le dossier du projet:
-
-1) Double-clique: `run_win.bat`
-
-Ce script:
-- cree/active `.venv`
-- installe `requirements.txt`
-- lance Streamlit sur `CourseScope.py`
-
-### Linux/macOS
-
-Depuis le dossier du projet:
-=======
-Prerequis: Python 3.11+, Node.js (npm).
->>>>>>> f883b1962db91518a963ebb58addd72333107403
+## 🚀 Démarrage rapide
 
 ```bash
 # Windows
@@ -70,6 +25,17 @@ Note Windows:
 - Le premier lancement peut prendre du temps (installation `npm` dans `frontend/`).
 - Les lancements suivants sont rapides (si `frontend/node_modules/` existe, l'installation est skip).
 - En dev, le frontend passe par le proxy Next.js (`/api/*`) par defaut (recommande) pour eviter les problemes CORS/URL.
+
+## Allure vs pente (pace_vs_grade)
+
+Le graphique "Allure en fonction de la pente" est calcule cote backend via `GET /activity/{id}/pace-vs-grade`.
+
+Definition (v1.1.44+):
+- "Moving" = temps en mouvement (incluant marche), pauses/arrêts exclus via `compute_moving_mask` (pause>=5s).
+- Binning pente: grade clippe a [-20, +20], bins fixes de 0.5% (bornes incluses).
+- Agrégats: statistiques pondérées par le temps (`delta_time_s`) + gestion robuste des outliers par bin.
+
+Details: `docs/pace_vs_grade.md`
 
 ## CI (local)
 

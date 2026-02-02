@@ -10,6 +10,13 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Frontend: chart/metrics rendering tweaks and test adjustments.
 - Backend: improve split computation robustness (moving-time behavior) and align related pytest expectations.
 
+## [1.1.44] - 2026-02-02
+
+### Changed
+- Backend: pace-vs-grade now uses robust pause filtering (compute_moving_mask), fixed bin edges (include -20), and time-weighted per-bin aggregates.
+- Backend/API: added optional pace-vs-grade fields (time_s_bin, weighted quantiles/mean, n_eff, outlier_clip_frac) without breaking existing response fields.
+- Tests/Docs: added non-regression coverage + detailed metric documentation.
+
 ## [1.1.41] - 2026-01-31
 
 ### Changed

@@ -133,6 +133,17 @@ class PaceVsGradeBin(BaseModel):
     pace_n: int
     pro_pace_s_per_km: Optional[float] = None
 
+    # Optional, richer stats (time-weighted / robust).
+    time_s_bin: Optional[float] = None
+    pace_mean_w_s_per_km: Optional[float] = None
+    pace_q25_w_s_per_km: Optional[float] = None
+    pace_q50_w_s_per_km: Optional[float] = None
+    pace_q75_w_s_per_km: Optional[float] = None
+    pace_iqr_w_s_per_km: Optional[float] = None
+    pace_std_w_s_per_km: Optional[float] = None
+    pace_n_eff: Optional[float] = None
+    outlier_clip_frac: Optional[float] = None
+
 
 class ProPaceVsGradePoint(BaseModel):
     grade_percent: float

@@ -19,6 +19,115 @@ from core.constants import (
 MIN_GRADE_DISTANCE_M = 1.0
 
 
+def _effective_sample_size(weights: np.ndarray) -> float:
+    w = np.asarray(weights, dtype=float)
+    w = w[np.isfinite(w) & (w > 0)]
+    if w.size == 0:
+        return 0.0
+    s1 = float(w.sum())
+    s2 = float(np.square(w).sum())
+    if s2 <= 0:
+        return 0.0
+    return (s1 * s1) / s2
+
+
+def _weighted_quantile_step(values: np.ndarray, weights: np.ndarray, p: float) -> float:
+    """Weighted quantile using a step-CDF definition.
+
+    Returns the smallest value v such that cumulative_weight(v) >= p * total_weight.
+    """
+
+    x = np.asarray(values, dtype=float)
+    w = np.asarray(weights, dtype=float)
+    mask = np.isfinite(x) & np.isfinite(w) & (w > 0)
+    x = x[mask]
+    w = w[mask]
+    if x.size == 0:
+        return math.nan
+    if x.size == 1:
+        return float(x[0])
+
+    p = float(np.clip(p, 0.0, 1.0))
+    order = np.argsort(x, kind="mergesort")
+    x = x[order]
+    w = w[order]
+    cw = np.cumsum(w)
+    total = float(cw[-1])
+    if total <= 0:
+        return math.nan
+    threshold = p * total
+    idx = int(np.searchsorted(cw, threshold, side="left"))
+    idx = min(max(idx, 0), int(x.size - 1))
+    return float(x[idx])
+
+
+def _weighted_mean(values: np.ndarray, weights: np.ndarray) -> float:
+    x = np.asarray(values, dtype=float)
+    w = np.asarray(weights, dtype=float)
+    mask = np.isfinite(x) & np.isfinite(w) & (w > 0)
+    x = x[mask]
+    w = w[mask]
+    if x.size == 0:
+        return math.nan
+    total = float(w.sum())
+    if total <= 0:
+        return math.nan
+    return float((x * w).sum() / total)
+
+
+def _weighted_std(values: np.ndarray, weights: np.ndarray) -> float:
+    x = np.asarray(values, dtype=float)
+    w = np.asarray(weights, dtype=float)
+    mask = np.isfinite(x) & np.isfinite(w) & (w > 0)
+    x = x[mask]
+    w = w[mask]
+    if x.size == 0:
+        return math.nan
+    total = float(w.sum())
+    if total <= 0:
+        return math.nan
+    mu = float((x * w).sum() / total)
+    var = float((w * np.square(x - mu)).sum() / total)
+    return float(math.sqrt(var))
+
+
+def _winsorize_limits_iqr(
+    values: np.ndarray,
+    weights: np.ndarray,
+    *,
+    k_iqr: float,
+) -> tuple[float, float]:
+    q25 = _weighted_quantile_step(values, weights, 0.25)
+    q75 = _weighted_quantile_step(values, weights, 0.75)
+    if not (math.isfinite(q25) and math.isfinite(q75)):
+        return math.nan, math.nan
+    iqr = float(q75 - q25)
+    if not math.isfinite(iqr) or iqr <= 1e-9:
+        return math.nan, math.nan
+    lo = float(q25 - float(k_iqr) * iqr)
+    hi = float(q75 + float(k_iqr) * iqr)
+    return lo, hi
+
+
+def _winsorize_limits_mad(
+    values: np.ndarray,
+    weights: np.ndarray,
+    *,
+    k_mad_sigma: float,
+) -> tuple[float, float]:
+    m = _weighted_quantile_step(values, weights, 0.5)
+    if not math.isfinite(m):
+        return math.nan, math.nan
+    abs_dev = np.abs(np.asarray(values, dtype=float) - float(m))
+    mad = _weighted_quantile_step(abs_dev, weights, 0.5)
+    if not math.isfinite(mad) or mad <= 1e-9:
+        return math.nan, math.nan
+    sigma = 1.4826 * float(mad)
+    lo = float(m - float(k_mad_sigma) * sigma)
+    hi = float(m + float(k_mad_sigma) * sigma)
+    return lo, hi
+
+
 def compute_moving_mask(
     df: pd.DataFrame,
     pause_threshold_m_s: float = MOVING_SPEED_THRESHOLD_M_S,
@@ -99,6 +208,46 @@ def compute_summary_stats(df: pd.DataFrame, moving_mask: pd.Series | None = None
         "average_speed_kmh": average_speed_kmh,
         "elevation_gain_m": stats.elevation_gain_m,
     }
+
+
+def compute_pace_series(
+    df: pd.DataFrame,
+    *,
+    moving_mask: pd.Series | None = None,
+    pace_mode: str = "real_time",
+    smoothing_points: int = 0,
+    cap_min_per_km: float | None = None,
+) -> pd.Series:
+    """Compute a pace series in s/km.
+
+    - pace_mode='real_time': uses df['pace_s_per_km'] (per-point pace).
+    - pace_mode='moving_time': uses cumulative moving time / cumulative moving distance.
+    - smoothing_points: if >0, applies a centered rolling mean with window=smoothing_points+1.
+    - cap_min_per_km: if set, clips pace to at most cap_min_per_km*60.
+    """
+
+    if df.empty:
+        return pd.Series(dtype=float)
+
+    if pace_mode == "moving_time":
+        dt = df["delta_time_s"].fillna(0)
+        dd = df["delta_distance_m"].fillna(0)
+        mask = moving_mask.reindex(df.index).fillna(False) if moving_mask is not None else pd.Series(True, index=df.index)
+
+        moving_time_cum = dt.where(mask, 0).cumsum()
+        moving_dist_km_cum = (dd.where(mask, 0).cumsum() / 1000.0).replace({0: float("nan")})
+        pace = moving_time_cum / moving_dist_km_cum
+    else:
+        pace = df["pace_s_per_km"]
+
+    if smoothing_points and int(smoothing_points) > 0:
+        window = int(smoothing_points) + 1
+        pace = pace.rolling(window=window, min_periods=1, center=True).mean()
+
+    if cap_min_per_km is not None and math.isfinite(float(cap_min_per_km)):
+        pace = pace.clip(upper=float(cap_min_per_km) * 60.0)
+
+    return pace
 
 
 def compute_splits(df: pd.DataFrame, split_distance_km: float = 1.0) -> pd.DataFrame:
@@ -492,81 +641,170 @@ def compute_pace_vs_grade_data(
     *,
     pace_series: pd.Series | None = None,
     grade_series: pd.Series | None = None,
+    moving_mask: pd.Series | None = None,
     report: TransformReport | None = None,
 ) -> pd.DataFrame:
-    """Compute the data used by build_pace_vs_grade_plot.
+    """Compute binned pace-vs-grade metrics.
 
-    Returns a DataFrame with columns: grade_center, pace_med, pace_std, pace_n.
-    - grade_center: median grade (%) in the bin
-    - pace_med: median pace (min/km) in the bin
-    - pace_std: stddev pace (min/km) in the bin
-    - pace_n: number of points in the bin
+    Semantics:
+    - Filters pauses using compute_moving_mask (pause>=DEFAULT_MIN_PAUSE_DURATION_S).
+    - Keeps walking + running as long as points are moving.
+    - Grade bins are fixed: [-20, +20] step 0.5, inclusive (include_lowest=True).
+    - Aggregates are time-weighted by delta_time_s.
     """
 
-    out_cols = ["grade_center", "pace_med", "pace_std", "pace_n"]
+    out_cols = [
+        "grade_center",
+        "pace_med_s_per_km",
+        "pace_std_s_per_km",
+        "pace_n",
+        "time_s_bin",
+        "pace_mean_w_s_per_km",
+        "pace_q25_w_s_per_km",
+        "pace_q50_w_s_per_km",
+        "pace_q75_w_s_per_km",
+        "pace_iqr_w_s_per_km",
+        "pace_std_w_s_per_km",
+        "pace_n_eff",
+        "outlier_clip_frac",
+    ]
     if df.empty:
         return pd.DataFrame(columns=out_cols)
 
-    mask_moving = (df["speed_m_s"] > MOVING_SPEED_THRESHOLD_M_S) & (df["delta_time_s"].fillna(0) > 0)
-    df_filtered = df[mask_moving]
+    # Defaults: quality gating and winsorization (robust outliers) are intentionally conservative.
+    min_bin_time_s = 20.0
+    min_bin_n_eff = 5.0
+    winsor_min_time_s = 30.0
+    winsor_min_n_eff = 8.0
+    winsor_k_iqr = 2.0
+    winsor_k_mad_sigma = 4.0
+
+    dt = pd.to_numeric(df.get("delta_time_s"), errors="coerce").fillna(0.0)
+    moving_mask = moving_mask if moving_mask is not None else compute_moving_mask(df)
+    mask = moving_mask.reindex(df.index).fillna(False) & (dt > 0)
+
     if report is not None:
         report.add(
             "pace_vs_grade:mask_moving",
             rows_in=len(df),
-            rows_out=int(mask_moving.sum()),
-            reason="keep moving points (speed>threshold and dt>0)",
+            rows_out=int(mask.sum()),
+            reason="keep moving points (compute_moving_mask) and dt>0",
         )
-    if df_filtered.empty:
+
+    if not bool(mask.any()):
         return pd.DataFrame(columns=out_cols)
 
-    pace_s = pace_series.loc[df_filtered.index] if pace_series is not None else df_filtered["pace_s_per_km"]
-    grade_s = grade_series.reindex(df_filtered.index) if grade_series is not None else _compute_grade_percent(df_filtered, smooth_window=5)
-    grade_s = grade_s.clip(lower=-20, upper=20)
+    pace_s = pace_series.reindex(df.index) if pace_series is not None else df["pace_s_per_km"]
+    grade_s = grade_series.reindex(df.index) if grade_series is not None else _compute_grade_percent(df, smooth_window=DEFAULT_GRADE_SMOOTH_WINDOW)
 
-    data = (
-        pd.DataFrame({"grade_percent": grade_s, "pace_min_per_km": (pace_s / 60.0)})
-        .replace([np.inf, -np.inf], np.nan)
-        .dropna()
+    data = pd.DataFrame(
+        {
+            "grade_percent": grade_s,
+            "pace_s_per_km": pace_s,
+            "weight_s": dt,
+        },
+        index=df.index,
     )
+    data = data.loc[mask]
+    data["grade_percent"] = data["grade_percent"].clip(lower=-20, upper=20)
+    data = data.replace([np.inf, -np.inf], np.nan).dropna(subset=["grade_percent", "pace_s_per_km", "weight_s"]) 
+    data = data.loc[(data["weight_s"] > 0) & (data["pace_s_per_km"] > 0)]
+
     if report is not None:
         report.add(
             "pace_vs_grade:dropna",
-            rows_in=len(df_filtered),
+            rows_in=int(mask.sum()),
             rows_out=len(data),
-            reason="drop non-finite grade/pace",
+            reason="drop non-finite grade/pace/weights",
         )
-
-    pace_mean_min = pace_s.mean(skipna=True) / 60.0 if len(pace_s.dropna()) else math.nan
-    if pace_mean_min == pace_mean_min and not data.empty:
-        slow_mask = data["grade_percent"].between(-5.0, 5.0) & (data["pace_min_per_km"] > pace_mean_min * 1.5)
-        before = len(data)
-        data = data.loc[~slow_mask]
-        if report is not None:
-            report.add(
-                "pace_vs_grade:slow_filter",
-                rows_in=before,
-                rows_out=len(data),
-                reason="remove slow outliers near flat grade",
-                details={"pace_mean_min": float(pace_mean_min), "mult": 1.5},
-            )
 
     if data.empty:
         return pd.DataFrame(columns=out_cols)
 
     bins = np.arange(-20, 20.5, 0.5)
-    data["grade_bin"] = pd.cut(data["grade_percent"], bins=bins, labels=False)
-    grouped = data.groupby("grade_bin").agg(
-        grade_center=("grade_percent", "median"),
-        pace_med=("pace_min_per_km", "median"),
-        pace_std=("pace_min_per_km", "std"),
-        pace_n=("pace_min_per_km", "count"),
+    data["grade_bin"] = pd.cut(
+        data["grade_percent"],
+        bins=bins,
+        labels=False,
+        include_lowest=True,
+        right=True,
     )
-    grouped = grouped.dropna(subset=["grade_center", "pace_med"]).sort_values("grade_center")
-    grouped["pace_std"] = grouped["pace_std"].fillna(0.0)
-    if grouped.empty:
+    data = data.dropna(subset=["grade_bin"]).copy()
+    if data.empty:
         return pd.DataFrame(columns=out_cols)
 
-    return grouped[out_cols].reset_index(drop=True)
+    rows: list[dict[str, float]] = []
+    for _bin, g in data.groupby("grade_bin", sort=False):
+        pace_vals = g["pace_s_per_km"].to_numpy(dtype=float)
+        w = g["weight_s"].to_numpy(dtype=float)
+        grade_vals = g["grade_percent"].to_numpy(dtype=float)
+
+        time_s = float(np.nansum(w))
+        n = int(np.isfinite(pace_vals).sum())
+        n_eff = float(_effective_sample_size(w))
+
+        lo = math.nan
+        hi = math.nan
+        clip_frac = 0.0
+        if time_s >= winsor_min_time_s and n_eff >= winsor_min_n_eff:
+            lo, hi = _winsorize_limits_iqr(pace_vals, w, k_iqr=winsor_k_iqr)
+            if not (math.isfinite(lo) and math.isfinite(hi) and hi > lo):
+                lo, hi = _winsorize_limits_mad(pace_vals, w, k_mad_sigma=winsor_k_mad_sigma)
+
+        pace_used = pace_vals
+        if math.isfinite(lo) and math.isfinite(hi) and hi > lo:
+            o = (pace_vals < lo) | (pace_vals > hi)
+            denom = float(np.nansum(w))
+            clip_frac = float(np.nansum(w[o]) / denom) if denom > 0 else 0.0
+            pace_used = np.clip(pace_vals, lo, hi)
+
+        # Weighted stats (by time).
+        q25_w = _weighted_quantile_step(pace_used, w, 0.25)
+        q50_w = _weighted_quantile_step(pace_used, w, 0.50)
+        q75_w = _weighted_quantile_step(pace_used, w, 0.75)
+        iqr_w = float(q75_w - q25_w) if (math.isfinite(q25_w) and math.isfinite(q75_w)) else math.nan
+        wmean = _weighted_mean(pace_used, w)
+        wstd = _weighted_std(pace_used, w)
+
+        # Backward-compat stats (unweighted, but after winsorization).
+        finite_used = pace_used[np.isfinite(pace_used)]
+        med = float(np.median(finite_used)) if finite_used.size else math.nan
+        std = float(np.std(finite_used, ddof=1)) if finite_used.size >= 2 else 0.0
+
+        grade_center = _weighted_quantile_step(grade_vals, w, 0.50)
+
+        rows.append(
+            {
+                "grade_center": float(grade_center) if math.isfinite(grade_center) else math.nan,
+                "pace_med_s_per_km": float(q50_w) if math.isfinite(q50_w) else float(med),
+                "pace_std_s_per_km": float(std) if math.isfinite(std) else 0.0,
+                "pace_n": float(n),
+                "time_s_bin": float(time_s),
+                "pace_mean_w_s_per_km": float(wmean),
+                "pace_q25_w_s_per_km": float(q25_w),
+                "pace_q50_w_s_per_km": float(q50_w),
+                "pace_q75_w_s_per_km": float(q75_w),
+                "pace_iqr_w_s_per_km": float(iqr_w) if math.isfinite(iqr_w) else math.nan,
+                "pace_std_w_s_per_km": float(wstd),
+                "pace_n_eff": float(n_eff),
+                "outlier_clip_frac": float(clip_frac),
+            }
+        )
+
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return pd.DataFrame(columns=out_cols)
+
+    # Gate low-quality bins to reduce noise.
+    out = out.dropna(subset=["grade_center", "pace_med_s_per_km"]).copy()
+    out = out.loc[(out["time_s_bin"] >= min_bin_time_s) & (out["pace_n_eff"] >= min_bin_n_eff)]
+    out = out.sort_values("grade_center").reset_index(drop=True)
+    if out.empty:
+        return pd.DataFrame(columns=out_cols)
+
+    # Fix dtypes and order.
+    out["pace_n"] = out["pace_n"].astype(int)
+    return out[out_cols]
 
 
 def build_pace_vs_grade_plot_from_data(
@@ -579,10 +817,26 @@ def build_pace_vs_grade_plot_from_data(
     if data is None or data.empty:
         return go.Figure()
 
-    pace_vals = data["pace_med"]
-    pace_std_upper = (data["pace_med"] + data["pace_std"]).clip(lower=0)
-    pace_std_lower = (data["pace_med"] - data["pace_std"]).clip(lower=0)
-    pace_custom = pace_vals.apply(lambda v: seconds_to_mmss(float(v) * 60.0) if v == v else "-")
+    # Input data is in s/km. Convert to min/km for plotting.
+    pace_s = data["pace_med_s_per_km"]
+    pace_vals = pace_s / 60.0
+    pace_custom = pace_s.apply(lambda v: seconds_to_mmss(float(v)) if v == v else "-")
+
+    q25 = data["pace_q25_w_s_per_km"] if "pace_q25_w_s_per_km" in data.columns else None
+    q75 = data["pace_q75_w_s_per_km"] if "pace_q75_w_s_per_km" in data.columns else None
+    band_upper = None
+    band_lower = None
+    band_name = None
+    if q25 is not None and q75 is not None and q25.notna().any() and q75.notna().any():
+        band_lower = (q25 / 60.0).clip(lower=0)
+        band_upper = (q75 / 60.0).clip(lower=0)
+        band_name = "P25-P75"
+    else:
+        std_s = data["pace_std_s_per_km"] if "pace_std_s_per_km" in data.columns else None
+        if std_s is not None and std_s.notna().any():
+            band_upper = ((pace_s + std_s) / 60.0).clip(lower=0)
+            band_lower = ((pace_s - std_s) / 60.0).clip(lower=0)
+            band_name = "+/- 1 ecart-type"
 
     fig = go.Figure()
     fig.add_vline(x=0, line=dict(color="#bbbbbb", width=1), layer="below", opacity=0.7)
@@ -605,21 +859,22 @@ def build_pace_vs_grade_plot_from_data(
                 )
             )
 
-    fig.add_trace(
-        go.Scatter(
-            x=pd.concat([data["grade_center"], data["grade_center"][::-1]]),
-            y=pd.concat([pace_std_upper, pace_std_lower[::-1]]),
-            fill="toself",
-            fillcolor="rgba(76,120,168,0.18)",
-            line=dict(color="rgba(0,0,0,0)"),
-            name="+/- 1 ecart-type",
-            hoverinfo="skip",
+    if band_upper is not None and band_lower is not None and band_name is not None:
+        fig.add_trace(
+            go.Scatter(
+                x=pd.concat([data["grade_center"], data["grade_center"][::-1]]),
+                y=pd.concat([band_upper, band_lower[::-1]]),
+                fill="toself",
+                fillcolor="rgba(76,120,168,0.18)",
+                line=dict(color="rgba(0,0,0,0)"),
+                name=band_name,
+                hoverinfo="skip",
+            )
         )
-    )
     fig.add_trace(
         go.Scatter(
             x=data["grade_center"],
-            y=data["pace_med"],
+            y=pace_vals,
             mode="lines",
             line=dict(color="#4c78a8"),
             name="Allure vs pente (lissee)",
@@ -628,14 +883,15 @@ def build_pace_vs_grade_plot_from_data(
         )
     )
 
-    pace_for_ticks = pd.concat(
-        [
-            pace_vals,
-            pace_std_upper,
-            pace_std_lower,
-            (pro_ref["pace_s_per_km_pro"] / 60.0) if (pro_ref is not None and not pro_ref.empty and "pace_s_per_km_pro" in pro_ref) else pd.Series(dtype=float),
-        ]
-    )
+    tick_parts: list[pd.Series] = [pace_vals]
+    if band_upper is not None:
+        tick_parts.append(band_upper)
+    if band_lower is not None:
+        tick_parts.append(band_lower)
+    if pro_ref is not None and (not pro_ref.empty) and ("pace_s_per_km_pro" in pro_ref):
+        tick_parts.append(pro_ref["pace_s_per_km_pro"] / 60.0)
+
+    pace_for_ticks = pd.concat(tick_parts)
     tick_start = math.floor(float(pace_for_ticks.min()) * 2) / 2.0
     tick_end = math.ceil(float(pace_for_ticks.max()) * 2) / 2.0
     tick_step = 0.5
@@ -651,11 +907,21 @@ def build_pace_vs_grade_plot_from_data(
 
 
 def build_pace_vs_grade_plot(
-    df: pd.DataFrame, pace_series: pd.Series | None = None, grade_series: pd.Series | None = None, *, pro_ref: pd.DataFrame | None = None
+    df: pd.DataFrame,
+    pace_series: pd.Series | None = None,
+    grade_series: pd.Series | None = None,
+    moving_mask: pd.Series | None = None,
+    *,
+    pro_ref: pd.DataFrame | None = None,
 ) -> go.Figure:
     """Courbe allure (min/km) en fonction de la pente (%) lissee par binning."""
 
-    data = compute_pace_vs_grade_data(df, pace_series=pace_series, grade_series=grade_series)
+    data = compute_pace_vs_grade_data(
+        df,
+        pace_series=pace_series,
+        grade_series=grade_series,
+        moving_mask=moving_mask,
+    )
     if pro_ref is None:
         pro_ref = get_pro_pace_vs_grade_df()
     return build_pace_vs_grade_plot_from_data(data, pro_ref=pro_ref)

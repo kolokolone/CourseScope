@@ -2,7 +2,7 @@ import math
 
 from fastapi import APIRouter, HTTPException, Request
 
-from core.real_run_analysis import compute_pace_vs_grade_data
+from core.real_run_analysis import compute_derived_series, compute_pace_series, compute_pace_vs_grade_data, compute_summary_stats
 from core.ref_data import get_pro_pace_vs_grade_df
 
 from api.schemas import (
@@ -17,6 +17,7 @@ from api.schemas import (
 from registry.series_registry import SeriesRegistry
 from services import real_activity_service, theoretical_service
 from services.serialization import df_to_records, to_jsonable
+from services.models import RealRunViewParams
 
 
 router = APIRouter()
@@ -238,10 +239,32 @@ async def get_pace_vs_grade(request: Request, activity_id: str):
         if df.empty:
             raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
 
-        data = compute_pace_vs_grade_data(df)
+        # Keep this endpoint consistent with the "real activity figures" defaults.
+        derived = compute_derived_series(df)
+        summary = compute_summary_stats(df, moving_mask=derived.moving_mask)
+        avg = summary.get("average_pace_s_per_km")
+        if isinstance(avg, (int, float)) and avg == avg and avg > 0:
+            cap_min_per_km = float((avg / 60.0) * 1.4)
+        else:
+            cap_min_per_km = 8.0
+        view = RealRunViewParams()
+        pace_series = compute_pace_series(
+            df,
+            moving_mask=derived.moving_mask,
+            pace_mode=view.pace_mode,
+            smoothing_points=view.smoothing_points,
+            cap_min_per_km=cap_min_per_km,
+        )
+
+        data = compute_pace_vs_grade_data(
+            df,
+            pace_series=pace_series,
+            grade_series=derived.grade_series,
+            moving_mask=derived.moving_mask,
+        )
         bins: list[PaceVsGradeBin] = []
         if data is not None and not data.empty:
-            # pace_* values are in min/km; convert to s/km for the UI.
+            # pace_* values are in s/km.
             pro_df = get_pro_pace_vs_grade_df()
             pro_rows: list[dict[str, float]] = []
             if pro_df is not None and not pro_df.empty:
@@ -257,9 +280,19 @@ async def get_pace_vs_grade(request: Request, activity_id: str):
 
             for _, row in data.iterrows():
                 grade_center = float(row["grade_center"])
-                pace_med_s = float(row["pace_med"]) * 60.0
-                pace_std_s = float(row["pace_std"]) * 60.0
+                pace_med_s = float(row["pace_med_s_per_km"])
+                pace_std_s = float(row["pace_std_s_per_km"])
                 pace_n = int(row.get("pace_n", 0) or 0)
+
+                time_s_bin = row.get("time_s_bin")
+                pace_mean_w_s = row.get("pace_mean_w_s_per_km")
+                pace_q25_w_s = row.get("pace_q25_w_s_per_km")
+                pace_q50_w_s = row.get("pace_q50_w_s_per_km")
+                pace_q75_w_s = row.get("pace_q75_w_s_per_km")
+                pace_iqr_w_s = row.get("pace_iqr_w_s_per_km")
+                pace_std_w_s = row.get("pace_std_w_s_per_km")
+                pace_n_eff = row.get("pace_n_eff")
+                outlier_clip_frac = row.get("outlier_clip_frac")
 
                 pro_pace = _interp_pro_pace_s_per_km(grade_center, pro_rows)
 
@@ -270,6 +303,15 @@ async def get_pace_vs_grade(request: Request, activity_id: str):
                         pace_std_s_per_km=pace_std_s,
                         pace_n=pace_n,
                         pro_pace_s_per_km=pro_pace,
+                        time_s_bin=float(time_s_bin) if time_s_bin == time_s_bin else None,
+                        pace_mean_w_s_per_km=float(pace_mean_w_s) if pace_mean_w_s == pace_mean_w_s else None,
+                        pace_q25_w_s_per_km=float(pace_q25_w_s) if pace_q25_w_s == pace_q25_w_s else None,
+                        pace_q50_w_s_per_km=float(pace_q50_w_s) if pace_q50_w_s == pace_q50_w_s else None,
+                        pace_q75_w_s_per_km=float(pace_q75_w_s) if pace_q75_w_s == pace_q75_w_s else None,
+                        pace_iqr_w_s_per_km=float(pace_iqr_w_s) if pace_iqr_w_s == pace_iqr_w_s else None,
+                        pace_std_w_s_per_km=float(pace_std_w_s) if pace_std_w_s == pace_std_w_s else None,
+                        pace_n_eff=float(pace_n_eff) if pace_n_eff == pace_n_eff else None,
+                        outlier_clip_frac=float(outlier_clip_frac) if outlier_clip_frac == outlier_clip_frac else None,
                     )
                 )
 

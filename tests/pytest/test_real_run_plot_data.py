@@ -17,15 +17,30 @@ def test_compute_pace_vs_grade_data_basic() -> None:
     df = pd.DataFrame(
         {
             "speed_m_s": [MOVING_SPEED_THRESHOLD_M_S + 0.1] * n,
-            "delta_time_s": [1.0] * n,
+            "delta_time_s": [5.0] * n,
             "pace_s_per_km": np.linspace(300.0, 360.0, n),
         }
     )
-    grade_series = pd.Series(np.linspace(-5.0, 5.0, n), index=df.index)
+    # Keep grades in a single bin so quality gating keeps output non-empty.
+    grade_series = pd.Series([0.0] * n, index=df.index)
 
     out = compute_pace_vs_grade_data(df, pace_series=df["pace_s_per_km"], grade_series=grade_series)
 
-    assert list(out.columns) == ["grade_center", "pace_med", "pace_std", "pace_n"]
+    assert list(out.columns) == [
+        "grade_center",
+        "pace_med_s_per_km",
+        "pace_std_s_per_km",
+        "pace_n",
+        "time_s_bin",
+        "pace_mean_w_s_per_km",
+        "pace_q25_w_s_per_km",
+        "pace_q50_w_s_per_km",
+        "pace_q75_w_s_per_km",
+        "pace_iqr_w_s_per_km",
+        "pace_std_w_s_per_km",
+        "pace_n_eff",
+        "outlier_clip_frac",
+    ]
     assert not out.empty
     assert bool(out["grade_center"].is_monotonic_increasing)
 
