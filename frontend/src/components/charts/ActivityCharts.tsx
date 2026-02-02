@@ -23,7 +23,7 @@ const MAX_POINTS = 8000;
 const RENDER_POINTS = 2500;
 const HR_TREND_WINDOW = 120;
 
-type ChartPoint = { x: number; y: number };
+type ChartPoint = { x: number; y: number | null };
 
 const CHARTS_SYNC_ID = 'activity-charts';
 
@@ -31,7 +31,10 @@ function buildSeriesData(series: SeriesResponse): ChartPoint[] {
   const points: ChartPoint[] = [];
   const len = Math.min(series.x.length, series.y.length);
   for (let i = 0; i < len; i += 1) {
-    points.push({ x: series.x[i], y: series.y[i] });
+    const x = series.x[i];
+    const yRaw = series.y[i];
+    const y = typeof yRaw === 'number' ? yRaw : null;
+    points.push({ x, y: Number.isFinite(y) ? y : null });
   }
   return points;
 }
@@ -62,13 +65,13 @@ function smoothMovingAverage(points: ChartPoint[], windowSize: number) {
 
     for (let j = start; j <= end; j += 1) {
       const y = points[j]?.y;
-      if (!Number.isFinite(y)) continue;
+      if (typeof y !== 'number' || !Number.isFinite(y)) continue;
       sum += y;
       count += 1;
     }
 
-    if (count === 0) continue;
-    out.push({ x: points[i].x, y: sum / count });
+    // Preserve x sampling even across missing-value gaps.
+    out.push({ x: points[i].x, y: count === 0 ? null : sum / count });
   }
 
   return out;
@@ -109,8 +112,8 @@ function SeriesTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const raw = payload[0]?.value;
-  const y = typeof raw === 'number' ? raw : Number(raw);
-  const yText = Number.isFinite(y) ? formatYAxis(y, format) : '—';
+  const y = raw === null || raw === undefined ? null : typeof raw === 'number' ? raw : Number(raw);
+  const yText = typeof y === 'number' && Number.isFinite(y) ? formatYAxis(y, format) : '—';
   const x = typeof xLabel === 'number' ? xLabel : Number(xLabel);
   const xText = axis === 'distance' ? `${formatX(x)} km` : formatX(x);
   const xLabelText = axis === 'distance' ? 'Distance' : 'Temps';
@@ -198,11 +201,11 @@ function SeriesChart({
   const autoYDomain = React.useMemo(() => {
     const values: number[] = [];
     for (const p of chartData) {
-      if (Number.isFinite(p.y)) values.push(p.y);
+      if (typeof p.y === 'number' && Number.isFinite(p.y)) values.push(p.y);
     }
     if (trend) {
       for (const p of trend) {
-        if (Number.isFinite(p.y)) values.push(p.y);
+        if (typeof p.y === 'number' && Number.isFinite(p.y)) values.push(p.y);
       }
     }
     if (values.length === 0) return undefined as [number, number] | undefined;
@@ -272,6 +275,7 @@ function SeriesChart({
             />
             <Tooltip
               cursor={{ stroke: CATEGORY_COLORS.Charts, strokeWidth: 1 }}
+              filterNull={false}
               content={
                 <SeriesTooltip axis={axis} labelText={label} unit={unit} format={format} formatX={formatX} />
               }
@@ -284,6 +288,8 @@ function SeriesChart({
               strokeWidth={2}
               dot={false}
               isAnimationActive={false}
+              // Note: we connect across missing y values to keep the visual trend continuous.
+              connectNulls
             />
             {trend && trend.length > 0 ? (
               <Line
@@ -295,6 +301,7 @@ function SeriesChart({
                 strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
+                connectNulls
               />
             ) : null}
           </LineChart>
@@ -312,7 +319,7 @@ function rollingMean(points: ChartPoint[], windowSize: number) {
   const q: number[] = [];
   for (let i = 0; i < points.length; i += 1) {
     const y = points[i]?.y;
-    if (!Number.isFinite(y)) continue;
+    if (typeof y !== 'number' || !Number.isFinite(y)) continue;
     q.push(y);
     sum += y;
     if (q.length > w) sum -= q.shift() as number;
@@ -378,7 +385,9 @@ export function ActivityCharts({
 
       const yDomain: [number, number] | undefined = (() => {
         if (def.name !== 'heart_rate') return undefined;
-        const ys = points.map((p) => p.y).filter((v) => Number.isFinite(v));
+        const ys = points
+          .map((p) => p.y)
+          .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
         if (ys.length < 2) return undefined;
         let min = ys[0];
         let max = ys[0];

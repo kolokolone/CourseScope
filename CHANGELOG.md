@@ -46,6 +46,14 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Fixed
 - Docs tooling: include hidden climbs helper fields in metrics registry so `docs/metrics_list.txt` stays in sync with registry coverage tests.
 
+## [1.1.50] - 2026-02-02
+
+### Fixed
+- Charts (hover sync): series endpoint preserves full x sampling and returns null for invalid y, so all charts can share the same x base and keep the synced cursor stable.
+
+### Changed
+- Charts: connect across missing y values (`connectNulls`) to keep lines continuous; tooltip shows `—` when a value is missing.
+
 ## [1.1.41] - 2026-01-31
 
 ### Changed

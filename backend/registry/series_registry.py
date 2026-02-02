@@ -275,7 +275,12 @@ class SeriesRegistry:
         to_val: Optional[float],
         downsample: Optional[int],
     ) -> SeriesResponse:
-        """Extrait/Calcule série avec slicing + downsampling"""
+        """Extrait/Calcule série avec slicing.
+
+        Note: to keep cross-chart hover sync stable in the UI, this endpoint preserves the full
+        x-axis sampling and does NOT drop points when y is missing/invalid. Numeric y values that
+        are NaN/inf are returned as null in JSON.
+        """
         
         # 1. Validation nom série
         if name not in self._registry:
@@ -306,28 +311,26 @@ class SeriesRegistry:
                 )
             )
         
-        # 5. Downsampling si demandé
+        # 5. No downsampling: keep maximum precision and stable x sampling.
         original_points = len(sliced_df)
-        
-        if downsample is not None and original_points > downsample:
-            x_data, y_data = self._extract_raw_series(sliced_df, x_axis, name)
-            x_data, y_data = DownsamplingStrategy.uniform_downsample(x_data, y_data, downsample)
-            downsampled = True
-            returned_points = len(x_data)
-        else:
-            x_data, y_data = self._extract_raw_series(sliced_df, x_axis, name)
-            downsampled = False
-            returned_points = original_points
+        x_data, y_data = self._extract_raw_series(sliced_df, x_axis, name)
+        downsampled = False
+        returned_points = original_points
             
         # 6. Filtrage NaN finaux
         # Notes:
         # - `y_data` peut etre non-numerique (ex: bool pour "moving").
         # - On filtre toujours `x_data` sur finitude.
         valid_mask = np.isfinite(x_data)
-        if self._is_numeric_array(y_data):
-            valid_mask = valid_mask & np.isfinite(y_data)
         x_data = x_data[valid_mask]
         y_data = y_data[valid_mask]
+
+        # For numeric series: preserve alignment by keeping NaN/inf as null in JSON.
+        y_list: list[Any]
+        if self._is_numeric_array(y_data):
+            y_list = [None if not np.isfinite(v) else float(v) for v in y_data.astype(float, copy=False)]
+        else:
+            y_list = y_data.tolist()
         
         # 7. Métadonnées
         meta = SeriesMeta(
@@ -341,6 +344,6 @@ class SeriesRegistry:
             x_axis=x_axis_lit,
             unit=definition.unit,
             x=x_data.tolist(),
-            y=y_data.tolist(),
+            y=y_list,
             meta=meta
         )

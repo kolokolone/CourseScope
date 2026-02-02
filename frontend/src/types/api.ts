@@ -71,7 +71,7 @@ export interface SeriesResponse {
   x_axis: 'time' | 'distance';
   unit: string;
   x: number[];
-  y: number[];
+  y: Array<number | null>;
   meta?: SeriesMeta;
 }
 

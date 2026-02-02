@@ -82,7 +82,7 @@ class SeriesResponse(BaseModel):
     x_axis: Literal["time", "distance"]
     unit: str
     x: List[float]  # Coordonnées x
-    y: List[float]  # Coordonnées y
+    y: List[Optional[float]]  # Coordonnées y (null si valeur manquante/invalidée)
     meta: Optional[SeriesMeta] = None
 
 
