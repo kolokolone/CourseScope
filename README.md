@@ -37,6 +37,12 @@ Definition (v1.1.44+):
 
 Details: `docs/pace_vs_grade.md`
 
+## Montees detectees (climbs)
+
+La section "Montees detectees" (categorie Climbs) est calculee cote backend via `compute_climbs`.
+
+Details: `docs/climbs.md`
+
 ## CI (local)
 
 ```bash

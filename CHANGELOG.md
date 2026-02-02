@@ -23,6 +23,13 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - UI (pace-vs-grade): force regular X-axis ticks every 2.5% and always show 0%.
 - UI/Types: extend MetricTableColumn with optional `align` for table layouts.
 
+## [1.1.46] - 2026-02-02
+
+### Changed
+- Backend (climbs): replaced point-grade thresholding with distance-windowed grade + hysteresis + gap-bridging; metrics computed on full segments.
+- Backend (climbs): return all detected climbs (sorted by elevation gain) instead of truncating to top 3.
+- Tests: added synthetic non-regression coverage for climb detection (noise, replats, descent split, stops).
+
 ## [1.1.41] - 2026-01-31
 
 ### Changed
