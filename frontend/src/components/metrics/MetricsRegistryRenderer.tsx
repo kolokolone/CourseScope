@@ -82,16 +82,6 @@ export function MetricsRegistryRenderer({
             );
           }
 
-          if (section.id === 'splits-vertical-histogram') {
-            const rows = section.rowsPath ? getValueAtPath(data, section.rowsPath) : undefined;
-            if (!Array.isArray(rows) || rows.length === 0) return null;
-            return (
-              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
-                <VerticalPaceHistogram data={rows} />
-              </SectionCard>
-            );
-          }
-
           const rows = section.rowsPath ? getValueAtPath(data, section.rowsPath) : undefined;
           if (section.id === 'climbs' && section.columns) {
             const climbRows = Array.isArray(rows) ? rows : [];
@@ -110,6 +100,46 @@ export function MetricsRegistryRenderer({
           if (!Array.isArray(rows) || rows.length === 0 || !section.columns) return null;
 
           const collapsibleTables = new Set(['pauses', 'splits', 'segment-analysis', 'personal-records', 'best-efforts']);
+
+          if (section.id === 'splits') {
+            const filteredRows = rows.filter((row) => {
+              const splitIndex = typeof row === 'object' && row !== null ? (row as Record<string, unknown>).split_index : undefined;
+              // Ignore km/split 0.
+              return typeof splitIndex !== 'number' || splitIndex > 0;
+            });
+
+            const sortedRows = [...filteredRows].sort((a, b) => {
+              const aIndex = typeof a === 'object' && a !== null ? (a as Record<string, unknown>).split_index : undefined;
+              const bIndex = typeof b === 'object' && b !== null ? (b as Record<string, unknown>).split_index : undefined;
+              const aNum = typeof aIndex === 'number' ? aIndex : 0;
+              const bNum = typeof bIndex === 'number' ? bIndex : 0;
+              return aNum - bNum;
+            });
+
+            if (sortedRows.length === 0) return null;
+
+            return (
+              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold">Allure par split</h3>
+                    <div className="text-xs text-muted-foreground">Histogramme vertical des allures par split.</div>
+                  </div>
+                  <VerticalPaceHistogram data={sortedRows as any[]} />
+                  <details className="group">
+                    <summary className="cursor-pointer select-none list-none text-sm text-muted-foreground flex items-center justify-between">
+                      <span>{`Afficher le tableau (${sortedRows.length})`}</span>
+                      <span className="tabular-nums transition-transform group-open:rotate-180">v</span>
+                    </summary>
+                    <div className="mt-3">
+                      <SimpleTable rows={sortedRows} columns={section.columns} />
+                    </div>
+                  </details>
+                </div>
+              </SectionCard>
+            );
+          }
+
           if (collapsibleTables.has(section.id)) {
             return (
               <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>

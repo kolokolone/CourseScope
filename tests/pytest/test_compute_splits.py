@@ -14,12 +14,14 @@ def test_compute_splits_basic() -> None:
     """Test compute_splits function with basic data."""
     from core.real_run_analysis import compute_splits
 
-    # Create basic test data - points within each 1km segment
-    df = pd.DataFrame({
-        "distance_m": [500, 1500, 2500],  # Points in middle of each km
-        "elapsed_time_s": [180, 360, 540],
-        "elevation": [105, 115, 120],
-    })
+    # Basic, realistic test data (includes boundaries).
+    df = pd.DataFrame(
+        {
+            "distance_m": [0, 1000, 2000, 3000],
+            "elapsed_time_s": [0, 300, 600, 900],
+            "elevation": [100, 105, 103, 110],
+        }
+    )
 
     # Test with 1km splits
     splits = compute_splits(df, split_distance_km=1.0)
@@ -32,6 +34,10 @@ def test_compute_splits_basic() -> None:
     
     # Verify basic split data
     assert all(splits["split_index"] == [1, 2, 3])
+
+    # No NaN pace in this basic case.
+    assert all(np.isfinite(splits["pace_s_per_km"]))
+    assert all(abs(splits["pace_s_per_km"] - 300.0) < 1e-6)
     
     # Verify avg_hr_bpm is None when no heart_rate data
     assert all(splits["avg_hr_bpm"].isna())
@@ -71,18 +77,17 @@ def test_compute_splits_with_negative_elevation() -> None:
 
     splits = compute_splits(df, split_distance_km=1.0)
     
-    # Based on actual split distribution:
-    # Split 1 (0-999m): points [120, 110, 105] -> no positive change = 0
-    # Split 2 (1000-1999m): points [105, 108, 100] -> gain 3 = 3  
-    # Split 3 (2000-2999m): points [100, 95, 98] -> gain 3 = 3
-    expected_elevation_gain = [0.0, 0.0, 3.0]
+    # Split 1 (0-1km): [120,110,105] -> gain 0
+    # Split 2 (1-2km): [105,108,100] -> gain 3
+    # Split 3 (2-3km): [100,95,98] -> gain 3
+    expected_elevation_gain = [0.0, 3.0, 3.0]
     assert all(abs(splits["elevation_gain_m"] - expected_elevation_gain) < 0.5)
     
     # Verify elevation delta (total change, can be negative)
     # Split 1: 120->105 = -15
-    # Split 2: 105->100 = -8
-    # Split 3: 100->95 = -3  
-    expected_elev_delta = [-15.0, -8.0, 3.0]
+    # Split 2: 105->100 = -5
+    # Split 3: 100->98 = -2
+    expected_elev_delta = [-15.0, -5.0, -2.0]
     assert all(abs(splits["elev_delta_m"] - expected_elev_delta) < 0.5)
     
     # Verify avg_hr_bpm is None (no heart rate data)
@@ -117,7 +122,7 @@ def test_compute_splits_partial_heart_rate() -> None:
     # Based on actual split distribution:
     # Split 1: HR [140, np.nan, 150] -> avg of non-NaN = 145
     # Split 2: HR [150, 148, np.nan] -> avg of non-NaN = 149, but last point has no data
-    expected_hr = [145.0, 148.0]  # Actual result from avg of available data
+    expected_hr = [145.0, 149.0]  # Avg of available samples per split
     hr_diff = abs(splits["avg_hr_bpm"] - expected_hr)
     assert all(hr_diff < 1.0)
 
@@ -137,3 +142,24 @@ def test_compute_splits_missing_elevation() -> None:
     # Should handle missing elevation gracefully
     assert all(splits["elevation_gain_m"] == 0.0)
     assert all(splits["elev_delta_m"] == 0.0)
+
+
+def test_compute_splits_excludes_pauses_from_time() -> None:
+    """Split time/pace should exclude stopped time (no distance progress)."""
+    from core.real_run_analysis import compute_splits
+
+    # Pause between 500m and 500m (time passes, distance does not).
+    df = pd.DataFrame(
+        {
+            "distance_m": [0, 500, 500, 1000],
+            "elapsed_time_s": [0, 150, 250, 350],
+            "elevation": [100, 100, 100, 100],
+        }
+    )
+
+    splits = compute_splits(df, split_distance_km=1.0)
+    assert len(splits) == 1
+
+    # Moving time is 150s (0->500) + 100s (500->1000) = 250s.
+    assert abs(float(splits.iloc[0]["time_s"]) - 250.0) < 1e-6
+    assert abs(float(splits.iloc[0]["pace_s_per_km"]) - 250.0) < 1e-6

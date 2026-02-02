@@ -49,6 +49,13 @@ function AllureVsPenteTooltip({ active, payload }: TooltipContentProps) {
 export function AllureVsPenteChart({ activityId }: { activityId: string }) {
   const query = usePaceVsGrade(activityId);
 
+  const pointShape = React.useCallback((props: any) => {
+    const cx = Number(props?.cx);
+    const cy = Number(props?.cy);
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null;
+    return <circle cx={cx} cy={cy} r={2} fill="#0f172a" />;
+  }, []);
+
   const { points, domainAbs } = React.useMemo(() => {
     const out: BinPoint[] = [];
     const bins = query.data?.bins ?? [];
@@ -176,7 +183,7 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
                 isAnimationActive={false}
               />
 
-              <Scatter dataKey="paceMean" fill="#0f172a" />
+              <Scatter dataKey="paceMean" shape={pointShape} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

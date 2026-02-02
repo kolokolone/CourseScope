@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.43] - 2026-02-02
+
+### Changed
+- Frontend: chart/metrics rendering tweaks and test adjustments.
+- Backend: improve split computation robustness (moving-time behavior) and align related pytest expectations.
+
 ## [1.1.41] - 2026-01-31
 
 ### Changed

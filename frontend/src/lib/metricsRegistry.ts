@@ -393,6 +393,14 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
     ],
   },
   {
+    id: 'highlights',
+    title: 'Highlights',
+    description: 'Ce qu’il faut retenir en une minute.',
+    category: 'Highlights',
+    kind: 'list',
+    listPath: 'highlights.items',
+  },
+  {
     id: 'best-efforts',
     title: 'Efforts',
     description: 'Meilleurs temps sur des distances classiques.',
@@ -431,14 +439,6 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
       { key: 'time_s', label: 'Temps', format: 'duration' },
       { key: 'pace_s_per_km', label: 'Allure', format: 'pace', unit: '/ km' },
     ],
-  },
-  {
-    id: 'splits-vertical-histogram',
-    title: 'Allure par split',
-    description: 'Histogramme vertical des allures par split.',
-    category: 'Splits',
-    kind: 'table',
-    rowsPath: 'splits.rows',
   },
   {
     id: 'splits',
@@ -527,14 +527,6 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
       { id: 'trimp', path: 'training_load.trimp', label: 'TRIMP', format: 'number' },
       { id: 'method', path: 'training_load.method', label: 'Methode', format: 'text' },
     ],
-  },
-  {
-    id: 'highlights',
-    title: 'Highlights',
-    description: 'Ce qu’il faut retenir en une minute.',
-    category: 'Highlights',
-    kind: 'list',
-    listPath: 'highlights.items',
   },
   {
     id: 'series-index',

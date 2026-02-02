@@ -46,7 +46,66 @@ export default function RealActivityPage() {
   const showMap = Boolean(mapData?.polyline?.length || mapData?.markers?.length || mapData?.bbox?.length);
 
   const limitsSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'limits'), []);
-  const mainSections = useMemo(() => REAL_METRIC_SECTIONS.filter((s) => s.id !== 'limits'), []);
+  const pausesSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'pauses'), []);
+  const predictionsSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'performance-predictions'), []);
+  const trainingLoadSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'training-load'), []);
+  const powerSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'power'), []);
+  const powerDurationCurveSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'power-duration-curve'), []);
+
+  const highlightsSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'highlights'), []);
+  const bestEffortsSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'best-efforts'), []);
+  const personalRecordsSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'personal-records'), []);
+  const segmentAnalysisSection = useMemo(() => REAL_METRIC_SECTIONS.find((s) => s.id === 'segment-analysis'), []);
+
+  // Re-ordered layout requirements:
+  // - Charts -> Predictions -> Puissance -> Power duration curve -> Training load
+  // - then: Highlights -> Efforts -> Personal records -> Segment analysis
+  // - Map -> Pauses
+  const mainSections = useMemo(
+    () =>
+      REAL_METRIC_SECTIONS.filter(
+        (s) =>
+          ![
+            'limits',
+            'pauses',
+            'performance-predictions',
+            'training-load',
+            'power',
+            'power-duration-curve',
+            'highlights',
+            'best-efforts',
+            'personal-records',
+            'segment-analysis',
+          ].includes(s.id)
+      ),
+    []
+  );
+
+  const afterChartsSections = useMemo(
+    () =>
+      [
+        predictionsSection,
+        powerSection,
+        powerDurationCurveSection,
+        trainingLoadSection,
+        highlightsSection,
+        bestEffortsSection,
+        personalRecordsSection,
+        segmentAnalysisSection,
+      ].filter(Boolean),
+    [
+      predictionsSection,
+      powerSection,
+      powerDurationCurveSection,
+      trainingLoadSection,
+      highlightsSection,
+      bestEffortsSection,
+      personalRecordsSection,
+      segmentAnalysisSection,
+    ]
+  );
+
+  const afterMapSections = useMemo(() => [pausesSection].filter(Boolean), [pausesSection]);
 
   if (isLoading) {
     return (
@@ -92,10 +151,18 @@ export default function RealActivityPage() {
           </SectionCard>
           ) : null}
 
+          {afterChartsSections.length ? (
+            <MetricsRegistryRenderer data={activity} sections={afterChartsSections as any} activityId={activityId} />
+          ) : null}
+
           {showMap && mapData ? (
             <SectionCard title="Map" description="Trace GPS et marqueurs." accentColor={CATEGORY_COLORS.Map}>
               <ActivityMap mapData={mapData} activityId={activityId} pauseItems={getValueAtPath(activity, 'pauses.items')} />
             </SectionCard>
+          ) : null}
+
+          {afterMapSections.length ? (
+            <MetricsRegistryRenderer data={activity} sections={afterMapSections as any} activityId={activityId} />
           ) : null}
 
         {limitsSection ? <MetricsRegistryRenderer data={activity} sections={[limitsSection]} activityId={activityId} /> : null}

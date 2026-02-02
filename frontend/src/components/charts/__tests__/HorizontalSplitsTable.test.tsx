@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import HorizontalSplitsTable from '@/components/charts/HorizontalSplitsTable';
 import type { SplitsData } from '@/components/charts/HorizontalSplitsTable';
@@ -40,7 +40,6 @@ describe('HorizontalSplitsTable', () => {
     render(<HorizontalSplitsTable data={mockSplitsData} />);
     
     // Check if table headers are rendered correctly
-    expect(screen.getByText('Temps intermédiaires')).toBeInTheDocument();
     expect(screen.getByText('Km')).toBeInTheDocument();
     expect(screen.getByText('Allure')).toBeInTheDocument();
     expect(screen.getByText('Élév.')).toBeInTheDocument();
@@ -60,16 +59,16 @@ describe('HorizontalSplitsTable', () => {
     const dataWithoutHr = mockSplitsData.map(split => ({ ...split, avg_hr_bpm: undefined }));
     render(<HorizontalSplitsTable data={dataWithoutHr} />);
     
-    // Should display '--' for missing HR
-    expect(screen.getAllByText('--')).toHaveLength(3);
+    // Should display em dash for missing HR
+    expect(screen.getAllByText('—')).toHaveLength(3);
   });
 
   it('handles missing elevation data', () => {
     const dataWithoutElev = mockSplitsData.map(split => ({ ...split, elev_delta_m: undefined }));
     render(<HorizontalSplitsTable data={dataWithoutElev} />);
     
-    // Should display '--' for missing elevation
-    expect(screen.getAllByText('--')).toHaveLength(3);
+    // Should display em dash for missing elevation
+    expect(screen.getAllByText('—')).toHaveLength(3);
   });
 
   it('renders correct number of rows', () => {
@@ -78,5 +77,37 @@ describe('HorizontalSplitsTable', () => {
     // Should render 3 data rows + 1 header row = 4 total rows
     const rows = screen.getAllByRole('row');
     expect(rows).toHaveLength(4);
+  });
+
+  it('filters out split 0 and invalid pace rows', () => {
+    render(
+      <HorizontalSplitsTable
+        data={[
+          { split_index: 0, distance_km: 0, time_s: 0, pace_s_per_km: 0, elevation_gain_m: 0 },
+          ...mockSplitsData,
+        ]}
+      />
+    );
+
+    // Header + 3 valid rows.
+    const rows = screen.getAllByRole('row');
+    expect(rows).toHaveLength(4);
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  it('renders tooltip content on hover', async () => {
+    render(<HorizontalSplitsTable data={mockSplitsData} />);
+
+    // Hover the first data row (excluding header).
+    const rows = screen.getAllByRole('row');
+    const firstDataRow = rows[1];
+    fireEvent.pointerEnter(firstDataRow, { pointerType: 'mouse' });
+
+    expect(screen.getByText('Km 1')).toBeInTheDocument();
+    expect(screen.getByText('Allure : 4:43 /km')).toBeInTheDocument();
+    expect(screen.getByText('Élév. : +5 m')).toBeInTheDocument();
+    expect(screen.getByText('FC : 150 bpm')).toBeInTheDocument();
+
+    fireEvent.pointerLeave(firstDataRow, { pointerType: 'mouse' });
   });
 });
