@@ -36,6 +36,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Climbs table: replace Start/End with "Début -> Fin (km)" and "Durée"; reorder columns.
 - Climbs table: show D+ with 2 decimals; add backend-provided `start_end_km` and `duration_s`.
 
+## [1.1.48] - 2026-02-02
+
+### Changed
+- Docs: updated metrics catalog/list with new climbs and pace-vs-grade fields; added documentation update runbook.
+
 ## [1.1.41] - 2026-01-31
 
 ### Changed

@@ -168,9 +168,38 @@ See `docs/metrics_list.txt` for a categorized list of all file-only metrics.
 | `climbs.items[].distance_km` | unknown | km | climb distance km |
 | `climbs.items[].elevation_gain_m` | unknown | m | climb elevation gain m |
 | `climbs.items[].avg_grade_percent` | unknown | % | average grade percent |
+| `climbs.items[].pace_s_per_km` | unknown | s/km | median pace on climb |
 | `climbs.items[].vam_m_h` | unknown | m/h | vertical ascent rate |
 | `climbs.items[].start_idx` | unknown | - | start index |
 | `climbs.items[].end_idx` | unknown | - | end index |
+| `climbs.items[].distance_m_end` | unknown | m | end distance (meters) |
+| `climbs.items[].start_km` | unknown | km | start distance (km) |
+| `climbs.items[].end_km` | unknown | km | end distance (km) |
+| `climbs.items[].start_end_km` | string | km | formatted range ("xx.xx -> yy.yy") |
+| `climbs.items[].duration_s` | unknown | s | moving time spent on segment |
+
+## Pace vs grade (GET /activity/{id}/pace-vs-grade)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `bins[]` | array<object> | - | binned pace-vs-grade points |
+| `bins[].grade_center` | float | % | bin center (median grade) |
+| `bins[].pace_med_s_per_km` | float | s/km | weighted median pace |
+| `bins[].pace_std_s_per_km` | float | s/km | unweighted std (after winsorization) |
+| `bins[].pace_n` | int | - | number of samples in bin |
+| `bins[].pro_pace_s_per_km` | float | s/km | pro reference pace at grade |
+| `bins[].time_s_bin` | float | s | total moving time in bin |
+| `bins[].pace_mean_w_s_per_km` | float | s/km | time-weighted mean pace |
+| `bins[].pace_q25_w_s_per_km` | float | s/km | time-weighted P25 |
+| `bins[].pace_q50_w_s_per_km` | float | s/km | time-weighted P50 |
+| `bins[].pace_q75_w_s_per_km` | float | s/km | time-weighted P75 |
+| `bins[].pace_iqr_w_s_per_km` | float | s/km | time-weighted IQR |
+| `bins[].pace_std_w_s_per_km` | float | s/km | time-weighted std |
+| `bins[].pace_n_eff` | float | - | effective sample size (weights) |
+| `bins[].outlier_clip_frac` | float | - | fraction of time clipped by winsorization |
+| `pro_ref[]` | array<object> | - | pro reference curve points |
+| `pro_ref[].grade_percent` | float | % | grade percent |
+| `pro_ref[].pace_s_per_km_pro` | float | s/km | pro pace |
 
 ### Splits
 

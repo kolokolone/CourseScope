@@ -1,4 +1,4 @@
-# CourseScope - Metrics file-only (v1.1.9)
+# CourseScope - Metrics file-only (v1.1.48)
 
 Toutes les metriques ci-dessous sont calculees a partir d'un seul fichier GPX/FIT uploade.
 Certaines metriques sont conditionnelles aux champs disponibles (ex: HR, power, cadence).
@@ -144,9 +144,15 @@ Legend:
 - climbs.items[].distance_km [Both]
 - climbs.items[].elevation_gain_m [Both]
 - climbs.items[].avg_grade_percent [Both]
+- climbs.items[].pace_s_per_km [Both]
 - climbs.items[].vam_m_h [Both]
+- climbs.items[].duration_s [Both]
+- climbs.items[].start_km [Both]
+- climbs.items[].end_km [Both]
+- climbs.items[].start_end_km [Both]
 - climbs.items[].start_idx [Both]
 - climbs.items[].end_idx [Both]
+- climbs.items[].distance_m_end [Both]
 
 2.16 Series data (GET /activity/{id}/series/{name})
 - speed [Both]
