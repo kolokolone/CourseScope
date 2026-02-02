@@ -49,7 +49,7 @@ function AllureVsPenteTooltip({ active, payload }: TooltipContentProps) {
 export function AllureVsPenteChart({ activityId }: { activityId: string }) {
   const query = usePaceVsGrade(activityId);
 
-  const pointShape = React.useCallback((props: any) => {
+  const pointShape = React.useCallback((props: { cx?: number; cy?: number }) => {
     const cx = Number(props?.cx);
     const cy = Number(props?.cy);
     if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null;
@@ -84,6 +84,18 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
     const absRounded = Math.max(1, Math.ceil(maxAbs));
     return { points: out, domainAbs: absRounded };
   }, [query.data?.bins]);
+
+  const xTickStep = 2.5;
+  const xTicks = React.useMemo(() => {
+    const tickAbs = Math.max(xTickStep, Math.floor(domainAbs / xTickStep) * xTickStep);
+    const ticks: number[] = [];
+    for (let v = -tickAbs; v <= tickAbs + 1e-9; v += xTickStep) {
+      ticks.push(Number(v.toFixed(1)));
+    }
+    if (!ticks.includes(0)) ticks.push(0);
+    ticks.sort((a, b) => a - b);
+    return ticks;
+  }, [domainAbs]);
 
   const { chartData, yDomain } = React.useMemo(() => {
     const data = points.map((p) => {
@@ -138,7 +150,12 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
                 dataKey="grade"
                 type="number"
                 domain={[-domainAbs, domainAbs]}
-                tickFormatter={(v) => `${formatNumber(Number(v), { decimals: 0 })}%`}
+                ticks={xTicks}
+                tickFormatter={(v) => {
+                  const n = Number(v);
+                  const decimals = n % 1 === 0 ? 0 : 1;
+                  return `${formatNumber(n, { decimals })}%`;
+                }}
                 tick={{ fontSize: 12 }}
               />
               <YAxis

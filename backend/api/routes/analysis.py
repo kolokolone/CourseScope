@@ -229,7 +229,10 @@ async def get_theoretical_activity(request: Request, activity_id: str):
 
 
 @router.get("/activity/{activity_id}/pace-vs-grade", response_model=PaceVsGradeResponse)
-async def get_pace_vs_grade(request: Request, activity_id: str):
+async def get_pace_vs_grade(
+    request: Request,
+    activity_id: str,
+):
     """Returns binned pace vs grade data (backend-computed)."""
 
     try:

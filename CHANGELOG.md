@@ -17,6 +17,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Backend/API: added optional pace-vs-grade fields (time_s_bin, weighted quantiles/mean, n_eff, outlier_clip_frac) without breaking existing response fields.
 - Tests/Docs: added non-regression coverage + detailed metric documentation.
 
+## [1.1.45] - 2026-02-02
+
+### Changed
+- UI (pace-vs-grade): force regular X-axis ticks every 2.5% and always show 0%.
+- UI/Types: extend MetricTableColumn with optional `align` for table layouts.
+
 ## [1.1.41] - 2026-01-31
 
 ### Changed

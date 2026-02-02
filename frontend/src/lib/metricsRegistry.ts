@@ -15,6 +15,7 @@ export type MetricItem = {
 export type MetricTableColumn = {
   key: string;
   label: string;
+  align?: 'left' | 'center' | 'right';
   format?: MetricFormat;
   unit?: string;
   integer?: boolean;
