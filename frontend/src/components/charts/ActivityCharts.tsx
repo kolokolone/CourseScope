@@ -22,6 +22,7 @@ const SERIES_COLORS = ['#0072B2', '#E69F00', '#009E73', '#D55E00', '#56B4E9', '#
 const MAX_POINTS = 8000;
 const RENDER_POINTS = 2500;
 const HR_TREND_WINDOW = 120;
+const HR_TREND_WINDOW_SLOW = 300;
 
 type ChartPoint = { x: number; y: number | null };
 
@@ -141,6 +142,7 @@ function SeriesChart({
   yAxisReversed,
   yDomain,
   trend,
+  trendSlow,
   smoothWindow,
 }: {
   series: SeriesResponse;
@@ -152,6 +154,7 @@ function SeriesChart({
   yAxisReversed?: boolean;
   yDomain?: [number, number];
   trend?: ChartPoint[];
+  trendSlow?: ChartPoint[];
   smoothWindow?: number;
 }) {
   const data = React.useMemo(() => buildSeriesData(series), [series]);
@@ -304,6 +307,19 @@ function SeriesChart({
                 connectNulls
               />
             ) : null}
+            {trendSlow && trendSlow.length > 0 ? (
+              <Line
+                type="monotone"
+                data={trendSlow}
+                dataKey="y"
+                stroke="#64748b"
+                strokeOpacity={0.25}
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                connectNulls
+              />
+            ) : null}
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -381,7 +397,9 @@ export function ActivityCharts({
       const color = def.name === 'heart_rate' ? '#dc2626' : SERIES_COLORS[idx % SERIES_COLORS.length];
 
       const points = buildSeriesData(query.data);
-      const trend = def.name === 'heart_rate' ? rollingMean(samplePoints(points, RENDER_POINTS), HR_TREND_WINDOW) : undefined;
+      const hrBase = def.name === 'heart_rate' ? samplePoints(points, RENDER_POINTS) : null;
+      const trend = hrBase ? rollingMean(hrBase, HR_TREND_WINDOW) : undefined;
+      const trendSlow = hrBase ? rollingMean(hrBase, HR_TREND_WINDOW_SLOW) : undefined;
 
       const yDomain: [number, number] | undefined = (() => {
         if (def.name !== 'heart_rate') return undefined;
@@ -411,6 +429,7 @@ export function ActivityCharts({
           yAxisReversed={def.name === 'pace'}
           yDomain={yDomain}
           trend={trend}
+          trendSlow={trendSlow}
           smoothWindow={smoothWindowClamped}
         />
       );
@@ -424,9 +443,10 @@ export function ActivityCharts({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">Axes</div>
-        <div className="flex gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+        <div className="flex items-center gap-2">
+          <div className="text-sm text-muted-foreground">Axes</div>
+          <div className="flex gap-2">
           <Button size="sm" variant={axis === 'time' ? 'default' : 'outline'} onClick={() => setAxis('time')}>
             Temps
           </Button>
@@ -439,12 +459,9 @@ export function ActivityCharts({
           </Button>
         </div>
       </div>
-      <div className="rounded-md border p-3 space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-sm text-muted-foreground">Lissage</div>
-          <div className="text-sm tabular-nums">{`Fenetre: ${smoothWindowClamped}`}</div>
-        </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-muted-foreground whitespace-nowrap">Lissage</div>
+          <div className="flex flex-wrap gap-2">
           <Button size="sm" variant={smoothWindowClamped === 1 ? 'outline' : 'ghost'} onClick={() => setSmoothWindow(1)}>
             Off
           </Button>
@@ -457,6 +474,8 @@ export function ActivityCharts({
           <Button size="sm" variant={smoothWindowClamped === 15 ? 'outline' : 'ghost'} onClick={() => setSmoothWindow(15)}>
             15
           </Button>
+        </div>
+          <div className="text-sm tabular-nums text-muted-foreground whitespace-nowrap">{`Fenetre: ${smoothWindowClamped}`}</div>
         </div>
         <div className="text-xs text-muted-foreground">{`Axe applique: ${axis === 'distance' ? 'Distance (km)' : 'Temps'}`}</div>
       </div>

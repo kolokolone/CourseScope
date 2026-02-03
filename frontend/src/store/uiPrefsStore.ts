@@ -22,7 +22,7 @@ type UiPrefsState = {
 export const useUiPrefsStore = create<UiPrefsState>()(
   persist(
     (set) => ({
-      chartsXAxis: 'time',
+      chartsXAxis: 'distance',
       setChartsXAxis: (axis) => set({ chartsXAxis: axis }),
 
       chartsSmoothWindow: 10,
@@ -37,6 +37,18 @@ export const useUiPrefsStore = create<UiPrefsState>()(
     {
       name: 'coursescope-ui-prefs',
       storage: createJSONStorage(() => localStorage),
+      version: 2,
+      migrate: (persistedState, version) => {
+        const state = persistedState as Partial<UiPrefsState> | undefined;
+        // v2: change default charts axis to distance (reset older persisted value).
+        if (version < 2) {
+          return {
+            ...(state ?? {}),
+            chartsXAxis: 'distance',
+          } as UiPrefsState;
+        }
+        return persistedState as UiPrefsState;
+      },
     }
   )
 );
