@@ -54,6 +54,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Changed
 - Charts: connect across missing y values (`connectNulls`) to keep lines continuous; tooltip shows `—` when a value is missing.
 
+## [1.1.51] - 2026-02-03
+
+### Changed
+- Charts: default X axis is now Distance (persisted prefs migrated); compacted axis/smoothing controls into a single row.
+- Charts (heart rate): added an extra, slower trend line (more smoothed) in grey.
+
 ## [1.1.41] - 2026-01-31
 
 ### Changed
