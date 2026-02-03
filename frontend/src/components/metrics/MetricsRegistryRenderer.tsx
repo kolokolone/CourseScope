@@ -40,10 +40,16 @@ export function MetricsRegistryRenderer({
   data,
   sections,
   activityId,
+  density,
+  className,
+  tableMaxHeight,
 }: {
   data: unknown;
   sections: MetricSection[];
   activityId?: string;
+  density?: 'default' | 'compact';
+  className?: string;
+  tableMaxHeight?: string;
 }) {
   const renderedSections = React.useMemo(() => {
     return sections
@@ -55,7 +61,13 @@ export function MetricsRegistryRenderer({
           const items = buildGridItems(data, section.items);
           if (items.length === 0) return null;
           return (
-            <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+            <SectionCard
+              key={section.id}
+              title={section.title}
+              description={section.description}
+              accentColor={accentColor}
+              density={density}
+            >
               <MetricGrid items={items} columnsClassName={section.gridColumns === 6 ? 'xl:grid-cols-6' : undefined} />
             </SectionCard>
           );
@@ -66,7 +78,13 @@ export function MetricsRegistryRenderer({
             const rows = section.rowsPath ? getValueAtPath(data, section.rowsPath) : undefined;
             if (!Array.isArray(rows) || rows.length === 0) return null;
             return (
-              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+              <SectionCard
+                key={section.id}
+                title={section.title}
+                description={section.description}
+                accentColor={accentColor}
+                density={density}
+              >
                 <PowerDurationCurveChart rows={rows} />
               </SectionCard>
             );
@@ -76,8 +94,16 @@ export function MetricsRegistryRenderer({
             const rows = section.rowsPath ? getValueAtPath(data, section.rowsPath) : undefined;
             if (!Array.isArray(rows) || rows.length === 0) return null;
             return (
-              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
-                <HorizontalSplitsTable data={rows} />
+              <SectionCard
+                key={section.id}
+                title={section.title}
+                description={section.description}
+                accentColor={accentColor}
+                density={density}
+              >
+                <div className={tableMaxHeight ? `${tableMaxHeight} overflow-auto` : undefined}>
+                  <HorizontalSplitsTable data={rows} />
+                </div>
               </SectionCard>
             );
           }
@@ -86,9 +112,17 @@ export function MetricsRegistryRenderer({
           if (section.id === 'climbs' && section.columns) {
             const climbRows = Array.isArray(rows) ? rows : [];
             return (
-              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+              <SectionCard
+                key={section.id}
+                title={section.title}
+                description={section.description}
+                accentColor={accentColor}
+                density={density}
+              >
                 {climbRows.length > 0 ? (
-                  <SimpleTable rows={climbRows} columns={section.columns} />
+                  <div className={tableMaxHeight ? `${tableMaxHeight} overflow-auto` : undefined}>
+                    <SimpleTable rows={climbRows} columns={section.columns} />
+                  </div>
                 ) : (
                   <div className="text-sm text-muted-foreground">Aucune montee detectee.</div>
                 )}
@@ -119,7 +153,13 @@ export function MetricsRegistryRenderer({
             if (sortedRows.length === 0) return null;
 
             return (
-              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+              <SectionCard
+                key={section.id}
+                title={section.title}
+                description={section.description}
+                accentColor={accentColor}
+                density={density}
+              >
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <h3 className="text-sm font-semibold">Allure par split</h3>
@@ -132,7 +172,9 @@ export function MetricsRegistryRenderer({
                       <span className="tabular-nums transition-transform group-open:rotate-180">v</span>
                     </summary>
                     <div className="mt-3">
-                      <SimpleTable rows={sortedRows} columns={section.columns} />
+                      <div className={tableMaxHeight ? `${tableMaxHeight} overflow-auto` : undefined}>
+                        <SimpleTable rows={sortedRows} columns={section.columns} />
+                      </div>
                     </div>
                   </details>
                 </div>
@@ -142,14 +184,22 @@ export function MetricsRegistryRenderer({
 
           if (collapsibleTables.has(section.id)) {
             return (
-              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+              <SectionCard
+                key={section.id}
+                title={section.title}
+                description={section.description}
+                accentColor={accentColor}
+                density={density}
+              >
                 <details className="group">
                   <summary className="cursor-pointer select-none list-none text-sm text-muted-foreground flex items-center justify-between">
                     <span>{`Afficher le tableau (${rows.length})`}</span>
                     <span className="tabular-nums transition-transform group-open:rotate-180">v</span>
                   </summary>
                   <div className="mt-3">
-                    <SimpleTable rows={rows} columns={section.columns} />
+                    <div className={tableMaxHeight ? `${tableMaxHeight} overflow-auto` : undefined}>
+                      <SimpleTable rows={rows} columns={section.columns} />
+                    </div>
                   </div>
                 </details>
               </SectionCard>
@@ -157,8 +207,16 @@ export function MetricsRegistryRenderer({
           }
 
           return (
-            <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
-              <SimpleTable rows={rows} columns={section.columns} />
+            <SectionCard
+              key={section.id}
+              title={section.title}
+              description={section.description}
+              accentColor={accentColor}
+              density={density}
+            >
+              <div className={tableMaxHeight ? `${tableMaxHeight} overflow-auto` : undefined}>
+                <SimpleTable rows={rows} columns={section.columns} />
+              </div>
             </SectionCard>
           );
         }
@@ -167,7 +225,13 @@ export function MetricsRegistryRenderer({
           const list = section.listPath ? getValueAtPath(data, section.listPath) : undefined;
           if (!Array.isArray(list) || list.length === 0) return null;
           return (
-            <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+            <SectionCard
+              key={section.id}
+              title={section.title}
+              description={section.description}
+              accentColor={accentColor}
+              density={density}
+            >
               <ul className="list-disc pl-5 space-y-1">
                 {list.map((item, idx) => (
                   <li key={idx} className="text-sm">
@@ -199,7 +263,13 @@ export function MetricsRegistryRenderer({
             const ftpW = typeof ftpWRaw === 'number' && Number.isFinite(ftpWRaw) ? ftpWRaw : undefined;
 
             return (
-              <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+              <SectionCard
+                key={section.id}
+                title={section.title}
+                description={section.description}
+                accentColor={accentColor}
+                density={density}
+              >
                 <ZonesBreakdown heartRate={heartRate} pace={paceFrame} power={powerFrame} ftpW={ftpW} />
               </SectionCard>
             );
@@ -218,7 +288,13 @@ export function MetricsRegistryRenderer({
           if (frames.length === 0) return null;
 
           return (
-            <SectionCard key={section.id} title={section.title} description={section.description} accentColor={accentColor}>
+            <SectionCard
+              key={section.id}
+              title={section.title}
+              description={section.description}
+              accentColor={accentColor}
+              density={density}
+            >
               <div className="space-y-6">
                 {frames.map((frame) => (
                   <div key={frame.id} className="space-y-3">
@@ -236,5 +312,6 @@ export function MetricsRegistryRenderer({
       .filter(Boolean);
   }, [activityId, data, sections]);
 
-  return <>{renderedSections}</>;
+  if (!className) return <>{renderedSections}</>;
+  return <div className={className}>{renderedSections}</div>;
 }

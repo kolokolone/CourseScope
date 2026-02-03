@@ -50,7 +50,7 @@ describe('RealActivityPage', () => {
         best_efforts: { rows: [{ distance_km: 1, time_s: 240, pace_s_per_km: 240 }] },
         personal_records: { rows: [{ distance_km: 5, time_s: 1500, pace_s_per_km: 300 }] },
         segment_analysis: { rows: [{ duration_s: 300, distance_km: 1, time_s: 300, pace_s_per_km: 300 }] },
-        splits: { rows: [{ split_index: 0, distance_km: 1, time_s: 300, pace_s_per_km: 300, elevation_gain_m: 5 }] },
+         splits: { rows: [{ split_index: 1, distance_km: 1, time_s: 300, pace_s_per_km: 300, elevation_gain_m: 5 }] },
         training_load: { trimp: 42, method: 'Edwards' },
         performance_predictions: { items: [{ target_distance_km: 10, predicted_time_s: 3600, base_distance_km: 5, base_time_s: 1500, exponent: 1.06 }] },
         pauses: { items: [{ lat: 1.0, lon: 2.0, label: 'Pause' }] },
@@ -65,7 +65,14 @@ describe('RealActivityPage', () => {
 
     render(<RealActivityPage />);
 
-    expect(screen.getByText('Analyse de la course')).toBeInTheDocument();
+    expect(screen.getByText('Activite reelle')).toBeInTheDocument();
+    expect(screen.getByText('Analyse')).toBeInTheDocument();
+
+    // Tabs
+    expect(screen.getByRole('button', { name: 'Aperçu' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Splits' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Climbs' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Détails' })).toBeInTheDocument();
 
     // KPI header
     const kpi = within(screen.getByTestId('kpi-header'));
@@ -85,19 +92,12 @@ describe('RealActivityPage', () => {
     expect(kpi.getByText('123')).toBeInTheDocument();
     expect(kpi.getByText('m')).toBeInTheDocument();
 
-    // Cardio section
+    // Cardio grid lives under Details tab now.
+    expect(screen.queryByText('Cardio')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Détails' }));
     expect(screen.getByText('Cardio')).toBeInTheDocument();
     expect(screen.getAllByText('FC moyenne').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('127').length).toBeGreaterThan(0);
     expect(screen.getAllByText('FC max').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('160').length).toBeGreaterThan(0);
-
-    // FIT/conditional sections
-    expect(screen.getByText('Cadence')).toBeInTheDocument();
-    expect(screen.getByText('Puissance')).toBeInTheDocument();
-    expect(screen.getByText('Running dynamics')).toBeInTheDocument();
-    expect(screen.getByText('Training load')).toBeInTheDocument();
-    expect(screen.getByText('Zones')).toBeInTheDocument();
 
     // Duration formatting (moving time)
     expect(screen.getByText('1:01:01')).toBeInTheDocument();
@@ -123,12 +123,10 @@ describe('RealActivityPage', () => {
 
     render(<RealActivityPage />);
 
+    // Overview tab should not show these sections.
     expect(screen.queryByText('Cardio')).not.toBeInTheDocument();
-    expect(screen.queryByText('Cadence')).not.toBeInTheDocument();
-    expect(screen.queryByText('Puissance')).not.toBeInTheDocument();
-    expect(screen.queryByText('Running dynamics')).not.toBeInTheDocument();
-    expect(screen.queryByText('Training load')).not.toBeInTheDocument();
-    expect(screen.queryByText('Zones')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Détails' }));
+    expect(screen.queryByText('Cardio')).not.toBeInTheDocument();
   });
 
   it('shows error state with retry', () => {

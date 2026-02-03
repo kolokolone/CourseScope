@@ -9,24 +9,32 @@ export function SectionCard({
   children,
   testId,
   accentColor,
+  density = 'default',
+  className,
 }: {
   title: string;
   description?: string;
   children: ReactNode;
   testId?: string;
   accentColor?: string;
+  density?: 'default' | 'compact';
+  className?: string;
 }) {
+  const headerClassName = density === 'compact' ? 'py-3 px-4' : undefined;
+  const contentClassName = density === 'compact' ? 'px-4 pb-4' : undefined;
+  const titleClassName = density === 'compact' ? 'text-base' : 'text-lg';
+
   return (
     <Card
       data-testid={testId}
-      className={cn(accentColor ? 'border-l-4' : undefined)}
+      className={cn(accentColor ? 'border-l-4' : undefined, className)}
       style={accentColor ? { borderLeftColor: accentColor } : undefined}
     >
-      <CardHeader>
-        <CardTitle className="text-lg">{title}</CardTitle>
+      <CardHeader className={headerClassName}>
+        <CardTitle className={titleClassName}>{title}</CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className={contentClassName}>{children}</CardContent>
     </Card>
   );
 }
