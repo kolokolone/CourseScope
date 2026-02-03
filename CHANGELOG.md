@@ -60,6 +60,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Charts: default X axis is now Distance (persisted prefs migrated); compacted axis/smoothing controls into a single row.
 - Charts (heart rate): added an extra, slower trend line (more smoothed) in grey.
 
+## [1.1.52] - 2026-02-03
+
+### Changed
+- Real activity page: new sticky header + tabbed navigation (Aperçu/Splits/Temps/Climbs/Charts/Map/Détails) to reduce scroll.
+- Real activity page: compact density mode for sections and internal scroll for long tables; lazy-mount heavy tabs.
+
 ## [1.1.41] - 2026-01-31
 
 ### Changed
