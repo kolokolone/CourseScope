@@ -1,5 +1,5 @@
 'use client';
-
+import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 import { ActivityCharts } from '@/components/charts/ActivityCharts';
@@ -47,30 +47,71 @@ export default function TheoreticalActivityPage() {
   const seriesAvailable = activity.series_index?.available ?? [];
   const showCharts = hasAnyChartSeries(seriesAvailable);
 
-  const limitsSection = THEORETICAL_METRIC_SECTIONS.find((s) => s.id === 'limits');
-  const mainSections = THEORETICAL_METRIC_SECTIONS.filter((s) => s.id !== 'limits');
+  const sectionsById = React.useMemo(() => new Map(THEORETICAL_METRIC_SECTIONS.map((s) => [s.id, s] as const)), []);
+  const limitsSection = sectionsById.get('limits');
+  const mainSections = React.useMemo(() => THEORETICAL_METRIC_SECTIONS.filter((s) => s.id !== 'limits'), []);
+
+  type TabId = 'overview' | 'charts' | 'details';
+  const [activeTab, setActiveTab] = React.useState<TabId>('overview');
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-7xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Metrics</h1>
-        <p className="text-gray-600">Theoretical activity metrics from the backend</p>
+    <div className="container mx-auto py-6 px-4 max-w-7xl">
+      <div className="sticky top-0 z-40 -mx-4 px-4 pb-3 bg-background/90 backdrop-blur border-b">
+        <div className="pt-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs text-muted-foreground">Activite theorique</div>
+              <h1 className="text-2xl font-bold truncate">Analyse</h1>
+              <div className="text-xs text-muted-foreground truncate">{`ID: ${activityId}`}</div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline">
+                Export
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 overflow-x-auto">
+          <div className="flex gap-2 whitespace-nowrap">
+            <Button size="sm" variant={activeTab === 'overview' ? 'default' : 'outline'} onClick={() => setActiveTab('overview')}>
+              Aperçu
+            </Button>
+            <Button size="sm" variant={activeTab === 'charts' ? 'default' : 'outline'} onClick={() => setActiveTab('charts')}>
+              Charts
+            </Button>
+            <Button size="sm" variant={activeTab === 'details' ? 'default' : 'outline'} onClick={() => setActiveTab('details')}>
+              Détails
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-8">
-        <MetricsRegistryRenderer data={activity} sections={mainSections} activityId={activityId} />
-
-        {showCharts ? (
-          <SectionCard
-            title="Charts"
-            description="Series dynamiques (temps / distance)."
-            accentColor={CATEGORY_COLORS.Charts}
-          >
-            <ActivityCharts activityId={activityId} available={seriesAvailable} />
-          </SectionCard>
+      <div className="mt-6 space-y-4">
+        {activeTab === 'overview' ? (
+          <MetricsRegistryRenderer data={activity} sections={mainSections} density="compact" tableMaxHeight="max-h-[520px]" />
         ) : null}
 
-        {limitsSection ? <MetricsRegistryRenderer data={activity} sections={[limitsSection]} activityId={activityId} /> : null}
+        {activeTab === 'charts' ? (
+          <div className="space-y-4">
+            {showCharts ? (
+              <SectionCard title="Charts" description="Series dynamiques (temps / distance)." accentColor={CATEGORY_COLORS.Charts}>
+                <ActivityCharts activityId={activityId} available={seriesAvailable} />
+              </SectionCard>
+            ) : (
+              <SectionCard title="Charts" description="Aucune serie disponible." accentColor={CATEGORY_COLORS.Charts} density="compact">
+                <div className="text-sm text-muted-foreground">Pas de series a afficher.</div>
+              </SectionCard>
+            )}
+          </div>
+        ) : null}
+
+        {activeTab === 'details' ? (
+          <div className="space-y-4">
+            <MetricsRegistryRenderer data={activity} sections={mainSections} density="compact" tableMaxHeight="max-h-[520px]" />
+            {limitsSection ? <MetricsRegistryRenderer data={activity} sections={[limitsSection]} density="compact" /> : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
