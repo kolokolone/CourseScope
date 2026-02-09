@@ -12,10 +12,9 @@ import type { ActivityMetadata } from '@/types/api';
 import { Activity, RefreshCw, Settings } from 'lucide-react';
 import { garminApi } from '@/lib/api';
 import {
-  Bar,
-  BarChart,
+  Area,
+  AreaChart,
   CartesianGrid,
-  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -82,7 +81,6 @@ function buildWeeklySeries(activities: ActivityMetadata[], range: HistoryRange) 
     year: number;
     week: number;
     km: number;
-    avg_km?: number;
   }> = [];
 
   for (
@@ -100,15 +98,6 @@ function buildWeeklySeries(activities: ActivityMetadata[], range: HistoryRange) 
       week,
       km: Math.round(km * 10) / 10,
     });
-  }
-
-  // Rolling average (4-week moving average).
-  const window = 4;
-  for (let i = 0; i < weeks.length; i++) {
-    const start = Math.max(0, i - window + 1);
-    const slice = weeks.slice(start, i + 1);
-    const avg = slice.reduce((acc, w) => acc + w.km, 0) / slice.length;
-    weeks[i].avg_km = Math.round(avg * 10) / 10;
   }
 
   return weeks;
@@ -138,6 +127,34 @@ export default function ActivitiesPage() {
   }, [data]);
 
   const weekly = React.useMemo(() => buildWeeklySeries(items, range), [items, range]);
+
+  const currentWeekKey = React.useMemo(() => {
+    const ws = weekStartUtc(new Date());
+    const { year, week } = isoWeek(ws);
+    return `${year}-W${String(week).padStart(2, '0')}`;
+  }, []);
+
+  const renderDot = React.useCallback(
+    (props: any) => {
+      const cx = props?.cx;
+      const cy = props?.cy;
+      const payload = props?.payload;
+      if (typeof cx !== 'number' || typeof cy !== 'number' || !payload) return null;
+
+      const key = String(payload.key ?? '');
+      const isCurrent = key === currentWeekKey;
+      if (isCurrent) {
+        return (
+          <g>
+            <circle cx={cx} cy={cy} r={10} fill="rgba(147,197,253,0.6)" />
+            <circle cx={cx} cy={cy} r={5} fill="#93c5fd" stroke="#ffffff" strokeWidth={2} />
+          </g>
+        );
+      }
+      return <circle cx={cx} cy={cy} r={4} fill="#ffffff" stroke="#93c5fd" strokeWidth={2} />;
+    },
+    [currentWeekKey]
+  );
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-6xl">
@@ -194,7 +211,7 @@ export default function ActivitiesPage() {
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={weekly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <AreaChart data={weekly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis
                   dataKey="key"
@@ -219,16 +236,16 @@ export default function ActivitiesPage() {
                     return String(_label);
                   }}
                 />
-                <Bar dataKey="km" fill="#93c5fd" />
-                <Line
+                <Area
                   type="monotone"
-                  dataKey="avg_km"
-                  stroke="rgba(147,197,253,0.6)"
+                  dataKey="km"
+                  stroke="#93c5fd"
                   strokeWidth={2}
-                  dot={false}
+                  fill="rgba(147,197,253,0.4)"
+                  dot={renderDot}
                   isAnimationActive={false}
                 />
-              </BarChart>
+              </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>

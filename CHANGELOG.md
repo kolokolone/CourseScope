@@ -64,6 +64,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - UI: removed redundant Home shortcuts panel and duplicate "Afficher toutes" button; uploads now display side-by-side.
 - UI: fixed TheoreticalActivityPage hooks order error (no conditional hooks).
 
+## [1.1.61] - 2026-02-09
+
+### Changed
+- Activities chart: switched weekly km bars to an area line with custom dots and current-week highlight; removed average line.
+
 ## [1.1.43] - 2026-02-02
 
 ### Changed
