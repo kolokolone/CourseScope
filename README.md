@@ -322,3 +322,11 @@ Par defaut (v1.1.55+), l'upload n'enregistre pas l'activite sur disque (`persist
 - Limite: l'activite reste accessible tant que le backend tourne.
 
 Pour conserver l'historique sur disque, activer l'option dans `http://localhost:3000/settings`.
+
+## Upload: type (reel vs theorique)
+
+Depuis la page d'accueil:
+- "Activite reelle": force l'analyse reelle.
+- "Trace (theorique)": force l'analyse theorique.
+
+Le type est envoye explicitement au backend via `activity_type` (plus d'auto-detection cote UI).

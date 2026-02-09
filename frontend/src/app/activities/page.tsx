@@ -3,24 +3,38 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActivityList } from '@/hooks/useActivity';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
 import type { ActivityMetadata } from '@/types/api';
-import { Activity, Settings } from 'lucide-react';
+import { Activity, RefreshCw, Settings } from 'lucide-react';
+import { garminApi } from '@/lib/api';
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 
+type HistoryRange = '3m' | '6m' | '1y' | 'all';
+
+function weekStartUtc(date: Date): Date {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = d.getUTCDay();
+  const diff = (day + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - diff);
+  return d;
+}
+
 function isoWeek(date: Date): { year: number; week: number } {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  // ISO week-year/week for UTC date.
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
@@ -28,40 +42,102 @@ function isoWeek(date: Date): { year: number; week: number } {
   return { year: d.getUTCFullYear(), week };
 }
 
-function buildWeeklyKm(activities: ActivityMetadata[]) {
-  const buckets = new Map<string, { year: number; week: number; km: number }>();
+function shiftRangeStart(end: Date, range: HistoryRange): Date {
+  if (range === 'all') return new Date(0);
+  const d = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
+  if (range === '3m') d.setUTCMonth(d.getUTCMonth() - 3);
+  if (range === '6m') d.setUTCMonth(d.getUTCMonth() - 6);
+  if (range === '1y') d.setUTCFullYear(d.getUTCFullYear() - 1);
+  return d;
+}
+
+function buildWeeklySeries(activities: ActivityMetadata[], range: HistoryRange) {
+  const dates = activities
+    .map((a) => new Date(a.started_at ?? a.created_at))
+    .filter((d) => Number.isFinite(d.getTime()));
+  if (dates.length === 0) return [] as Array<any>;
+
+  const endDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+  const endWeekStart = weekStartUtc(endDate);
+
+  const startCutoff = shiftRangeStart(endDate, range);
+  const startWeekStart = range === 'all'
+    ? weekStartUtc(new Date(Math.min(...dates.map((d) => d.getTime()))))
+    : weekStartUtc(startCutoff);
+
+  const bucketKm = new Map<string, number>();
   for (const a of activities) {
-    const dt = new Date(a.created_at);
-    if (Number.isNaN(dt.getTime())) continue;
-    const { year, week } = isoWeek(dt);
-    const key = `${year}-W${week}`;
+    const dt = new Date(a.started_at ?? a.created_at);
+    if (!Number.isFinite(dt.getTime())) continue;
+    const ws = weekStartUtc(dt);
+    const { year, week } = isoWeek(ws);
+    const key = `${year}-W${String(week).padStart(2, '0')}`;
     const km = typeof a.stats_sidebar.distance_km === 'number' ? a.stats_sidebar.distance_km : 0;
-    const cur = buckets.get(key) ?? { year, week, km: 0 };
-    cur.km += km;
-    buckets.set(key, cur);
+    bucketKm.set(key, (bucketKm.get(key) ?? 0) + km);
   }
 
-  return Array.from(buckets.values())
-    .sort((a, b) => (a.year - b.year) || (a.week - b.week))
-    .map((b) => ({
-      key: `${b.year}-W${b.week}`,
-      weekLabel: `S${b.week}`,
-      km: Math.round(b.km * 10) / 10,
-      year: b.year,
-      week: b.week,
-    }));
+  const weeks: Array<{
+    key: string;
+    weekStartMs: number;
+    year: number;
+    week: number;
+    km: number;
+    avg_km?: number;
+  }> = [];
+
+  for (
+    let cur = new Date(startWeekStart.getTime());
+    cur.getTime() <= endWeekStart.getTime();
+    cur = new Date(cur.getTime() + 7 * 24 * 60 * 60 * 1000)
+  ) {
+    const { year, week } = isoWeek(cur);
+    const key = `${year}-W${String(week).padStart(2, '0')}`;
+    const km = bucketKm.get(key) ?? 0;
+    weeks.push({
+      key,
+      weekStartMs: cur.getTime(),
+      year,
+      week,
+      km: Math.round(km * 10) / 10,
+    });
+  }
+
+  // Rolling average (4-week moving average).
+  const window = 4;
+  for (let i = 0; i < weeks.length; i++) {
+    const start = Math.max(0, i - window + 1);
+    const slice = weeks.slice(start, i + 1);
+    const avg = slice.reduce((acc, w) => acc + w.km, 0) / slice.length;
+    weeks[i].avg_km = Math.round(avg * 10) / 10;
+  }
+
+  return weeks;
 }
 
 export default function ActivitiesPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data, isLoading } = useActivityList();
+
+  const [range, setRange] = React.useState<HistoryRange>('6m');
+
+  const syncMutation = useMutation({
+    mutationFn: () => garminApi.sync(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
 
   const items = React.useMemo(() => {
     const list = data?.activities ?? [];
-    return list.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const epoch = (x: ActivityMetadata) => {
+      const t = new Date(x.started_at ?? x.created_at).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+    return list.slice().sort((a, b) => epoch(b) - epoch(a));
   }, [data]);
 
-  const weekly = React.useMemo(() => buildWeeklyKm(items), [items]);
+  const weekly = React.useMemo(() => buildWeeklySeries(items, range), [items, range]);
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-6xl">
@@ -83,19 +159,54 @@ export default function ActivitiesPage() {
               Parametres
             </Link>
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            title="Synchroniser avec Garmin"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Sync Garmin
+          </Button>
         </div>
       </div>
 
       <div className="mt-6 space-y-4">
         <Card>
           <CardHeader className="py-3 px-4">
-            <CardTitle className="text-base">Kilometres par semaine</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-base">Kilometres par semaine</CardTitle>
+              <label className="text-sm text-muted-foreground flex items-center gap-2">
+                Intervalle
+                <select
+                  className="h-8 rounded-md border bg-background px-2 text-sm"
+                  value={range}
+                  onChange={(e) => setRange(e.target.value as HistoryRange)}
+                >
+                  <option value="3m">3 mois</option>
+                  <option value="6m">6 mois</option>
+                  <option value="1y">1 an</option>
+                  <option value="all">Tout</option>
+                </select>
+              </label>
+            </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={weekly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="weekLabel" />
+                <XAxis
+                  dataKey="key"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(value: any) => {
+                    const s = String(value);
+                    const idx = s.indexOf('-W');
+                    if (idx === -1) return s;
+                    const w = s.slice(idx + 2);
+                    return `S${Number(w)}`;
+                  }}
+                />
                 <YAxis />
                 <Tooltip
                   formatter={(value: any) => {
@@ -109,6 +220,14 @@ export default function ActivitiesPage() {
                   }}
                 />
                 <Bar dataKey="km" fill="#93c5fd" />
+                <Line
+                  type="monotone"
+                  dataKey="avg_km"
+                  stroke="rgba(147,197,253,0.6)"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -140,7 +259,7 @@ export default function ActivitiesPage() {
                       const dist = a.stats_sidebar.distance_km;
                       const elev = a.stats_sidebar.elevation_gain_m;
                       const dur = a.stats_sidebar.elapsed_time_s;
-                      const dt = new Date(a.created_at);
+                      const dt = new Date(a.started_at ?? a.created_at);
                       const dateLabel = Number.isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString();
                       return (
                         <tr

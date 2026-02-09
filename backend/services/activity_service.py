@@ -13,20 +13,30 @@ import pandas as pd
 from core import fit_loader, gpx_loader
 from core.contracts.activity_df_contract import coerce_activity_df, validate_activity_df
 from core.stats.basic_stats import compute_basic_stats
-from services.models import ActivityTypeDetection, LoadedActivity, SidebarStats
+from services.models import ActivityType, ActivityTypeDetection, LoadedActivity, SidebarStats
 
 
-def load_activity_from_bytes(data: bytes, name: str) -> LoadedActivity:
+def load_activity_from_bytes(
+    data: bytes,
+    name: str,
+    force_type: ActivityType | None = None,
+) -> LoadedActivity:
     extension = Path(name).suffix.lower()
     if extension == ".fit":
         fit = fit_loader.load_fit(io.BytesIO(data))
         df = fit_loader.fit_to_dataframe(fit)
-        gpx_type_raw = fit_loader.detect_fit_type(df)
+        if force_type is None:
+            gpx_type_raw = fit_loader.detect_fit_type(df)
+        else:
+            gpx_type_raw = {"type": force_type, "confidence": 1.0}
         track_count = 1 if not df.empty else 0
     else:
         gpx = gpx_loader.load_gpx(io.BytesIO(data))
         df = gpx_loader.gpx_to_dataframe(gpx)
-        gpx_type_raw = gpx_loader.detect_gpx_type(df)
+        if force_type is None:
+            gpx_type_raw = gpx_loader.detect_gpx_type(df)
+        else:
+            gpx_type_raw = {"type": force_type, "confidence": 1.0}
         track_count = len(gpx.tracks)
 
     # Coerce schema/dtypes canoniques et valide une seule fois a la frontiere service.

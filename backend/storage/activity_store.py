@@ -21,8 +21,31 @@ logger = logging.getLogger("coursescope")
 
 def _model_to_dict(model):
     if hasattr(model, "model_dump"):
-        return model.model_dump()
+        # Pydantic v2: ensure JSON-compatible types (datetime -> ISO string).
+        return model.model_dump(mode="json")
+    if hasattr(model, "json"):
+        # Pydantic v1 fallback.
+        return json.loads(model.json())
     return model.dict()
+
+
+def _parse_iso_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    # Accept:
+    # - "2026-02-09T15:42:19Z"
+    # - "2026-02-09T15:42:19+00:00"
+    # - legacy: "2026-02-09 15:42:19"
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _to_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 class ActivityStorage(ABC):
@@ -92,7 +115,10 @@ class LocalTempStorage(ActivityStorage):
         session = self._db_session_factory()
         try:
             # Session type is runtime-provided (SQLAlchemy Session).
-            return self._repo.get_activity_id_by_hash(session, file_hash)  # type: ignore[arg-type]
+            activity_id = self._repo.get_activity_id_by_hash(session, file_hash)  # type: ignore[arg-type]
+            if activity_id is not None and not self._get_activity_dir(activity_id).exists():
+                return None
+            return activity_id
         finally:
             try:
                 session.close()  # type: ignore[attr-defined]
@@ -193,12 +219,20 @@ class LocalTempStorage(ActivityStorage):
 
             activity_type = "real" if activity.gpx_type.type == "real_run" else "theoretical"
 
+            started_at_utc = self._infer_started_at_utc(df)
+            created_at_dt = datetime.now(timezone.utc).replace(microsecond=0)
+            started_at_dt = _parse_iso_datetime(started_at_utc) if started_at_utc else None
+            if started_at_dt is not None:
+                started_at_dt = _to_utc(started_at_dt)
+            created_at_utc = _to_utc(created_at_dt).isoformat().replace("+00:00", "Z")
+
             metadata = ActivityMetadata(
                 id=activity_id,
                 filename=filename,
                 name=name,
                 activity_type=activity_type,
-                created_at=datetime.now(),
+                created_at=created_at_dt,
+                started_at=started_at_dt,
                 stats_sidebar=self._compute_sidebar_stats(df),
                 file_hash=file_hash,
             )
@@ -208,8 +242,6 @@ class LocalTempStorage(ActivityStorage):
                 json.dump(_model_to_dict(metadata), f, default=str, indent=2)
 
             if self._db_session_factory is not None and self._repo is not None:
-                started_at_utc = self._infer_started_at_utc(df)
-                created_at_utc = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
                 session = self._db_session_factory()
                 try:
                     self._repo.create_activity(
@@ -278,7 +310,7 @@ class LocalTempStorage(ActivityStorage):
 
     def list_activities(self) -> List[ActivityMetadata]:
         """Liste toutes les métadonnées"""
-        activities = []
+        activities: list[ActivityMetadata] = []
 
         if not self.temp_dir.exists():
             return activities
@@ -293,9 +325,28 @@ class LocalTempStorage(ActivityStorage):
                     with open(meta_path, "r") as f:
                         metadata_dict = json.load(f)
 
-                    metadata_dict["created_at"] = datetime.fromisoformat(
-                        metadata_dict["created_at"].replace("Z", "+00:00")
-                    )
+                    created_at = _parse_iso_datetime(metadata_dict.get("created_at"))
+                    if created_at is not None:
+                        metadata_dict["created_at"] = _to_utc(created_at)
+                    started_at = _parse_iso_datetime(metadata_dict.get("started_at"))
+                    if started_at is not None:
+                        metadata_dict["started_at"] = _to_utc(started_at)
+                    else:
+                        # Backfill for legacy meta.json (derive from df.parquet without rewriting).
+                        df_path = activity_dir / "df.parquet"
+                        try:
+                            if df_path.exists():
+                                df_time = pd.read_parquet(df_path, columns=["time"])
+                                if not df_time.empty and "time" in df_time.columns:
+                                    v = df_time["time"].min()
+                                    if v is not None:
+                                        is_na = pd.isna(v)
+                                        if bool(is_na):
+                                            continue
+                                        started_guess = pd.to_datetime(v).to_pydatetime()
+                                        metadata_dict["started_at"] = _to_utc(started_guess)
+                        except Exception:
+                            pass
 
                     activities.append(ActivityMetadata(**metadata_dict))
                 except Exception as e:
@@ -309,6 +360,10 @@ class LocalTempStorage(ActivityStorage):
                     )
                     continue
 
+        activities.sort(
+            key=lambda a: (a.started_at or a.created_at),
+            reverse=True,
+        )
         return activities
 
     def delete(self, activity_id: str) -> bool:

@@ -94,6 +94,7 @@ export interface ActivityMetadata {
   name?: string;
   activity_type: 'real' | 'theoretical';
   created_at: string;
+  started_at?: string | null;
   stats_sidebar: SidebarStats;
   file_hash: string;
 }
@@ -102,6 +103,7 @@ export interface ActivityLoadRequest {
   file: File;
   name?: string;
   persist_to_disk?: boolean;
+  activity_type?: 'real' | 'theoretical';
 }
 
 export interface GarminConnectResponse {

@@ -107,6 +107,7 @@ class ActivityMetadata(BaseModel):
     name: Optional[str] = None
     activity_type: Literal["real", "theoretical"]
     created_at: datetime
+    started_at: Optional[datetime] = None
     stats_sidebar: SidebarStats
     file_hash: str
 

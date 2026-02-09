@@ -9,7 +9,7 @@ Ce module est consomme par l'API (FastAPI).
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any
+from typing import Any, Literal
 
 from core.contracts.activity_df_contract import SCHEMA_VERSION
 from services import activity_service, real_activity_service, theoretical_service
@@ -30,18 +30,30 @@ def load_activity(
     *,
     data: bytes,
     name: str,
+    activity_type: Literal["real", "theoretical"] | None = None,
     cache: KeyValueCache | None = None,
 ) -> LoadedActivity:
     cache = cache or NullCache()
     key = make_cache_key(
         namespace="activity:load",
         version=SCHEMA_VERSION,
-        payload={"name": name, "sha256": sha256_bytes(data)},
+        payload={
+            "name": name,
+            "sha256": sha256_bytes(data),
+            "activity_type": activity_type,
+        },
     )
     cached = cache.get(key)
     if isinstance(cached, LoadedActivity):
         return cached
-    loaded = activity_service.load_activity_from_bytes(data=data, name=name)
+    if activity_type == "real":
+        force_type = "real_run"
+    elif activity_type == "theoretical":
+        force_type = "theoretical_route"
+    else:
+        force_type = None
+
+    loaded = activity_service.load_activity_from_bytes(data=data, name=name, force_type=force_type)
     cache.set(key, loaded)
     return loaded
 

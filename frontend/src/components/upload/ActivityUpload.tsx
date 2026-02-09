@@ -8,11 +8,20 @@ import { useUploadActivity } from '@/hooks/useActivity';
 import { ApiError } from '@/lib/api';
 
 interface ActivityUploadProps {
+  title?: string;
+  description?: string;
+  activityType: 'real' | 'theoretical';
   onUploadSuccess: (activityId: string, activityType: 'real' | 'theoretical') => void;
   persistToDisk?: boolean;
 }
 
-export function ActivityUpload({ onUploadSuccess, persistToDisk = false }: ActivityUploadProps) {
+export function ActivityUpload({
+  title,
+  description,
+  activityType,
+  onUploadSuccess,
+  persistToDisk = false,
+}: ActivityUploadProps) {
   const [uploadingFile, setUploadingFile] = useState<File | null>(null);
   const uploadMutation = useUploadActivity();
 
@@ -25,9 +34,10 @@ export function ActivityUpload({ onUploadSuccess, persistToDisk = false }: Activ
           file,
           name: file.name,
           persist_to_disk: persistToDisk,
+          activity_type: activityType,
         });
 
-        onUploadSuccess(result.id, result.type);
+        onUploadSuccess(result.id, activityType);
         setUploadingFile(null);
       } catch (error) {
         if (error instanceof ApiError) {
@@ -50,7 +60,7 @@ export function ActivityUpload({ onUploadSuccess, persistToDisk = false }: Activ
         setUploadingFile(null);
       }
     },
-    [uploadMutation, onUploadSuccess]
+    [uploadMutation, onUploadSuccess, persistToDisk, activityType]
   );
 
   const onDrop = useCallback(
@@ -93,10 +103,11 @@ export function ActivityUpload({ onUploadSuccess, persistToDisk = false }: Activ
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Upload className="h-5 w-5" />
-          Upload Activity
+          {title ?? (activityType === 'real' ? 'Upload activite reelle' : 'Upload trace (theorique)')}
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {description ? <div className="text-sm text-muted-foreground mb-3">{description}</div> : null}
         {!uploadingFile ? (
           <div
             {...getRootProps()}

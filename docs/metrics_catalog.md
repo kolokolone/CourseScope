@@ -5,6 +5,13 @@ See `docs/metrics_list.txt` for a categorized list of all file-only metrics.
 
 ## Activity Load (POST /activity/load)
 
+### Request fields
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `persist_to_disk` | bool | false | store activity on disk (otherwise in-memory only) |
+| `activity_type` | string | (auto) | force `real` vs `theoretical` (bypass auto-detection) |
+
 ### Sidebar stats
 
 | Path | Type | Unit | Description |
@@ -13,6 +20,13 @@ See `docs/metrics_list.txt` for a categorized list of all file-only metrics.
 | `stats_sidebar.elapsed_time_s` | float | s | elapsed time s |
 | `stats_sidebar.moving_time_s` | float | s | moving time s |
 | `stats_sidebar.elevation_gain_m` | float | m | elevation gain m |
+
+## Activities List (GET /activities)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `activities[].started_at` | datetime | - | activity start datetime (derived from file timestamps) |
+| `activities[].created_at` | datetime | - | ingestion datetime (storage time) |
 
 ### Limits
 

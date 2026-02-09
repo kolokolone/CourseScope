@@ -32,6 +32,12 @@ export default function HomePage() {
     router.push(`/activity/${activityId}/${activityType}`);
   };
 
+  const activitySortEpoch = (a: { started_at?: string | null; created_at: string }) => {
+    const raw = a.started_at ?? a.created_at;
+    const t = new Date(raw).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+
   const handleCleanup = async () => {
     if (window.confirm('Are you sure you want to delete all activities?')) {
       try {
@@ -77,7 +83,22 @@ export default function HomePage() {
       <div className="mt-6 space-y-4">
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           <div className="xl:col-span-2">
-            <ActivityUpload onUploadSuccess={handleUploadSuccess} persistToDisk={persistUploadsToDisk} />
+            <div className="space-y-4">
+              <ActivityUpload
+                activityType="real"
+                title="Activite reelle"
+                description="FIT ou GPX d'une activite courue (analyse reelle)."
+                onUploadSuccess={handleUploadSuccess}
+                persistToDisk={persistUploadsToDisk}
+              />
+              <ActivityUpload
+                activityType="theoretical"
+                title="Trace (theorique)"
+                description="FIT ou GPX vierge pour une analyse theorique (pas d'auto-detection)."
+                onUploadSuccess={handleUploadSuccess}
+                persistToDisk={persistUploadsToDisk}
+              />
+            </div>
           </div>
           <Card>
             <CardHeader className="py-3 px-4">
@@ -128,10 +149,10 @@ export default function HomePage() {
               <div className="divide-y rounded-md border">
                 {activities.activities
                   .slice()
-                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  .sort((a, b) => activitySortEpoch(b) - activitySortEpoch(a))
                   .slice(0, 10)
                   .map((activity) => {
-                    const dateLabel = new Date(activity.created_at).toLocaleDateString();
+                    const dateLabel = new Date(activity.started_at ?? activity.created_at).toLocaleDateString();
                     const dist = activity.stats_sidebar.distance_km;
                     const elev = activity.stats_sidebar.elevation_gain_m;
                     return (

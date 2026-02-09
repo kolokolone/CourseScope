@@ -4,7 +4,7 @@ import hashlib
 import logging
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header, Request
-from typing import Optional
+from typing import Optional, Literal, cast
 
 from api.schemas import ActivityLoadResponse, SidebarStats, ActivityLimits
 from services.analysis_service import load_activity
@@ -53,6 +53,7 @@ async def load_activity_endpoint(
     request: Request,
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
+    activity_type: Literal["real", "theoretical"] | None = Form(None),
     persist_to_disk: bool = Form(False),
     max_size: int = Header(100_000_000),
 ):
@@ -110,9 +111,10 @@ async def load_activity_endpoint(
                 "parse_name": parse_name,
                 "display_name": display_name,
                 "upload_filename": file.filename,
+                "activity_type": activity_type,
             },
         )
-        activity = load_activity(data=file_bytes, name=parse_name)
+        activity = load_activity(data=file_bytes, name=parse_name, activity_type=activity_type)
 
         storage = get_activity_storage(request)
         temp_storage = getattr(request.app.state, "temp_storage", None)
@@ -150,9 +152,18 @@ async def load_activity_endpoint(
                 "activity_type": getattr(activity, "type", None),
             },
         )
+        chosen_type: Literal["real", "theoretical"]
+        if activity_type is not None:
+            chosen_type = cast(Literal["real", "theoretical"], activity_type)
+        else:
+            chosen_type = cast(
+                Literal["real", "theoretical"],
+                "real" if activity.gpx_type.type == "real_run" else "theoretical",
+            )
+
         return ActivityLoadResponse(
             id=activity_id,
-            type=activity.type,
+            type=chosen_type,
             stats_sidebar=SidebarStats(**_model_to_dict(stats)),
             limits=limits,
         )

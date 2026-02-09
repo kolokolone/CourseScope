@@ -25,6 +25,18 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Analysis endpoints: fallback to in-memory activities for analysis/series/map.
 - Garmin: added credentials store (`data/integrations/garmin/credentials.json`) + endpoints to save/check credentials.
 
+## [1.1.56] - 2026-02-09
+
+### Changed
+- Home: split upload into two explicit flows (Real activity vs Theoretical track); removed automatic type selection.
+- Activities: sort newest→oldest by activity date; show activity date (started_at) instead of ingestion date.
+- Activities: weekly km chart now supports range selection (3m/6m/1y/all) and adds a rolling average line.
+- Activities: added "Sync Garmin" button to fetch new activities.
+
+### Changed (Backend)
+- Upload: added optional `activity_type` form field to force `real` vs `theoretical` (bypass auto-detection) and included it in the load cache key.
+- Storage metadata: added `started_at` (derived from file timestamps) and list endpoint now returns activities sorted by started_at.
+
 ## [1.1.43] - 2026-02-02
 
 ### Changed

@@ -17,7 +17,7 @@ vi.mock('@/hooks/useActivity', () => ({
 describe('ActivityUpload', () => {
   it('uploads a file and calls onUploadSuccess', async () => {
     const onUploadSuccess = vi.fn();
-    const { container } = render(<ActivityUpload onUploadSuccess={onUploadSuccess} />);
+    const { container } = render(<ActivityUpload activityType="real" onUploadSuccess={onUploadSuccess} />);
 
     const input = container.querySelector('input[type="file"]') as HTMLInputElement | null;
     expect(input).not.toBeNull();
@@ -27,7 +27,12 @@ describe('ActivityUpload', () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() =>
-      expect(mutateAsync).toHaveBeenCalledWith({ file, name: 'sample.gpx', persist_to_disk: false })
+      expect(mutateAsync).toHaveBeenCalledWith({
+        file,
+        name: 'sample.gpx',
+        persist_to_disk: false,
+        activity_type: 'real',
+      })
     );
     await waitFor(() => expect(onUploadSuccess).toHaveBeenCalledWith('activity-123', 'real'));
   });

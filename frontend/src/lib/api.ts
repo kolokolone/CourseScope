@@ -118,11 +118,18 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
 }
 
 export const activityApi = {
-  load: async (file: File, name: string, options?: { persist_to_disk?: boolean }) => {
+  load: async (
+    file: File,
+    name: string,
+    options?: { persist_to_disk?: boolean; activity_type?: 'real' | 'theoretical' }
+  ) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('name', name);
     formData.append('persist_to_disk', String(Boolean(options?.persist_to_disk)));
+    if (options?.activity_type) {
+      formData.append('activity_type', options.activity_type);
+    }
 
     // Now consistent with everything else
     return apiRequest<ActivityLoadResponse>('/activity/load', {
