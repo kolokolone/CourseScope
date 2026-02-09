@@ -112,6 +112,10 @@ export default function SettingsPage() {
     setOtp('');
   };
 
+  const canConnectWithTyped = email.trim().length > 0 && password.length > 0;
+  const canConnectWithStored = Boolean(credsStatus.data?.configured);
+  const connectLabel = canConnectWithTyped ? 'Connecter' : 'Connecter (cred stockes)';
+
   return (
     <div className="container mx-auto py-6 px-4 max-w-4xl">
       <div className="flex items-start justify-between gap-3">
@@ -182,9 +186,14 @@ export default function SettingsPage() {
             <div className="rounded-md border p-3 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <div className="font-medium">Statut</div>
-                <Button size="sm" variant="outline" onClick={() => garminStatus.refetch()} disabled={garminStatus.isFetching}>
-                  Rafraichir
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => garminStatus.refetch()} disabled={garminStatus.isFetching}>
+                    Rafraichir
+                  </Button>
+                  <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
+                    Sync
+                  </Button>
+                </div>
               </div>
 
               {garminStatus.isLoading ? (
@@ -273,10 +282,10 @@ export default function SettingsPage() {
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => startConnect({ email, password })}
-                    disabled={connect.isPending || otpStep || email.trim().length === 0 || password.length === 0}
+                    onClick={() => startConnect(canConnectWithTyped ? { email, password } : {})}
+                    disabled={connect.isPending || otpStep || (!canConnectWithTyped && !canConnectWithStored)}
                   >
-                    Connecter
+                    {connectLabel}
                   </Button>
                   {otpStep ? (
                     <Button
@@ -289,20 +298,6 @@ export default function SettingsPage() {
                   ) : null}
                 </div>
               </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => startConnect({})}
-                disabled={connect.isPending || otpStep}
-              >
-                Connecter (cred stockes)
-              </Button>
-              <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
-                Sync
-              </Button>
             </div>
 
             {sync.data ? (

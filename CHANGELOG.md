@@ -46,6 +46,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Garmin sync: sync work runs in a worker thread so the backend stays responsive.
 - Settings: moved "Cleanup activites" from Home to Settings.
 
+## [1.1.58] - 2026-02-09
+
+### Changed
+- Settings/Garmin: removed duplicate action buttons and kept a single connect flow (plus OTP confirm when needed) and a single Sync button.
+
 ## [1.1.43] - 2026-02-02
 
 ### Changed
