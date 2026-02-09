@@ -61,6 +61,7 @@ CourseScope/
 │   │   └── routes/
 │   │       ├── activities.py    # POST /activity/load (upload)
 │   │       ├── analysis.py      # Analyses real/theoretical
+│   │       ├── garmin_integration.py # Garmin Connect: connect/sync/status
 │   │       ├── series.py       # Séries de données
 │   │       └── maps.py         # Données cartographiques
 │   ├── core/                     # Logique métier pure Python
@@ -76,6 +77,8 @@ CourseScope/
 │   │   ├── cache.py           # Cache portable
 │   │   └── serialization.py   # Conversion JSON
 │   ├── storage/                  # Persistance locale
+│   ├── db/                       # Index DB (PostgreSQL-ready)
+│   └── integrations/             # Integrations externes (Garmin)
 ├── frontend/
 │   ├── src/
 │   │   ├── lib/api.ts          # Client API avec proxy
@@ -291,3 +294,18 @@ Invoke-WebRequest http://127.0.0.1:8000/health -UseBasicParsing
 ## 📈 Changelog
 
 Voir `CHANGELOG.md`.
+
+## Garmin (auto-import)
+
+Endpoints (v1.1.54+):
+- `POST /integrations/garmin/connect`
+- `POST /integrations/garmin/sync`
+- `GET /integrations/garmin/status`
+
+Stockage:
+- Activites: `data/activities/<uuid>/original.fit`, `df.parquet`, `meta.json`
+- Tokens Garmin: `data/integrations/garmin/tokens/`
+
+DB (PostgreSQL-ready):
+- Par defaut: SQLite sous `data/coursescope.sqlite`
+- Override: `COURSESCOPE_DATABASE_URL` (ex: `postgresql+psycopg://...`)

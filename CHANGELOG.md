@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.54] - 2026-02-09
+
+### Changed
+- Backend: added Garmin Connect integration endpoints (`/integrations/garmin/connect`, `/integrations/garmin/sync`, `/integrations/garmin/status`) with incremental sync and dedupe (external activity id + FIT SHA-256).
+- Backend: added an internal activity index (SQLAlchemy, PostgreSQL-ready) while keeping the source-of-truth `.fit` + `df.parquet` on disk.
+
+### Fixed
+- Backend serialization: `df_to_records` now preserves `None` for missing datetime values (avoids `NaN` in JSON payloads).
+
 ## [1.1.43] - 2026-02-02
 
 ### Changed

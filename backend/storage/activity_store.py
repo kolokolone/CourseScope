@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import List
-from datetime import datetime
+from typing import Callable, List
+from datetime import datetime, timezone
 from pathlib import Path
 import json
 import uuid
@@ -13,6 +13,7 @@ import pandas as pd
 from api.schemas import ActivityMetadata, SidebarStats
 from core.stats.basic_stats import compute_basic_stats
 from services.models import LoadedActivity as ServiceLoadedActivity
+from db.repository import ActivityIndexRepository
 
 
 logger = logging.getLogger("coursescope")
@@ -59,9 +60,15 @@ class ActivityStorage(ABC):
 class LocalTempStorage(ActivityStorage):
     """Stockage local dans dossier persistant"""
 
-    def __init__(self, temp_dir: str = "./data/activities"):
+    def __init__(
+        self,
+        temp_dir: str = "./data/activities",
+        db_session_factory: Callable[[], object] | None = None,
+    ):
         self.temp_dir = Path(temp_dir)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
+        self._db_session_factory = db_session_factory
+        self._repo = ActivityIndexRepository() if db_session_factory is not None else None
 
     def _get_extension(self, filename: str) -> str:
         """Extrait l'extension du fichier"""
@@ -70,6 +77,41 @@ class LocalTempStorage(ActivityStorage):
     def _hash_bytes(self, data: bytes) -> str:
         """Calcule SHA256 pour déduplication"""
         return hashlib.sha256(data).hexdigest()
+
+    def _get_db_activity_id_by_hash(self, file_hash: str) -> str | None:
+        if self._db_session_factory is None or self._repo is None:
+            return None
+        session = self._db_session_factory()
+        try:
+            # Session type is runtime-provided (SQLAlchemy Session).
+            return self._repo.get_activity_id_by_hash(session, file_hash)  # type: ignore[arg-type]
+        finally:
+            try:
+                session.close()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+    def _infer_started_at_utc(self, df: pd.DataFrame) -> str | None:
+        if df is None or df.empty:
+            return None
+        if "time" not in df.columns:
+            return None
+        try:
+            v = df["time"].min()
+            if v is None:
+                return None
+            if isinstance(v, pd.Timestamp):
+                dt = v.to_pydatetime()
+            elif isinstance(v, datetime):
+                dt = v
+            else:
+                # Try pandas conversion.
+                dt = pd.to_datetime(v).to_pydatetime()
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt.replace(microsecond=0).isoformat() + "Z"
+        except Exception:
+            return None
 
     def _get_activity_dir(self, activity_id: str) -> Path:
         """Retourne le chemin du dossier d'activité"""
@@ -93,7 +135,17 @@ class LocalTempStorage(ActivityStorage):
         )
 
     def store(self, activity: ServiceLoadedActivity, filename: str, raw_bytes: bytes, name: str | None = None) -> str:
-        """Stocke activité avec UUID unique"""
+        """Stocke activité avec UUID unique.
+
+        Déduplication:
+        - Si un index DB est configuré, utilise file_hash_sha256 (raw bytes) pour éviter les doublons.
+        """
+
+        file_hash = self._hash_bytes(raw_bytes)
+        existing_id = self._get_db_activity_id_by_hash(file_hash)
+        if existing_id is not None:
+            return existing_id
+
         activity_id = str(uuid.uuid4())
         activity_dir = self._get_activity_dir(activity_id)
         activity_dir.mkdir(exist_ok=True)
@@ -140,12 +192,41 @@ class LocalTempStorage(ActivityStorage):
                 activity_type=activity_type,
                 created_at=datetime.now(),
                 stats_sidebar=self._compute_sidebar_stats(df),
-                file_hash=self._hash_bytes(raw_bytes),
+                file_hash=file_hash,
             )
 
             meta_path = activity_dir / "meta.json"
             with open(meta_path, "w") as f:
                 json.dump(_model_to_dict(metadata), f, default=str, indent=2)
+
+            if self._db_session_factory is not None and self._repo is not None:
+                started_at_utc = self._infer_started_at_utc(df)
+                created_at_utc = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+                session = self._db_session_factory()
+                try:
+                    self._repo.create_activity(
+                        session,  # type: ignore[arg-type]
+                        activity_id=activity_id,
+                        name=name,
+                        activity_type=activity_type,
+                        started_at_utc=started_at_utc,
+                        created_at_utc=created_at_utc,
+                        file_hash_sha256=file_hash,
+                        original_path=str(file_path.resolve()),
+                        parquet_path=str(df_path.resolve()),
+                    )
+                    session.commit()  # type: ignore[attr-defined]
+                except Exception:
+                    try:
+                        session.rollback()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                    raise
+                finally:
+                    try:
+                        session.close()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
 
             return activity_id
 

@@ -52,7 +52,9 @@ def df_to_records(df: pd.DataFrame, *, limit: int | None = None) -> list[dict[st
     # Convertit les timestamps en chaines ISO.
     dt_cols = [c for c in df.columns if pd.api.types.is_datetime64_any_dtype(df[c])]
     for col in dt_cols:
-        safe[col] = safe[col].apply(lambda v: _dt_to_iso(v))
+        # pandas peut inferer un dtype "str" et convertir None -> NaN.
+        # Conserver des None explicites pour JSON.
+        safe[col] = pd.Series([_dt_to_iso(v) for v in safe[col].to_list()], dtype=object)
     return safe.to_dict(orient="records")
 
 

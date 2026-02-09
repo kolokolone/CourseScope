@@ -12,3 +12,9 @@ python-multipart
 pydantic
 httpx
 pyarrow
+
+# Garmin integration + DB index (PostgreSQL-ready)
+garminconnect==0.2.25
+garth
+SQLAlchemy>=2.0
+psycopg[binary]>=3.1

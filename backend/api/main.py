@@ -14,6 +14,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from storage.activity_store import LocalTempStorage
 from registry.series_registry import SeriesRegistry
+from config import get_activities_dir
+from db.session import init_db, make_engine, make_session_factory
 
 
 class _DefaultRequestIdFilter(logging.Filter):
@@ -64,12 +66,17 @@ def _configure_logging() -> logging.Logger:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger = _configure_logging()
-    storage = LocalTempStorage()
+    engine = make_engine()
+    init_db(engine)
+    db_session_factory = make_session_factory(engine)
+
+    storage = LocalTempStorage(temp_dir=str(get_activities_dir()), db_session_factory=db_session_factory)
     registry = SeriesRegistry()
 
     app.state.storage = storage
     app.state.registry = registry
     app.state.logger = logger
+    app.state.db_session_factory = db_session_factory
 
     yield
 
@@ -77,7 +84,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CourseScope API",
     description="Analytics pour traces GPX/FIT",
-    version="1.1.53",
+    version="1.1.54",
     lifespan=lifespan,
 )
 
@@ -135,17 +142,20 @@ from api.routes.activities import router as activities_router
 from api.routes.analysis import router as analysis_router
 from api.routes.series import router as series_router
 from api.routes.maps import router as maps_router
+from api.routes.garmin_integration import router as garmin_router
 
 app.include_router(activities_router)
 app.include_router(analysis_router)
 app.include_router(series_router)
 app.include_router(maps_router)
+app.include_router(garmin_router)
 
 # Dynamic compatibility: also serve the same routes under /api/*
 app.include_router(activities_router, prefix="/api", include_in_schema=False)
 app.include_router(analysis_router, prefix="/api", include_in_schema=False)
 app.include_router(series_router, prefix="/api", include_in_schema=False)
 app.include_router(maps_router, prefix="/api", include_in_schema=False)
+app.include_router(garmin_router, prefix="/api", include_in_schema=False)
 
 
 def get_activity_storage():
@@ -160,7 +170,7 @@ def get_series_registry():
 async def root():
     return {
         "message": "CourseScope API",
-        "version": "1.1.53",
+        "version": "1.1.54",
         "docs": "/docs",
         "status": "operational",
     }
