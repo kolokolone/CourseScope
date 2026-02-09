@@ -75,6 +75,17 @@ export default function SettingsPage() {
     },
   });
 
+  const fullSync = useMutation({
+    mutationFn: async () => {
+      await garminApi.reset();
+      return garminApi.sync();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['garmin', 'status'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
   const cleanupMutation = useCleanupActivities();
 
   const handleCleanup = async () => {
@@ -192,6 +203,18 @@ export default function SettingsPage() {
                   </Button>
                   <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
                     Sync
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      if (!window.confirm('Relancer une synchronisation complete Garmin ?')) return;
+                      fullSync.mutate();
+                    }}
+                    disabled={fullSync.isPending}
+                    title="Reset cursor + relance sync"
+                  >
+                    Sync complet
                   </Button>
                 </div>
               </div>

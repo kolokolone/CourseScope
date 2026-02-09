@@ -58,6 +58,12 @@ class GarminCredentialsStatusResponse(BaseModel):
     path: str
 
 
+class GarminResetResponse(BaseModel):
+    status: str
+    deleted_sources: int
+    deleted_cursor: int
+
+
 def _tokens_present(tokens_dir: Path) -> bool:
     if not tokens_dir.exists() or not tokens_dir.is_dir():
         return False
@@ -132,6 +138,28 @@ async def garmin_sync(request: Request):
 
     result = await anyio.to_thread.run_sync(service.sync)
     return GarminSyncResponse(**result.__dict__)
+
+
+@router.post("/integrations/garmin/reset", response_model=GarminResetResponse)
+async def garmin_reset(request: Request):
+    """Reset Garmin sync cursor and source mappings.
+
+    Use this before a full resync.
+    """
+
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+
+    repo = ActivityIndexRepository()
+    session = db_session_factory()
+    try:
+        deleted_sources = repo.delete_activity_sources_by_source(session, "garmin")
+        deleted_cursor = repo.delete_sync_state(session, "garmin")
+        session.commit()
+        return GarminResetResponse(status="ok", deleted_sources=deleted_sources, deleted_cursor=deleted_cursor)
+    finally:
+        session.close()
 
 
 @router.get("/integrations/garmin/status", response_model=GarminStatusResponse)

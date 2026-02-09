@@ -151,12 +151,13 @@ export const garminApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  connect: async (payload?: { email?: string; password?: string; otp?: string | null }) =>
+  connect: async (payload?: { email?: string; password?: string; otp?: string | null; mfa_session_id?: string | null }) =>
     apiRequest<GarminConnectResponse>('/integrations/garmin/connect', {
       method: 'POST',
       body: JSON.stringify(payload ?? {}),
     }),
   sync: async () => apiRequest<GarminSyncResponse>('/integrations/garmin/sync', { method: 'POST' }),
+  reset: async () => apiRequest<{ status: string; deleted_sources: number; deleted_cursor: number }>('/integrations/garmin/reset', { method: 'POST' }),
 };
 
 export const analysisApi = {

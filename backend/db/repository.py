@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from sqlalchemy import select
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from .models import Activity, ActivitySource, SyncRun, SyncState, utc_now_iso
@@ -110,3 +111,17 @@ class ActivityIndexRepository:
     def get_last_sync_run(self, session: Session, source: str) -> SyncRun | None:
         stmt = select(SyncRun).where(SyncRun.source == source).order_by(SyncRun.started_at_utc.desc()).limit(1)
         return session.execute(stmt).scalars().first()
+
+    def delete_sync_state(self, session: Session, source: str) -> int:
+        res = session.execute(delete(SyncState).where(SyncState.source == source))
+        return int(res.rowcount or 0)
+
+    def delete_activity_sources_by_source(self, session: Session, source: str) -> int:
+        res = session.execute(delete(ActivitySource).where(ActivitySource.source == source))
+        return int(res.rowcount or 0)
+
+    def delete_all_activities(self, session: Session) -> int:
+        # Delete sources first to avoid FK issues.
+        session.execute(delete(ActivitySource))
+        res = session.execute(delete(Activity))
+        return int(res.rowcount or 0)

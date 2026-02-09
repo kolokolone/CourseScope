@@ -9,6 +9,7 @@ from typing import Optional, Literal, cast
 from api.schemas import ActivityLoadResponse, SidebarStats, ActivityLimits
 from services.analysis_service import load_activity
 from storage.activity_store import LocalTempStorage
+from db.repository import ActivityIndexRepository
 
 
 router = APIRouter()
@@ -228,6 +229,19 @@ async def cleanup_all_activities(request: Request):
     try:
         storage = get_activity_storage(request)
         storage.cleanup_all()
+
+        # Also clear the DB index so Garmin/manual activities can be re-imported cleanly.
+        db_session_factory = getattr(request.app.state, "db_session_factory", None)
+        if db_session_factory is not None:
+            repo = ActivityIndexRepository()
+            session = db_session_factory()
+            try:
+                repo.delete_all_activities(session)
+                repo.delete_sync_state(session, "garmin")
+                session.commit()
+            finally:
+                session.close()
+
         return {"message": "All activities cleaned up successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to cleanup activities: {str(e)}")

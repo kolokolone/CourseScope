@@ -51,6 +51,13 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Changed
 - Settings/Garmin: removed duplicate action buttons and kept a single connect flow (plus OTP confirm when needed) and a single Sync button.
 
+## [1.1.59] - 2026-02-09
+
+### Changed
+- Garmin: added `POST /integrations/garmin/reset` to reset cursor + mappings for a full resync.
+- Settings: added "Sync complet" (reset + sync) to re-download Garmin activities after cleanup.
+- Cleanup: `DELETE /activities` now also clears the DB activity index and Garmin cursor so a re-sync can restore activities.
+
 ## [1.1.43] - 2026-02-02
 
 ### Changed

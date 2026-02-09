@@ -305,6 +305,7 @@ Voir `CHANGELOG.md`.
 Endpoints (v1.1.54+):
 - `POST /integrations/garmin/connect`
 - `POST /integrations/garmin/sync`
+- `POST /integrations/garmin/reset`
 - `GET /integrations/garmin/status`
 
 Notes:
