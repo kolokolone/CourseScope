@@ -58,6 +58,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Settings: added "Sync complet" (reset + sync) to re-download Garmin activities after cleanup.
 - Cleanup: `DELETE /activities` now also clears the DB activity index and Garmin cursor so a re-sync can restore activities.
 
+## [1.1.60] - 2026-02-09
+
+### Fixed
+- UI: removed redundant Home shortcuts panel and duplicate "Afficher toutes" button; uploads now display side-by-side.
+- UI: fixed TheoreticalActivityPage hooks order error (no conditional hooks).
+
 ## [1.1.43] - 2026-02-02
 
 ### Changed

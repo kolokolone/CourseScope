@@ -22,6 +22,16 @@ export default function TheoreticalActivityPage() {
 
   const { data: activity, isLoading, error, refetch } = useTheoreticalActivity(activityId);
 
+  const sectionsById = React.useMemo(
+    () => new Map(THEORETICAL_METRIC_SECTIONS.map((s) => [s.id, s] as const)),
+    []
+  );
+  const limitsSection = sectionsById.get('limits');
+  const mainSections = React.useMemo(() => THEORETICAL_METRIC_SECTIONS.filter((s) => s.id !== 'limits'), []);
+
+  type TabId = 'overview' | 'charts' | 'details';
+  const [activeTab, setActiveTab] = React.useState<TabId>('overview');
+
   if (isLoading) {
     return (
       <div className="container mx-auto py-8 px-4 max-w-7xl">
@@ -46,13 +56,6 @@ export default function TheoreticalActivityPage() {
 
   const seriesAvailable = activity.series_index?.available ?? [];
   const showCharts = hasAnyChartSeries(seriesAvailable);
-
-  const sectionsById = React.useMemo(() => new Map(THEORETICAL_METRIC_SECTIONS.map((s) => [s.id, s] as const)), []);
-  const limitsSection = sectionsById.get('limits');
-  const mainSections = React.useMemo(() => THEORETICAL_METRIC_SECTIONS.filter((s) => s.id !== 'limits'), []);
-
-  type TabId = 'overview' | 'charts' | 'details';
-  const [activeTab, setActiveTab] = React.useState<TabId>('overview');
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-7xl">

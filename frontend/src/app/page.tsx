@@ -20,7 +20,7 @@ function getPersistUploadsDefaultOff() {
 
 export default function HomePage() {
   const router = useRouter();
-  const { data: activities, isLoading, refetch } = useActivityList();
+  const { data: activities, isLoading } = useActivityList();
 
   const [persistUploadsToDisk, setPersistUploadsToDisk] = React.useState(false);
   React.useEffect(() => {
@@ -54,56 +54,27 @@ export default function HomePage() {
                   Parametres
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="sm">
-                <Link href="/activities">Afficher toutes</Link>
-              </Button>
             </div>
           </div>
         </div>
       </div>
 
       <div className="mt-6 space-y-4">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className="xl:col-span-2">
-            <div className="space-y-4">
-              <ActivityUpload
-                activityType="real"
-                title="Activite reelle"
-                description="FIT ou GPX d'une activite courue (analyse reelle)."
-                onUploadSuccess={handleUploadSuccess}
-                persistToDisk={persistUploadsToDisk}
-              />
-              <ActivityUpload
-                activityType="theoretical"
-                title="Trace (theorique)"
-                description="FIT ou GPX vierge pour une analyse theorique (pas d'auto-detection)."
-                onUploadSuccess={handleUploadSuccess}
-                persistToDisk={persistUploadsToDisk}
-              />
-            </div>
-          </div>
-          <Card>
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                Raccourcis
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="text-sm text-muted-foreground">Upload un fichier GPX/FIT puis ouvre l'analyse.</div>
-              <div className="mt-3 text-xs text-muted-foreground">
-                Enregistrement disque: <span className="font-medium">{persistUploadsToDisk ? 'ON' : 'OFF'}</span>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/settings">Parametres</Link>
-                </Button>
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/activities">Historique</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ActivityUpload
+            activityType="real"
+            title="Activite reelle"
+            description="FIT ou GPX d'une activite courue (analyse reelle)."
+            onUploadSuccess={handleUploadSuccess}
+            persistToDisk={persistUploadsToDisk}
+          />
+          <ActivityUpload
+            activityType="theoretical"
+            title="Trace (theorique)"
+            description="FIT ou GPX vierge pour une analyse theorique (pas d'auto-detection)."
+            onUploadSuccess={handleUploadSuccess}
+            persistToDisk={persistUploadsToDisk}
+          />
         </div>
 
         <Card>
