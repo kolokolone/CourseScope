@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from storage.activity_store import LocalTempStorage
+from storage.activity_store import InMemoryStorage, LocalTempStorage
 from registry.series_registry import SeriesRegistry
 from config import get_activities_dir
 from db.session import init_db, make_engine, make_session_factory
@@ -71,9 +71,11 @@ async def lifespan(app: FastAPI):
     db_session_factory = make_session_factory(engine)
 
     storage = LocalTempStorage(temp_dir=str(get_activities_dir()), db_session_factory=db_session_factory)
+    temp_storage = InMemoryStorage()
     registry = SeriesRegistry()
 
     app.state.storage = storage
+    app.state.temp_storage = temp_storage
     app.state.registry = registry
     app.state.logger = logger
     app.state.db_session_factory = db_session_factory
@@ -84,7 +86,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CourseScope API",
     description="Analytics pour traces GPX/FIT",
-    version="1.1.54",
+    version="1.1.55",
     lifespan=lifespan,
 )
 
@@ -170,7 +172,7 @@ def get_series_registry():
 async def root():
     return {
         "message": "CourseScope API",
-        "version": "1.1.54",
+        "version": "1.1.55",
         "docs": "/docs",
         "status": "operational",
     }

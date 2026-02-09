@@ -7,6 +7,10 @@ import {
   ActivityMetadata,
   SeriesInfo,
   PaceVsGradeResponse,
+  GarminConnectResponse,
+  GarminCredentialsStatusResponse,
+  GarminStatusResponse,
+  GarminSyncResponse,
 } from '@/types/api';
 
 // Base URL strategy:
@@ -114,10 +118,11 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
 }
 
 export const activityApi = {
-  load: async (file: File, name: string) => {
+  load: async (file: File, name: string, options?: { persist_to_disk?: boolean }) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('name', name);
+    formData.append('persist_to_disk', String(Boolean(options?.persist_to_disk)));
 
     // Now consistent with everything else
     return apiRequest<ActivityLoadResponse>('/activity/load', {
@@ -129,6 +134,22 @@ export const activityApi = {
   list: async () => apiRequest<{ activities: ActivityMetadata[] }>('/activities'),
   delete: async (activityId: string) => apiRequest<{ message: string }>(`/activity/${activityId}`, { method: 'DELETE' }),
   cleanup: async () => apiRequest<{ message: string }>('/activities', { method: 'DELETE' }),
+};
+
+export const garminApi = {
+  status: async () => apiRequest<GarminStatusResponse>('/integrations/garmin/status'),
+  credentialsStatus: async () => apiRequest<GarminCredentialsStatusResponse>('/integrations/garmin/credentials/status'),
+  saveCredentials: async (payload: { email: string; password: string }) =>
+    apiRequest<GarminCredentialsStatusResponse>('/integrations/garmin/credentials', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  connect: async (payload?: { email?: string; password?: string; otp?: string | null }) =>
+    apiRequest<GarminConnectResponse>('/integrations/garmin/connect', {
+      method: 'POST',
+      body: JSON.stringify(payload ?? {}),
+    }),
+  sync: async () => apiRequest<GarminSyncResponse>('/integrations/garmin/sync', { method: 'POST' }),
 };
 
 export const analysisApi = {

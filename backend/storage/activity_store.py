@@ -78,6 +78,14 @@ class LocalTempStorage(ActivityStorage):
         """Calcule SHA256 pour déduplication"""
         return hashlib.sha256(data).hexdigest()
 
+    def get_activity_id_by_hash(self, file_hash_sha256: str) -> str | None:
+        """Return activity id if a file hash already exists.
+
+        Note: only works when the DB index is enabled.
+        """
+
+        return self._get_db_activity_id_by_hash(file_hash_sha256)
+
     def _get_db_activity_id_by_hash(self, file_hash: str) -> str | None:
         if self._db_session_factory is None or self._repo is None:
             return None
@@ -321,3 +329,61 @@ class LocalTempStorage(ActivityStorage):
         if self.temp_dir.exists():
             shutil.rmtree(self.temp_dir, ignore_errors=True)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
+
+
+class InMemoryStorage(ActivityStorage):
+    """Ephemeral storage (process memory only)."""
+
+    def __init__(self):
+        self._dataframes: dict[str, pd.DataFrame] = {}
+        self._metas: dict[str, dict] = {}
+
+    def store(self, activity: ServiceLoadedActivity, filename: str, raw_bytes: bytes, name: str | None = None) -> str:
+        _ = raw_bytes
+        df = activity.df
+        if df is None:
+            raise RuntimeError("Loaded activity is missing DataFrame data")
+
+        activity_id = str(uuid.uuid4())
+        self._dataframes[activity_id] = df
+        self._metas[activity_id] = {
+            "id": activity_id,
+            "filename": filename,
+            "name": name,
+            "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        }
+        return activity_id
+
+    def load(self, activity_id: str) -> ServiceLoadedActivity:
+        meta = self._metas.get(activity_id)
+        if meta is None:
+            raise FileNotFoundError(f"Activity {activity_id} not found")
+
+        from services.models import ActivityTypeDetection
+
+        gpx_type = ActivityTypeDetection(type="real_run", confidence=1.0)
+        return ServiceLoadedActivity(
+            name=meta.get("name") or meta.get("filename") or activity_id,
+            df=None,
+            gpx_type=gpx_type,
+            track_count=1,
+        )
+
+    def load_dataframe(self, activity_id: str) -> pd.DataFrame:
+        df = self._dataframes.get(activity_id)
+        if df is None:
+            raise FileNotFoundError(f"Activity {activity_id} not found")
+        return df
+
+    def list_activities(self) -> List[ActivityMetadata]:
+        return []
+
+    def delete(self, activity_id: str) -> bool:
+        existed = activity_id in self._dataframes
+        self._dataframes.pop(activity_id, None)
+        self._metas.pop(activity_id, None)
+        return existed
+
+    def cleanup_all(self) -> None:
+        self._dataframes.clear()
+        self._metas.clear()

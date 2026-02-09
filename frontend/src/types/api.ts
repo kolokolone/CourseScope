@@ -101,6 +101,43 @@ export interface ActivityMetadata {
 export interface ActivityLoadRequest {
   file: File;
   name?: string;
+  persist_to_disk?: boolean;
+}
+
+export interface GarminConnectResponse {
+  status: string;
+  tokens_dir: string;
+}
+
+export interface GarminSyncResponse {
+  run_id: string;
+  status: string;
+  imported_count: number;
+  skipped_count: number;
+  cursor_time_utc?: string | null;
+  error?: string | null;
+}
+
+export interface GarminCredentialsStatusResponse {
+  configured: boolean;
+  email?: string | null;
+  path: string;
+}
+
+export interface GarminStatusResponse {
+  tokens_present: boolean;
+  tokens_dir: string;
+  cursor_time_utc?: string | null;
+  last_run?: {
+    id: string;
+    source: string;
+    started_at_utc: string;
+    finished_at_utc?: string | null;
+    status: string;
+    imported_count: number;
+    skipped_count: number;
+    error?: string | null;
+  } | null;
 }
 
 export interface SeriesRequest {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from collections.abc import Callable
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -9,6 +10,7 @@ from pydantic import BaseModel, Field
 from config import get_garmin_tokens_dir
 from db.repository import ActivityIndexRepository
 from integrations.garmin.client import GarminAuthError, connect_and_save_tokens, connect_with_tokens
+from integrations.garmin.credentials_store import credentials_status, load_credentials, save_credentials
 from integrations.garmin.sync_service import GarminSyncService
 
 
@@ -18,9 +20,14 @@ router = APIRouter()
 
 
 class GarminConnectRequest(BaseModel):
+    email: str | None = None
+    password: str | None = None
+    otp: str | None = None
+
+
+class GarminCredentialsRequest(BaseModel):
     email: str = Field(..., min_length=1)
     password: str = Field(..., min_length=1)
-    otp: str | None = None
 
 
 class GarminConnectResponse(BaseModel):
@@ -44,6 +51,12 @@ class GarminStatusResponse(BaseModel):
     last_run: dict | None = None
 
 
+class GarminCredentialsStatusResponse(BaseModel):
+    configured: bool
+    email: str | None
+    path: str
+
+
 def _tokens_present(tokens_dir: Path) -> bool:
     if not tokens_dir.exists() or not tokens_dir.is_dir():
         return False
@@ -59,11 +72,25 @@ def _tokens_present(tokens_dir: Path) -> bool:
 @router.post("/integrations/garmin/connect", response_model=GarminConnectResponse)
 async def garmin_connect(req: GarminConnectRequest):
     try:
-        connect_and_save_tokens(
-            email=req.email,
-            password=req.password,
-            mfa_callback=(lambda: req.otp) if req.otp else None,
-        )
+        email = req.email
+        password = req.password
+        if not email or not password:
+            saved = load_credentials()
+            if saved is None:
+                raise HTTPException(status_code=400, detail="Missing credentials and no saved credentials")
+            email = saved.email
+            password = saved.password
+
+        otp = req.otp
+        mfa_callback: Callable[[], str] | None = None
+        if otp:
+            otp_value: str = otp
+            def _mfa() -> str:
+                return otp_value
+
+            mfa_callback = _mfa
+
+        connect_and_save_tokens(email=email, password=password, mfa_callback=mfa_callback)
         tokens_dir = get_garmin_tokens_dir().resolve()
         return GarminConnectResponse(status="ok", tokens_dir=str(tokens_dir))
     except GarminAuthError as exc:
@@ -127,3 +154,23 @@ async def garmin_status(request: Request):
         cursor_time_utc=cursor,
         last_run=last_run_payload,
     )
+
+
+@router.get(
+    "/integrations/garmin/credentials/status",
+    response_model=GarminCredentialsStatusResponse,
+)
+async def garmin_credentials_status():
+    return GarminCredentialsStatusResponse(**credentials_status())
+
+
+@router.post(
+    "/integrations/garmin/credentials",
+    response_model=GarminCredentialsStatusResponse,
+)
+async def garmin_save_credentials(req: GarminCredentialsRequest):
+    try:
+        save_credentials(email=req.email, password=req.password)
+        return GarminCredentialsStatusResponse(**credentials_status())
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

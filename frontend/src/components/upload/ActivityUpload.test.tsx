@@ -26,7 +26,9 @@ describe('ActivityUpload', () => {
     const file = new File(['data'], 'sample.gpx', { type: 'application/gpx+xml' });
     fireEvent.change(input, { target: { files: [file] } });
 
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ file, name: 'sample.gpx' }));
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({ file, name: 'sample.gpx', persist_to_disk: false })
+    );
     await waitFor(() => expect(onUploadSuccess).toHaveBeenCalledWith('activity-123', 'real'));
   });
 });

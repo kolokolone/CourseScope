@@ -3,6 +3,17 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Local runtime data (activities, tokens, credentials)
+data/
+logs/
+temp_activities/
+temp_test_store/
+
+# Local environments
+.venv/
+frontend/.next/
+frontend/node_modules/
+
 # C extensions
 *.so
 

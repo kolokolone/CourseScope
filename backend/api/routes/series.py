@@ -31,7 +31,13 @@ async def get_series(
     """Retourne les données d'une série spécifique avec slicing et downsampling"""
     try:
         storage = request.app.state.storage
-        df = storage.load_dataframe(activity_id)
+        try:
+            df = storage.load_dataframe(activity_id)
+        except FileNotFoundError:
+            temp_storage = getattr(request.app.state, "temp_storage", None)
+            if temp_storage is None:
+                raise
+            df = temp_storage.load_dataframe(activity_id)
 
         if df.empty:
             raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
@@ -63,7 +69,13 @@ async def list_available_series(request: Request, activity_id: str):
     """Liste toutes les séries disponibles pour une activité"""
     try:
         storage = request.app.state.storage
-        df = storage.load_dataframe(activity_id)
+        try:
+            df = storage.load_dataframe(activity_id)
+        except FileNotFoundError:
+            temp_storage = getattr(request.app.state, "temp_storage", None)
+            if temp_storage is None:
+                raise
+            df = temp_storage.load_dataframe(activity_id)
 
         if df.empty:
             raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")

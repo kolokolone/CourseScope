@@ -21,6 +21,11 @@ URLs:
 - Frontend: http://localhost:3000
 - API: http://localhost:8000 (docs: /docs)
 
+Pages:
+- Accueil: http://localhost:3000
+- Parametres: http://localhost:3000/settings
+- Historique des activites: http://localhost:3000/activities
+
 Note Windows:
 - Le premier lancement peut prendre du temps (installation `npm` dans `frontend/`).
 - Les lancements suivants sont rapides (si `frontend/node_modules/` existe, l'installation est skip).
@@ -309,3 +314,11 @@ Stockage:
 DB (PostgreSQL-ready):
 - Par defaut: SQLite sous `data/coursescope.sqlite`
 - Override: `COURSESCOPE_DATABASE_URL` (ex: `postgresql+psycopg://...`)
+
+## Upload: persistance
+
+Par defaut (v1.1.55+), l'upload n'enregistre pas l'activite sur disque (`persist_to_disk=false`).
+- Avantage: test rapide sans polluer l'historique.
+- Limite: l'activite reste accessible tant que le backend tourne.
+
+Pour conserver l'historique sur disque, activer l'option dans `http://localhost:3000/settings`.

@@ -13,6 +13,18 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Fixed
 - Backend serialization: `df_to_records` now preserves `None` for missing datetime values (avoids `NaN` in JSON payloads).
 
+## [1.1.55] - 2026-02-09
+
+### Changed
+- Frontend: updated home page sections (Upload + last 10 stored activities) with links to Settings and full Activities history.
+- Frontend: added Settings page for upload persistence (default OFF) and Garmin connection/status.
+- Frontend: added Activities history page with weekly km bar chart + sortable table (date/name/km/D+/duration).
+
+### Changed (Backend)
+- Upload: added optional `persist_to_disk` form field (default false). If disabled, activity is stored in-memory only.
+- Analysis endpoints: fallback to in-memory activities for analysis/series/map.
+- Garmin: added credentials store (`data/integrations/garmin/credentials.json`) + endpoints to save/check credentials.
+
 ## [1.1.43] - 2026-02-02
 
 ### Changed

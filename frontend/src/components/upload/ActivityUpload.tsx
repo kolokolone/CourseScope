@@ -9,9 +9,10 @@ import { ApiError } from '@/lib/api';
 
 interface ActivityUploadProps {
   onUploadSuccess: (activityId: string, activityType: 'real' | 'theoretical') => void;
+  persistToDisk?: boolean;
 }
 
-export function ActivityUpload({ onUploadSuccess }: ActivityUploadProps) {
+export function ActivityUpload({ onUploadSuccess, persistToDisk = false }: ActivityUploadProps) {
   const [uploadingFile, setUploadingFile] = useState<File | null>(null);
   const uploadMutation = useUploadActivity();
 
@@ -23,6 +24,7 @@ export function ActivityUpload({ onUploadSuccess }: ActivityUploadProps) {
         const result = await uploadMutation.mutateAsync({
           file,
           name: file.name,
+          persist_to_disk: persistToDisk,
         });
 
         onUploadSuccess(result.id, result.type);
