@@ -56,7 +56,10 @@ def _isolated_env(tmp_path: Path):
 def test_garmin_sync_idempotent(_isolated_env, monkeypatch):
     fit_bytes, filename = _load_fit_fixture_bytes()
     zip_bytes = _zip_fit_bytes(fit_bytes)
-    fake = _FakeGarmin(activities=[{"activityId": 123, "activityName": "Run 123"}], original_zip_bytes=zip_bytes)
+    fake = _FakeGarmin(
+        activities=[{"activityId": 123, "activityName": "Run 123", "activityType": {"typeKey": "running"}}],
+        original_zip_bytes=zip_bytes,
+    )
 
     from api.routes import garmin_integration as garmin_routes
 
@@ -80,7 +83,10 @@ def test_garmin_sync_idempotent(_isolated_env, monkeypatch):
 def test_garmin_sync_skips_when_manual_upload_matches_file_hash(_isolated_env, monkeypatch):
     fit_bytes, filename = _load_fit_fixture_bytes()
     zip_bytes = _zip_fit_bytes(fit_bytes)
-    fake = _FakeGarmin(activities=[{"activityId": 999, "activityName": "Run 999"}], original_zip_bytes=zip_bytes)
+    fake = _FakeGarmin(
+        activities=[{"activityId": 999, "activityName": "Run 999", "activityType": {"typeKey": "running"}}],
+        original_zip_bytes=zip_bytes,
+    )
 
     from api.routes import garmin_integration as garmin_routes
 

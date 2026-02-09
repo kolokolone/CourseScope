@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { ActivityUpload } from '@/components/upload/ActivityUpload';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useActivityList, useCleanupActivities } from '@/hooks/useActivity';
+import { useActivityList } from '@/hooks/useActivity';
 import { formatNumber } from '@/lib/metricsFormat';
-import { Activity, Settings, Trash2 } from 'lucide-react';
+import { Activity, Settings } from 'lucide-react';
 
 const PERSIST_UPLOADS_KEY = 'coursescope.persist_uploads_to_disk';
 
@@ -21,7 +21,6 @@ function getPersistUploadsDefaultOff() {
 export default function HomePage() {
   const router = useRouter();
   const { data: activities, isLoading, refetch } = useActivityList();
-  const cleanupMutation = useCleanupActivities();
 
   const [persistUploadsToDisk, setPersistUploadsToDisk] = React.useState(false);
   React.useEffect(() => {
@@ -36,17 +35,6 @@ export default function HomePage() {
     const raw = a.started_at ?? a.created_at;
     const t = new Date(raw).getTime();
     return Number.isFinite(t) ? t : 0;
-  };
-
-  const handleCleanup = async () => {
-    if (window.confirm('Are you sure you want to delete all activities?')) {
-      try {
-        await cleanupMutation.mutateAsync();
-        refetch();
-      } catch {
-        alert('Failed to cleanup activities');
-      }
-    }
   };
 
   return (
@@ -69,12 +57,6 @@ export default function HomePage() {
               <Button asChild variant="outline" size="sm">
                 <Link href="/activities">Afficher toutes</Link>
               </Button>
-              {activities && activities.activities.length > 0 ? (
-                <Button variant="outline" size="sm" onClick={handleCleanup} disabled={cleanupMutation.isPending}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Cleanup
-                </Button>
-              ) : null}
             </div>
           </div>
         </div>

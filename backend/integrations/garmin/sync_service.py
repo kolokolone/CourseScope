@@ -155,6 +155,30 @@ class GarminSyncService:
                 out.append(it)
         return out
 
+    def _is_supported_activity_type(self, activity: dict[str, Any]) -> bool:
+        """Only import running and trail running."""
+
+        raw = None
+        # Common Garmin payload shapes.
+        for key in ("activityType", "activityTypeDTO", "activityTypeDto"):
+            v = activity.get(key)
+            if isinstance(v, dict):
+                raw = v.get("typeKey") or v.get("typekey") or v.get("key")
+                if raw is not None:
+                    break
+            elif isinstance(v, str):
+                raw = v
+                break
+
+        if raw is None:
+            raw = activity.get("activityTypeKey")
+
+        if not isinstance(raw, str) or not raw:
+            return False
+
+        norm = raw.strip().lower().replace("-", "_").replace(" ", "_")
+        return norm in {"running", "trail_running", "trailrun", "trailrunning"}
+
     def _download_original(self, activity_id: str) -> bytes:
         fmt = getattr(self._garmin, "ActivityDownloadFormat", None)
         original = getattr(fmt, "ORIGINAL", None)
@@ -253,6 +277,10 @@ class GarminSyncService:
                 continue
             activity_id = str(raw_id)
 
+            if not self._is_supported_activity_type(activity):
+                skipped += 1
+                continue
+
             if self._has_source_mapping(activity_id) is not None:
                 skipped += 1
                 continue
@@ -269,7 +297,7 @@ class GarminSyncService:
 
             display_name = activity.get("activityName") or f"Garmin Activity {activity_id}"
             filename = f"garmin_{activity_id}.fit"
-            loaded = load_activity(data=fit_bytes, name=filename)
+            loaded = load_activity(data=fit_bytes, name=filename, activity_type="real")
             stored_id = self._storage.store(loaded, filename, fit_bytes, name=display_name)
             self._link_source(activity_id=stored_id, source_activity_id=activity_id)
             imported += 1

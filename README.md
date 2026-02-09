@@ -307,6 +307,10 @@ Endpoints (v1.1.54+):
 - `POST /integrations/garmin/sync`
 - `GET /integrations/garmin/status`
 
+Notes:
+- Sur une premiere connexion, Garmin peut demander un code OTP (MFA). Le flux est gere dans l'UI Parametres.
+- Filtre import: seules les activites Running / Trail Running sont importees.
+
 Stockage:
 - Activites: `data/activities/<uuid>/original.fit`, `df.parquet`, `meta.json`
 - Tokens Garmin: `data/integrations/garmin/tokens/`

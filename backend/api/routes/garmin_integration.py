@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from pathlib import Path
-from collections.abc import Callable
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from config import get_garmin_tokens_dir
 from db.repository import ActivityIndexRepository
-from integrations.garmin.client import GarminAuthError, connect_and_save_tokens, connect_with_tokens
+from integrations.garmin.client import GarminAuthError, GarminMfaState, resume_login_with_otp, start_login, connect_with_tokens
 from integrations.garmin.credentials_store import credentials_status, load_credentials, save_credentials
 from integrations.garmin.sync_service import GarminSyncService
 
@@ -23,6 +23,7 @@ class GarminConnectRequest(BaseModel):
     email: str | None = None
     password: str | None = None
     otp: str | None = None
+    mfa_session_id: str | None = None
 
 
 class GarminCredentialsRequest(BaseModel):
@@ -32,7 +33,7 @@ class GarminCredentialsRequest(BaseModel):
 
 class GarminConnectResponse(BaseModel):
     status: str
-    tokens_dir: str
+    mfa_session_id: str | None = None
 
 
 class GarminSyncResponse(BaseModel):
@@ -70,8 +71,21 @@ def _tokens_present(tokens_dir: Path) -> bool:
 
 
 @router.post("/integrations/garmin/connect", response_model=GarminConnectResponse)
-async def garmin_connect(req: GarminConnectRequest):
+async def garmin_connect(request: Request, req: GarminConnectRequest):
     try:
+        # Resume MFA flow if requested.
+        if req.mfa_session_id and req.otp:
+            store = getattr(request.app.state, "garmin_mfa_states", {})
+            state = store.get(req.mfa_session_id)
+            if not isinstance(state, GarminMfaState):
+                raise HTTPException(status_code=400, detail="Invalid or expired mfa_session_id")
+            resume_login_with_otp(mfa_state=state, otp=req.otp)
+            try:
+                store.pop(req.mfa_session_id, None)
+            except Exception:
+                pass
+            return GarminConnectResponse(status="ok", mfa_session_id=None)
+
         email = req.email
         password = req.password
         if not email or not password:
@@ -81,18 +95,16 @@ async def garmin_connect(req: GarminConnectRequest):
             email = saved.email
             password = saved.password
 
-        otp = req.otp
-        mfa_callback: Callable[[], str] | None = None
-        if otp:
-            otp_value: str = otp
-            def _mfa() -> str:
-                return otp_value
+        mfa_state = start_login(email=email, password=password)
+        if mfa_state is not None:
+            session_id = str(uuid.uuid4())
+            store = getattr(request.app.state, "garmin_mfa_states", None)
+            if not isinstance(store, dict):
+                raise HTTPException(status_code=500, detail="MFA store not initialized")
+            store[session_id] = mfa_state
+            return GarminConnectResponse(status="otp_required", mfa_session_id=session_id)
 
-            mfa_callback = _mfa
-
-        connect_and_save_tokens(email=email, password=password, mfa_callback=mfa_callback)
-        tokens_dir = get_garmin_tokens_dir().resolve()
-        return GarminConnectResponse(status="ok", tokens_dir=str(tokens_dir))
+        return GarminConnectResponse(status="ok", mfa_session_id=None)
     except GarminAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
     except Exception as exc:
@@ -116,7 +128,9 @@ async def garmin_sync(request: Request):
         storage=storage,
         db_session_factory=db_session_factory,
     )
-    result = service.sync()
+    import anyio
+
+    result = await anyio.to_thread.run_sync(service.sync)
     return GarminSyncResponse(**result.__dict__)
 
 
@@ -148,12 +162,7 @@ async def garmin_status(request: Request):
         finally:
             session.close()
 
-    return GarminStatusResponse(
-        tokens_present=present,
-        tokens_dir=str(tokens_dir),
-        cursor_time_utc=cursor,
-        last_run=last_run_payload,
-    )
+    return GarminStatusResponse(tokens_present=present, tokens_dir=str(tokens_dir), cursor_time_utc=cursor, last_run=last_run_payload)
 
 
 @router.get(

@@ -37,6 +37,15 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Upload: added optional `activity_type` form field to force `real` vs `theoretical` (bypass auto-detection) and included it in the load cache key.
 - Storage metadata: added `started_at` (derived from file timestamps) and list endpoint now returns activities sorted by started_at.
 
+## [1.1.57] - 2026-02-09
+
+### Changed
+- Settings/Garmin: OTP entry is now handled in-browser via a two-step connect flow (Connect -> OTP -> Confirm).
+- Settings/Garmin: status panel no longer displays token path.
+- Garmin sync: only imports Running and Trail Running activities.
+- Garmin sync: sync work runs in a worker thread so the backend stays responsive.
+- Settings: moved "Cleanup activites" from Home to Settings.
+
 ## [1.1.43] - 2026-02-02
 
 ### Changed

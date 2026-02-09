@@ -12,7 +12,8 @@ import type {
   GarminStatusResponse,
   GarminSyncResponse,
 } from '@/types/api';
-import { Activity, Save, Settings } from 'lucide-react';
+import { Activity, Save, Settings, Trash2 } from 'lucide-react';
+import { useCleanupActivities } from '@/hooks/useActivity';
 
 const PERSIST_UPLOADS_KEY = 'coursescope.persist_uploads_to_disk';
 
@@ -50,6 +51,8 @@ export default function SettingsPage() {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [otp, setOtp] = React.useState('');
+  const [mfaSessionId, setMfaSessionId] = React.useState<string | null>(null);
+  const [otpStep, setOtpStep] = React.useState(false);
 
   const saveCreds = useMutation<GarminCredentialsStatusResponse, Error, { email: string; password: string }>({
     mutationFn: (payload) => garminApi.saveCredentials(payload),
@@ -58,7 +61,7 @@ export default function SettingsPage() {
     },
   });
 
-  const connect = useMutation<GarminConnectResponse, Error, { email?: string; password?: string; otp?: string | null }>({
+  const connect = useMutation<GarminConnectResponse, Error, { email?: string; password?: string; otp?: string | null; mfa_session_id?: string | null }>({
     mutationFn: (payload) => garminApi.connect(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['garmin', 'status'] });
@@ -71,6 +74,43 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['garmin', 'status'] });
     },
   });
+
+  const cleanupMutation = useCleanupActivities();
+
+  const handleCleanup = async () => {
+    if (window.confirm('Supprimer toutes les activites sur disque ?')) {
+      try {
+        await cleanupMutation.mutateAsync();
+        queryClient.invalidateQueries({ queryKey: ['activities'] });
+      } catch {
+        alert('Failed to cleanup activities');
+      }
+    }
+  };
+
+  const startConnect = async (payload: { email?: string; password?: string }) => {
+    setOtp('');
+    setOtpStep(false);
+    setMfaSessionId(null);
+    const res = await connect.mutateAsync(payload);
+    if (res.status === 'otp_required') {
+      setOtpStep(true);
+      setMfaSessionId(res.mfa_session_id ?? null);
+    } else {
+      setOtpStep(false);
+      setMfaSessionId(null);
+    }
+  };
+
+  const confirmOtp = async () => {
+    if (!mfaSessionId) return;
+    const code = otp.trim();
+    if (!code) return;
+    await connect.mutateAsync({ otp: code, mfa_session_id: mfaSessionId } as unknown as { otp?: string | null; mfa_session_id?: string | null });
+    setOtpStep(false);
+    setMfaSessionId(null);
+    setOtp('');
+  };
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-4xl">
@@ -119,6 +159,18 @@ export default function SettingsPage() {
                 }}
               />
             </label>
+
+            <div className="mt-4">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCleanup}
+                disabled={cleanupMutation.isPending}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Cleanup activites
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -144,7 +196,6 @@ export default function SettingsPage() {
                   <div>
                     Tokens: <span className="font-medium">{garminStatus.data.tokens_present ? 'OK' : 'absents'}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground break-all">{garminStatus.data.tokens_dir}</div>
                   <div>
                     Cursor sync: <span className="font-medium">{garminStatus.data.cursor_time_utc ?? '—'}</span>
                   </div>
@@ -198,16 +249,18 @@ export default function SettingsPage() {
                     autoComplete="current-password"
                   />
                 </label>
-                <label className="text-sm">
-                  <div className="text-muted-foreground">OTP (si MFA)</div>
-                  <input
-                    className="mt-1 w-full rounded-md border px-3 py-2"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    placeholder="123456"
-                    inputMode="numeric"
-                  />
-                </label>
+                {otpStep ? (
+                  <label className="text-sm">
+                    <div className="text-muted-foreground">OTP</div>
+                    <input
+                      className="mt-1 w-full rounded-md border px-3 py-2"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      placeholder="123456"
+                      inputMode="numeric"
+                    />
+                  </label>
+                ) : null}
                 <div className="flex items-end gap-2">
                   <Button
                     size="sm"
@@ -220,17 +273,31 @@ export default function SettingsPage() {
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => connect.mutate({ email, password, otp: otp.trim() ? otp.trim() : null })}
-                    disabled={connect.isPending || email.trim().length === 0 || password.length === 0}
+                    onClick={() => startConnect({ email, password })}
+                    disabled={connect.isPending || otpStep || email.trim().length === 0 || password.length === 0}
                   >
                     Connecter
                   </Button>
+                  {otpStep ? (
+                    <Button
+                      size="sm"
+                      onClick={confirmOtp}
+                      disabled={connect.isPending || otp.trim().length === 0 || !mfaSessionId}
+                    >
+                      Confirmer
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </div>
 
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => connect.mutate({})} disabled={connect.isPending}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => startConnect({})}
+                disabled={connect.isPending || otpStep}
+              >
                 Connecter (cred stockes)
               </Button>
               <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>

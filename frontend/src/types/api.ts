@@ -108,7 +108,7 @@ export interface ActivityLoadRequest {
 
 export interface GarminConnectResponse {
   status: string;
-  tokens_dir: string;
+  mfa_session_id?: string | null;
 }
 
 export interface GarminSyncResponse {
