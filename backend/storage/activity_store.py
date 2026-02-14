@@ -268,6 +268,37 @@ class LocalTempStorage(ActivityStorage):
                     except Exception:
                         pass
 
+            # Best-effort: update the analytical progress index.
+            # Keep uploads/sync functional even if indexing fails.
+            if self._db_session_factory is not None:
+                meta_dict = _model_to_dict(metadata)
+                session = self._db_session_factory()
+                try:
+                    from progress.indexer import index_activity
+
+                    index_activity(
+                        session, activity_id=activity_id, df=df_to_store, meta=meta_dict, parquet_path=df_path
+                    )
+                    session.commit()  # type: ignore[attr-defined]
+                except Exception as exc:
+                    try:
+                        session.rollback()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                    logger.warning(
+                        "progress_index_failed",
+                        extra={
+                            "request_id": "-",
+                            "activity_id": activity_id,
+                            "error": str(exc),
+                        },
+                    )
+                finally:
+                    try:
+                        session.close()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+
             return activity_id
 
         except Exception as e:
