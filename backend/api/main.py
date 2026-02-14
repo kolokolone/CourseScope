@@ -146,12 +146,14 @@ from api.routes.analysis import router as analysis_router
 from api.routes.series import router as series_router
 from api.routes.maps import router as maps_router
 from api.routes.garmin_integration import router as garmin_router
+from api.routes.progress import router as progress_router
 
 app.include_router(activities_router)
 app.include_router(analysis_router)
 app.include_router(series_router)
 app.include_router(maps_router)
 app.include_router(garmin_router)
+app.include_router(progress_router)
 
 # Dynamic compatibility: also serve the same routes under /api/*
 app.include_router(activities_router, prefix="/api", include_in_schema=False)
@@ -159,6 +161,7 @@ app.include_router(analysis_router, prefix="/api", include_in_schema=False)
 app.include_router(series_router, prefix="/api", include_in_schema=False)
 app.include_router(maps_router, prefix="/api", include_in_schema=False)
 app.include_router(garmin_router, prefix="/api", include_in_schema=False)
+app.include_router(progress_router, prefix="/api", include_in_schema=False)
 
 
 def get_activity_storage():
