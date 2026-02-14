@@ -26,11 +26,20 @@ import {
   useProgressBestEfforts,
   useProgressHrAtPace,
   useProgressPaceAtHr,
+  useProgressPaceHrWaterfall,
+  useProgressSessionTaxonomy,
   useProgressSeries,
 } from '@/hooks/useProgress';
 import { progressApi } from '@/lib/api';
 import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
-import type { ProgressActivity, ProgressSeriesMetric, ProgressVerifyResponse } from '@/types/api';
+import type {
+  ProgressActivity,
+  ProgressSeriesMetric,
+  ProgressSessionTag,
+  ProgressTerrainTag,
+  ProgressVerifyResponse,
+} from '@/types/api';
+import { PaceHr3DChart } from '@/components/charts/PaceHr3DChart';
 import { Activity, Home, Settings, TrendingUp } from 'lucide-react';
 
 type HistoryRange = '3m' | '6m' | '1y' | 'all';
@@ -162,6 +171,23 @@ const HR_AT_PACE_REFS = [300, 330, 360] as const;
 const PACE_AT_HR_REFS = [140, 150, 160] as const;
 const SERIES_COLORS = ['#0f172a', '#334155', '#64748b', '#93c5fd', '#16a34a'];
 
+const SESSION_FILTER_OPTIONS: Array<{ value: 'all' | ProgressSessionTag; label: string }> = [
+  { value: 'all', label: 'Toutes' },
+  { value: 'easy', label: 'Easy' },
+  { value: 'tempo', label: 'Tempo' },
+  { value: 'interval', label: 'Interval' },
+  { value: 'long_run', label: 'Long run' },
+  { value: 'unknown', label: 'Unknown' },
+];
+
+const TERRAIN_FILTER_OPTIONS: Array<{ value: 'all' | ProgressTerrainTag; label: string }> = [
+  { value: 'all', label: 'Tous terrains' },
+  { value: 'flat', label: 'Flat' },
+  { value: 'rolling', label: 'Rolling' },
+  { value: 'hilly', label: 'Hilly/Trail' },
+  { value: 'unknown', label: 'Unknown' },
+];
+
 export default function ProgressPage() {
   const queryClient = useQueryClient();
   const verifyStartedRef = React.useRef(false);
@@ -169,6 +195,11 @@ export default function ProgressPage() {
   const [range, setRange] = React.useState<HistoryRange>('6m');
   const [volumeMetric, setVolumeMetric] = React.useState<ProgressSeriesMetric>('distance_m');
   const [bestDuration, setBestDuration] = React.useState(1200);
+  const [waterfallLimit, setWaterfallLimit] = React.useState<10 | 30 | 60>(60);
+  const [waterfallBinStep, setWaterfallBinStep] = React.useState<5 | 10>(5);
+  const [waterfallSessionTag, setWaterfallSessionTag] = React.useState<'all' | ProgressSessionTag>('all');
+  const [waterfallTerrainTag, setWaterfallTerrainTag] = React.useState<'all' | ProgressTerrainTag>('all');
+  const [waterfallEnduranceOnly, setWaterfallEnduranceOnly] = React.useState(false);
   const [verifyState, setVerifyState] = React.useState<ProgressVerifyResponse | null>(null);
 
   React.useEffect(() => {
@@ -261,6 +292,17 @@ export default function ProgressPage() {
   const activitiesQuery = useProgressActivities({ from, to, type: 'real', limit: activitiesLimit });
   const hrAtPaceQuery = useProgressHrAtPace({ from, to, type: 'real', paces_s_per_km: [...HR_AT_PACE_REFS] });
   const paceAtHrQuery = useProgressPaceAtHr({ from, to, type: 'real', hrs_bpm: [...PACE_AT_HR_REFS] });
+  const taxonomyQuery = useProgressSessionTaxonomy({ from, to, type: 'real' });
+  const waterfallQuery = useProgressPaceHrWaterfall({
+    from,
+    to,
+    type: 'real',
+    limit: waterfallLimit,
+    bin_step_s_per_km: waterfallBinStep,
+    session_tag: waterfallSessionTag === 'all' ? undefined : waterfallSessionTag,
+    terrain_tag: waterfallTerrainTag === 'all' ? undefined : waterfallTerrainTag,
+    endurance_only: waterfallEnduranceOnly,
+  });
 
   const volumeData = React.useMemo(() => {
     const items = volumeQuery.data ?? [];
@@ -306,7 +348,7 @@ export default function ProgressPage() {
   }, [bestQuery.data?.points]);
 
   const bestYAxisDomain = React.useMemo(
-    () => paddedDomain(bestData.map((p) => p.value), { paddingRatio: 0.05, robustQuantiles: [0.05, 0.95] }),
+    () => paddedDomain(bestData.map((p) => p.value), { paddingRatio: 0.1, robustQuantiles: [0.1, 0.9] }),
     [bestData]
   );
 
@@ -333,8 +375,21 @@ export default function ProgressPage() {
         byDate.set(dateMs, row);
       }
     }
-    return [...byDate.values()].sort((a, b) => Number(a.dateMs) - Number(b.dateMs));
-  }, [hrAtPaceQuery.data?.series]);
+    const base = [...byDate.values()].sort((a, b) => Number(a.dateMs) - Number(b.dateMs));
+    const means = base.map((row) => {
+      let sum = 0;
+      let count = 0;
+      for (const meta of hrAtPaceMeta) {
+        const v = finiteNumber((row as Record<string, unknown>)[meta.key]);
+        if (v === null) continue;
+        sum += v;
+        count += 1;
+      }
+      return count > 0 ? sum / count : NaN;
+    });
+    const smooth = rollingMean(means, 10);
+    return base.map((row, idx) => ({ ...row, mean_trend: smooth[idx] }));
+  }, [hrAtPaceMeta, hrAtPaceQuery.data?.series]);
 
   const paceAtHrMeta = React.useMemo(
     () =>
@@ -359,8 +414,21 @@ export default function ProgressPage() {
         byDate.set(dateMs, row);
       }
     }
-    return [...byDate.values()].sort((a, b) => Number(a.dateMs) - Number(b.dateMs));
-  }, [paceAtHrQuery.data?.series]);
+    const base = [...byDate.values()].sort((a, b) => Number(a.dateMs) - Number(b.dateMs));
+    const means = base.map((row) => {
+      let sum = 0;
+      let count = 0;
+      for (const meta of paceAtHrMeta) {
+        const v = finiteNumber((row as Record<string, unknown>)[meta.key]);
+        if (v === null) continue;
+        sum += v;
+        count += 1;
+      }
+      return count > 0 ? sum / count : NaN;
+    });
+    const smooth = rollingMean(means, 10);
+    return base.map((row, idx) => ({ ...row, mean_trend: smooth[idx] }));
+  }, [paceAtHrMeta, paceAtHrQuery.data?.series]);
 
   const hrAtPaceDomain = React.useMemo(() => {
     const vals: number[] = [];
@@ -404,13 +472,13 @@ export default function ProgressPage() {
 
   const efDataWithTrend = React.useMemo(() => {
     const vals = efPoints.map((p) => p.ef);
-    const trend = rollingMean(vals, 7);
+    const trend = rollingMean(vals, 14);
     return efPoints.map((p, idx) => ({ ...p, trend: trend[idx] }));
   }, [efPoints]);
 
   const decouplingDataWithTrend = React.useMemo(() => {
     const vals = decouplingPoints.map((p) => p.dec);
-    const trend = rollingMean(vals, 7);
+    const trend = rollingMean(vals, 14);
     return decouplingPoints.map((p, idx) => ({ ...p, trend: trend[idx] }));
   }, [decouplingPoints]);
 
@@ -419,6 +487,16 @@ export default function ProgressPage() {
     () => paddedDomain(decouplingPoints.map((p) => p.dec), { paddingRatio: 0.05 }),
     [decouplingPoints]
   );
+
+  const sessionTaxonomy = React.useMemo(() => {
+    const rows = taxonomyQuery.data?.session_counts ?? [];
+    return [...rows].sort((a, b) => b.count - a.count);
+  }, [taxonomyQuery.data?.session_counts]);
+
+  const terrainTaxonomy = React.useMemo(() => {
+    const rows = taxonomyQuery.data?.terrain_counts ?? [];
+    return [...rows].sort((a, b) => b.count - a.count);
+  }, [taxonomyQuery.data?.terrain_counts]);
 
   const bestDot = React.useCallback((props: any) => {
     const cx = props?.cx;
@@ -673,7 +751,7 @@ export default function ProgressPage() {
                   </ResponsiveContainer>
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">
-                  Axe Y dynamique: plage robuste (P5-P95) avec marge +/-5% pour limiter l impact des valeurs extremes.
+                  Axe Y dynamique: plage robuste (P10-P90) avec marge +/-10% pour limiter l impact des valeurs extremes.
                 </div>
               </>
             )}
@@ -838,6 +916,16 @@ export default function ProgressPage() {
                         }}
                         labelFormatter={(label: any) => formatDateLabel(Number(label))}
                       />
+                      <Line
+                        type="monotone"
+                        dataKey="mean_trend"
+                        name="Moyenne lissee"
+                        stroke="#000000"
+                        strokeWidth={1}
+                        dot={false}
+                        isAnimationActive={false}
+                        connectNulls
+                      />
                       {hrAtPaceMeta.map((m, idx) => (
                         <Line
                           key={m.key}
@@ -900,6 +988,16 @@ export default function ProgressPage() {
                         }}
                         labelFormatter={(label: any) => formatDateLabel(Number(label))}
                       />
+                      <Line
+                        type="monotone"
+                        dataKey="mean_trend"
+                        name="Moyenne lissee"
+                        stroke="#000000"
+                        strokeWidth={1}
+                        dot={false}
+                        isAnimationActive={false}
+                        connectNulls
+                      />
                       {paceAtHrMeta.map((m, idx) => (
                         <Line
                           key={m.key}
@@ -920,6 +1018,141 @@ export default function ProgressPage() {
             </CardContent>
           </Card>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-base">Taxonomie des seances</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {taxonomyQuery.isLoading ? (
+                <div className="text-muted-foreground">Chargement...</div>
+              ) : taxonomyQuery.error ? (
+                <div className="text-sm text-red-600">Erreur de chargement.</div>
+              ) : (
+                <div className="space-y-3 text-sm">
+                  <div className="text-muted-foreground">
+                    Activites taggees: {taxonomyQuery.data?.total_tagged ?? 0} - race markers: {taxonomyQuery.data?.race_markers ?? 0}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {sessionTaxonomy.map((row) => (
+                      <div key={`session-${row.tag}`} className="flex items-center justify-between rounded border bg-background/70 px-2 py-1">
+                        <span>{row.tag}</span>
+                        <span className="font-medium tabular-nums">{row.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {terrainTaxonomy.map((row) => (
+                      <div key={`terrain-${row.tag}`} className="flex items-center justify-between rounded border bg-background/70 px-2 py-1">
+                        <span>{row.tag}</span>
+                        <span className="font-medium tabular-nums">{row.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-base">Comparaisons like-for-like</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="text-sm text-muted-foreground space-y-1">
+                <div>- Filtre par type de seance (easy/tempo/interval/long_run).</div>
+                <div>- Filtre par terrain (flat/rolling/hilly).</div>
+                <div>- Option endurance-only pour exclure les intervalles.</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader className="py-3 px-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="text-base">Pace-HR Waterfall 3D</CardTitle>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                <label className="flex items-center gap-2">
+                  Limit
+                  <select
+                    className="h-8 rounded-md border bg-background px-2 text-sm"
+                    value={waterfallLimit}
+                    onChange={(e) => setWaterfallLimit(Number(e.target.value) as 10 | 30 | 60)}
+                  >
+                    <option value={10}>10</option>
+                    <option value={30}>30</option>
+                    <option value={60}>60</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-2">
+                  Bin step
+                  <select
+                    className="h-8 rounded-md border bg-background px-2 text-sm"
+                    value={waterfallBinStep}
+                    onChange={(e) => setWaterfallBinStep(Number(e.target.value) as 5 | 10)}
+                  >
+                    <option value={5}>5s</option>
+                    <option value={10}>10s</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-2">
+                  Session
+                  <select
+                    className="h-8 rounded-md border bg-background px-2 text-sm"
+                    value={waterfallSessionTag}
+                    onChange={(e) => setWaterfallSessionTag(e.target.value as 'all' | ProgressSessionTag)}
+                  >
+                    {SESSION_FILTER_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2">
+                  Terrain
+                  <select
+                    className="h-8 rounded-md border bg-background px-2 text-sm"
+                    value={waterfallTerrainTag}
+                    onChange={(e) => setWaterfallTerrainTag(e.target.value as 'all' | ProgressTerrainTag)}
+                  >
+                    {TERRAIN_FILTER_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={waterfallEnduranceOnly}
+                    onChange={(e) => setWaterfallEnduranceOnly(e.target.checked)}
+                  />
+                  Endurance only
+                </label>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {waterfallQuery.isLoading ? (
+              <div className="text-muted-foreground">Chargement...</div>
+            ) : waterfallQuery.error ? (
+              <div className="text-sm text-red-600">Erreur de chargement.</div>
+            ) : (waterfallQuery.data?.activities?.length ?? 0) === 0 ? (
+              <div className="text-muted-foreground">Pas assez de donnees pour afficher le waterfall 3D avec les filtres actuels.</div>
+            ) : (
+              <>
+                <PaceHr3DChart activities={waterfallQuery.data?.activities ?? []} />
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Les courbes sont ordonnees de l ancien au recent (gris vers rouge). A allure equivalente, une FC plus basse indique une progression.
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
