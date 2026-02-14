@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -39,3 +39,20 @@ def make_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 def init_db(engine: Engine) -> None:
     Base.metadata.create_all(bind=engine)
+
+    # Lightweight migrations for SQLite (local default): add new nullable columns
+    # without requiring users to delete their DB.
+    try:
+        if engine.dialect.name == "sqlite":
+            with engine.begin() as conn:
+                cols = [
+                    str(row[1])
+                    for row in conn.execute(text("PRAGMA table_info(activities)"))
+                ]
+                if "progress_indexed_at_utc" not in cols:
+                    conn.execute(text("ALTER TABLE activities ADD COLUMN progress_indexed_at_utc TEXT"))
+                if "progress_rollup_path" not in cols:
+                    conn.execute(text("ALTER TABLE activities ADD COLUMN progress_rollup_path TEXT"))
+    except Exception:
+        # Best-effort: app should stay usable even if migrations fail.
+        pass
