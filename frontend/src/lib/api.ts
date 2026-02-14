@@ -11,6 +11,14 @@ import {
   GarminCredentialsStatusResponse,
   GarminStatusResponse,
   GarminSyncResponse,
+  ProgressActivitiesResponse,
+  ProgressAgg,
+  ProgressBestEffortKind,
+  ProgressBestEffortsResponse,
+  ProgressGroupBy,
+  ProgressSeriesMetric,
+  ProgressSeriesResponse,
+  ProgressType,
 } from '@/types/api';
 
 // Base URL strategy:
@@ -207,4 +215,57 @@ export const mapApi = {
 
 export const healthApi = {
   check: async () => apiRequest<{ status: string; storage: string; registry: string }>('/health'),
+};
+
+export const progressApi = {
+  verify: async () => apiRequest<{ running: boolean }>('/progress/verify', { method: 'POST' }),
+
+  series: async (params: {
+    metric: ProgressSeriesMetric;
+    group_by: ProgressGroupBy;
+    agg: ProgressAgg;
+    from: string;
+    to: string;
+    type: ProgressType;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.append('metric', params.metric);
+    sp.append('group_by', params.group_by);
+    sp.append('agg', params.agg);
+    sp.append('from', params.from);
+    sp.append('to', params.to);
+    sp.append('type', params.type);
+
+    return apiRequest<ProgressSeriesResponse>(`/progress/series?${sp.toString()}`);
+  },
+
+  bestEfforts: async (params: {
+    kind: ProgressBestEffortKind;
+    duration_s: number;
+    from: string;
+    to: string;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.append('kind', params.kind);
+    sp.append('duration_s', String(params.duration_s));
+    sp.append('from', params.from);
+    sp.append('to', params.to);
+
+    return apiRequest<ProgressBestEffortsResponse>(`/progress/best-efforts?${sp.toString()}`);
+  },
+
+  activities: async (params: {
+    from: string;
+    to: string;
+    type: ProgressType;
+    limit?: number;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.append('from', params.from);
+    sp.append('to', params.to);
+    sp.append('type', params.type);
+    if (typeof params.limit === 'number') sp.append('limit', String(params.limit));
+
+    return apiRequest<ProgressActivitiesResponse>(`/progress/activities?${sp.toString()}`);
+  },
 };

@@ -181,3 +181,66 @@ export interface ChartData {
 export type TimeUnit = 'seconds' | 'minutes' | 'hours';
 export type DistanceUnit = 'meters' | 'kilometers' | 'miles';
 export type PaceUnit = 's_per_km' | 'min_per_km' | 'min_per_mile';
+
+// Progression (/progress/*)
+export type ProgressType = 'real' | 'theoretical';
+export type ProgressGroupBy = 'day' | 'week' | 'month';
+export type ProgressAgg = 'sum' | 'avg';
+export type ProgressSeriesMetric =
+  | 'distance_m'
+  | 'moving_time_s'
+  | 'elapsed_time_s'
+  | 'elevation_gain_m'
+  | 'trimp'
+  | 'aerobic_efficiency_m_s_per_bpm'
+  | 'decoupling_pct'
+  | (string & {});
+
+export interface ProgressSeriesPoint {
+  bucket_start: string;
+  value: number;
+}
+
+export type ProgressSeriesResponse = ProgressSeriesPoint[];
+
+export type ProgressBestEffortKind = 'pace_s_per_km' | (string & {});
+
+export interface ProgressBestEffortPoint {
+  activity_id: string;
+  start_ts_utc: string;
+  value: number;
+  is_pr: boolean;
+}
+
+export interface ProgressBestEffortsResponse {
+  points: ProgressBestEffortPoint[];
+}
+
+export interface ProgressActivity {
+  activity_id: string;
+  activity_type: ProgressType | string;
+  start_ts_utc: string;
+  distance_m: number | null;
+  moving_time_s: number | null;
+  elapsed_time_s: number | null;
+  elevation_gain_m: number | null;
+  avg_pace_s_per_km: number | null;
+  best_pace_s_per_km: number | null;
+  pace_threshold_s_per_km: number | null;
+  avg_hr_bpm: number | null;
+  max_hr_bpm: number | null;
+  trimp: number | null;
+  training_load_method: string | null;
+  aerobic_efficiency_m_s_per_bpm: number | null;
+  decoupling_pct: number | null;
+  stability_cv: number | null;
+  stability_iqr_ratio: number | null;
+  has_hr: boolean;
+  has_power: boolean;
+  has_cadence: boolean;
+  data_points: number | null;
+}
+
+export interface ProgressActivitiesResponse {
+  activities: ProgressActivity[];
+}
