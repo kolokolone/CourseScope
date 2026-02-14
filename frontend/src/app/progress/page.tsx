@@ -11,9 +11,9 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  Legend,
   ResponsiveContainer,
   Scatter,
-  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
@@ -87,6 +87,43 @@ function formatDateLabel(ms: number) {
 function finiteNumber(value: unknown): number | null {
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function quantile(sorted: number[], q: number): number {
+  if (sorted.length === 0) return NaN;
+  if (sorted.length === 1) return sorted[0];
+  const pos = Math.min(sorted.length - 1, Math.max(0, q * (sorted.length - 1)));
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  const t = pos - lo;
+  return sorted[lo] * (1 - t) + sorted[hi] * t;
+}
+
+function paddedDomain(
+  values: number[],
+  opts?: { paddingRatio?: number; robustQuantiles?: [number, number] }
+): [number, number] {
+  const valid = values.filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+  if (valid.length === 0) return [0, 1];
+
+  let min = valid[0];
+  let max = valid[valid.length - 1];
+  const robust = opts?.robustQuantiles;
+  if (robust) {
+    const [qLow, qHigh] = robust;
+    const lo = quantile(valid, qLow);
+    const hi = quantile(valid, qHigh);
+    if (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo) {
+      min = lo;
+      max = hi;
+    }
+  }
+
+  const ratio = opts?.paddingRatio ?? 0.05;
+  const span = max - min;
+  const pad = span > 0 ? span * ratio : Math.max(1, Math.abs(max || 1) * ratio);
+  return [min - pad, max + pad];
 }
 
 type VolumeMetricSpec = {
@@ -268,6 +305,11 @@ export default function ProgressPage() {
       .filter((p) => p.dateMs > 0 && Number.isFinite(p.value));
   }, [bestQuery.data?.points]);
 
+  const bestYAxisDomain = React.useMemo(
+    () => paddedDomain(bestData.map((p) => p.value), { paddingRatio: 0.05, robustQuantiles: [0.05, 0.95] }),
+    [bestData]
+  );
+
   const hrAtPaceMeta = React.useMemo(
     () =>
       (hrAtPaceQuery.data?.series ?? []).map((s) => ({
@@ -320,6 +362,28 @@ export default function ProgressPage() {
     return [...byDate.values()].sort((a, b) => Number(a.dateMs) - Number(b.dateMs));
   }, [paceAtHrQuery.data?.series]);
 
+  const hrAtPaceDomain = React.useMemo(() => {
+    const vals: number[] = [];
+    for (const row of hrAtPaceData) {
+      for (const meta of hrAtPaceMeta) {
+        const v = finiteNumber((row as Record<string, unknown>)[meta.key]);
+        if (v !== null) vals.push(v);
+      }
+    }
+    return paddedDomain(vals, { paddingRatio: 0.05 });
+  }, [hrAtPaceData, hrAtPaceMeta]);
+
+  const paceAtHrDomain = React.useMemo(() => {
+    const vals: number[] = [];
+    for (const row of paceAtHrData) {
+      for (const meta of paceAtHrMeta) {
+        const v = finiteNumber((row as Record<string, unknown>)[meta.key]);
+        if (v !== null) vals.push(v);
+      }
+    }
+    return paddedDomain(vals, { paddingRatio: 0.05, robustQuantiles: [0.05, 0.95] });
+  }, [paceAtHrData, paceAtHrMeta]);
+
   const { efPoints, decouplingPoints } = React.useMemo(() => {
     const items: ProgressActivity[] = activitiesQuery.data?.activities ?? [];
 
@@ -337,6 +401,24 @@ export default function ProgressPage() {
     dec.sort((a, b) => a.dateMs - b.dateMs);
     return { efPoints: ef, decouplingPoints: dec };
   }, [activitiesQuery.data?.activities]);
+
+  const efDataWithTrend = React.useMemo(() => {
+    const vals = efPoints.map((p) => p.ef);
+    const trend = rollingMean(vals, 7);
+    return efPoints.map((p, idx) => ({ ...p, trend: trend[idx] }));
+  }, [efPoints]);
+
+  const decouplingDataWithTrend = React.useMemo(() => {
+    const vals = decouplingPoints.map((p) => p.dec);
+    const trend = rollingMean(vals, 7);
+    return decouplingPoints.map((p, idx) => ({ ...p, trend: trend[idx] }));
+  }, [decouplingPoints]);
+
+  const efDomain = React.useMemo(() => paddedDomain(efPoints.map((p) => p.ef), { paddingRatio: 0.05 }), [efPoints]);
+  const decouplingDomain = React.useMemo(
+    () => paddedDomain(decouplingPoints.map((p) => p.dec), { paddingRatio: 0.05 }),
+    [decouplingPoints]
+  );
 
   const bestDot = React.useCallback((props: any) => {
     const cx = props?.cx;
@@ -547,9 +629,10 @@ export default function ProgressPage() {
             ) : bestData.length === 0 ? (
               <div className="text-muted-foreground">Aucun best-effort disponible.</div>
             ) : (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={bestData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={bestData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                     <XAxis
                       dataKey="dateMs"
@@ -563,6 +646,7 @@ export default function ProgressPage() {
                       minTickGap={16}
                     />
                     <YAxis
+                      domain={bestYAxisDomain}
                       tick={{ fontSize: 11 }}
                       reversed
                       tickFormatter={(v: any) => formatPaceSecondsPerKm(Number(v))}
@@ -579,14 +663,19 @@ export default function ProgressPage() {
                       dataKey="value"
                       stroke="#0f172a"
                       strokeWidth={2}
-                      fill="rgba(15,23,42,0.10)"
+                      fill="rgba(15,23,42,0.14)"
+                      baseValue="dataMax"
                       dot={bestDot}
                       isAnimationActive={false}
                       connectNulls
                     />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Axe Y dynamique: plage robuste (P5-P95) avec marge +/-5% pour limiter l impact des valeurs extremes.
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -606,7 +695,7 @@ export default function ProgressPage() {
               ) : (
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <ComposedChart data={efDataWithTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                       <XAxis
                         dataKey="dateMs"
@@ -621,18 +710,28 @@ export default function ProgressPage() {
                       />
                       <YAxis
                         dataKey="ef"
+                        domain={efDomain}
                         tick={{ fontSize: 11 }}
                         tickFormatter={(v: any) => formatNumber(Number(v), { decimals: 3 })}
                       />
                       <Tooltip
                         formatter={(value: any) => {
                           const n = finiteNumber(value);
-                          return [n === null ? '—' : formatNumber(n, { decimals: 3 }), 'EF'];
+                          return [n === null ? '—' : formatNumber(n, { decimals: 3 }), 'Valeur'];
                         }}
                         labelFormatter={(label: any) => formatDateLabel(Number(label))}
                       />
-                      <Scatter data={efPoints} fill="#0f172a" opacity={0.7} />
-                    </ScatterChart>
+                      <Line
+                        type="monotone"
+                        dataKey="trend"
+                        stroke="#000000"
+                        strokeWidth={1}
+                        dot={false}
+                        isAnimationActive={false}
+                        connectNulls
+                      />
+                      <Scatter dataKey="ef" fill="#0f172a" opacity={0.7} />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               )}
@@ -653,7 +752,7 @@ export default function ProgressPage() {
               ) : (
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <ComposedChart data={decouplingDataWithTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                       <XAxis
                         dataKey="dateMs"
@@ -666,16 +765,30 @@ export default function ProgressPage() {
                         }}
                         minTickGap={16}
                       />
-                      <YAxis dataKey="dec" tick={{ fontSize: 11 }} tickFormatter={(v: any) => `${formatNumber(Number(v), { decimals: 1 })}%`} />
+                      <YAxis
+                        dataKey="dec"
+                        domain={decouplingDomain}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v: any) => `${formatNumber(Number(v), { decimals: 1 })}%`}
+                      />
                       <Tooltip
                         formatter={(value: any) => {
                           const n = finiteNumber(value);
-                          return [n === null ? '—' : `${formatNumber(n, { decimals: 1 })}%`, 'Drift'];
+                          return [n === null ? '—' : `${formatNumber(n, { decimals: 1 })}%`, 'Valeur'];
                         }}
                         labelFormatter={(label: any) => formatDateLabel(Number(label))}
                       />
-                      <Scatter data={decouplingPoints} fill="#64748b" opacity={0.7} />
-                    </ScatterChart>
+                      <Line
+                        type="monotone"
+                        dataKey="trend"
+                        stroke="#000000"
+                        strokeWidth={1}
+                        dot={false}
+                        isAnimationActive={false}
+                        connectNulls
+                      />
+                      <Scatter dataKey="dec" fill="#64748b" opacity={0.7} />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               )}
@@ -711,7 +824,12 @@ export default function ProgressPage() {
                         }}
                         minTickGap={16}
                       />
-                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: any) => formatNumber(Number(v), { integer: true })} />
+                      <YAxis
+                        domain={hrAtPaceDomain}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v: any) => formatNumber(Number(v), { integer: true })}
+                      />
+                      <Legend verticalAlign="top" align="right" iconType="line" wrapperStyle={{ fontSize: 11 }} />
                       <Tooltip
                         formatter={(value: any, name: any) => {
                           const n = finiteNumber(value);
@@ -725,6 +843,7 @@ export default function ProgressPage() {
                           key={m.key}
                           type="monotone"
                           dataKey={m.key}
+                          name={m.label}
                           stroke={SERIES_COLORS[idx % SERIES_COLORS.length]}
                           strokeWidth={2}
                           dot={false}
@@ -766,7 +885,13 @@ export default function ProgressPage() {
                         }}
                         minTickGap={16}
                       />
-                      <YAxis reversed tick={{ fontSize: 11 }} tickFormatter={(v: any) => formatPaceSecondsPerKm(Number(v))} />
+                      <YAxis
+                        domain={paceAtHrDomain}
+                        reversed
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v: any) => formatPaceSecondsPerKm(Number(v))}
+                      />
+                      <Legend verticalAlign="top" align="right" iconType="line" wrapperStyle={{ fontSize: 11 }} />
                       <Tooltip
                         formatter={(value: any, name: any) => {
                           const n = finiteNumber(value);
@@ -780,6 +905,7 @@ export default function ProgressPage() {
                           key={m.key}
                           type="monotone"
                           dataKey={m.key}
+                          name={m.label}
                           stroke={SERIES_COLORS[idx % SERIES_COLORS.length]}
                           strokeWidth={2}
                           dot={false}

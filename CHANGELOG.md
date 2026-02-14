@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.63] - 2026-02-14
+
+### Changed
+- Progression charts: dynamic Y-axis domains (+/-5% padding) for Best effort, EF, Decoupling, HR@pace and Pace@HR to keep each chart focused on relevant ranges.
+- Progression charts: added thin black trend lines on EF and Decoupling scatter charts.
+- Progression charts: added legends on HR@pace and Pace@HR charts.
+- Best effort chart: switched area fill to render below the pace curve (with reversed pace axis) and applied robust Y-domain strategy (P5-P95 + 5% padding) to limit extreme-value distortion.
+
 ## [1.1.62] - 2026-02-14
 
 ### Changed
