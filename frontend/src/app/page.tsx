@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useActivityList } from '@/hooks/useActivity';
 import { formatNumber } from '@/lib/metricsFormat';
-import { Activity, Settings } from 'lucide-react';
+import { Activity, Settings, TrendingUp } from 'lucide-react';
 
 const PERSIST_UPLOADS_KEY = 'coursescope.persist_uploads_to_disk';
 
@@ -49,6 +49,12 @@ export default function HomePage() {
             </div>
             <div className="flex gap-2">
               <Button asChild variant="outline" size="sm">
+                <Link href="/progress">
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Progression
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
                 <Link href="/settings">
                   <Settings className="h-4 w-4 mr-2" />
                   Parametres
@@ -84,9 +90,17 @@ export default function HomePage() {
                 <Activity className="h-4 w-4" />
                 Historique d'activites
               </CardTitle>
-              <Button asChild size="sm" variant="outline">
-                <Link href="/activities">Afficher toutes les activites</Link>
-              </Button>
+              <div className="flex gap-2">
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/activities">Afficher toutes les activites</Link>
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/progress">
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Progression
+                  </Link>
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">

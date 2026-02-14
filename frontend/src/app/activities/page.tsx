@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
 import type { ActivityMetadata } from '@/types/api';
-import { Activity, RefreshCw, Settings } from 'lucide-react';
+import { Activity, RefreshCw, Settings, TrendingUp } from 'lucide-react';
 import { garminApi } from '@/lib/api';
 import {
   Area,
@@ -168,6 +168,12 @@ export default function ActivitiesPage() {
             <Link href="/">
               <Activity className="h-4 w-4 mr-2" />
               Accueil
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/progress">
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Progression
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
