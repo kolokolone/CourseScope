@@ -12,12 +12,12 @@ from sqlalchemy.orm import Session
 from core.metrics import compute_garmin_like_stats
 from core.real_run_analysis import compute_best_efforts_by_duration, compute_derived_series
 from core.stats.basic_stats import compute_basic_stats
-from db.models import ProgressActivityIndex, ProgressBestEffortPoint, ProgressPaceHrBin
+from db.models import ProgressActivityIndex, ProgressActivityTag, ProgressBestEffortPoint, ProgressPaceHrBin
 from db.progress_repository import ProgressRepository
 from db.models import utc_now_iso
 
 
-METRICS_VERSION = 2
+METRICS_VERSION = 3
 
 
 def _parse_iso_datetime(value: object) -> datetime | None:
@@ -99,6 +99,65 @@ def _weighted_median(values: list[float], weights: list[float]) -> float | None:
         if acc >= cutoff:
             return float(value)
     return float(pairs[-1][0]) if pairs else None
+
+
+def _classify_session_and_terrain(
+    *,
+    activity_type: str,
+    distance_m: float | None,
+    moving_time_s: float | None,
+    elevation_gain_m: float | None,
+    avg_pace_s_per_km: float | None,
+    best_pace_s_per_km: float | None,
+    pace_threshold_s_per_km: float | None,
+    stability_cv: float | None,
+    decoupling_pct: float | None,
+) -> tuple[str, str]:
+    if activity_type != "real":
+        return "unknown", "unknown"
+
+    terrain_tag = "unknown"
+    if distance_m is not None and distance_m > 0 and elevation_gain_m is not None and elevation_gain_m >= 0:
+        gain_per_km = elevation_gain_m / (distance_m / 1000.0)
+        if math.isfinite(gain_per_km):
+            if gain_per_km < 20:
+                terrain_tag = "flat"
+            elif gain_per_km < 60:
+                terrain_tag = "rolling"
+            else:
+                terrain_tag = "hilly"
+
+    session_tag = "easy"
+    is_long = bool((distance_m is not None and distance_m >= 18000) or (moving_time_s is not None and moving_time_s >= 5400))
+    if is_long:
+        session_tag = "long_run"
+    else:
+        pace_ratio = None
+        if avg_pace_s_per_km is not None and avg_pace_s_per_km > 0 and best_pace_s_per_km is not None and best_pace_s_per_km > 0:
+            pace_ratio = best_pace_s_per_km / avg_pace_s_per_km
+
+        threshold_ratio = None
+        if avg_pace_s_per_km is not None and avg_pace_s_per_km > 0 and pace_threshold_s_per_km is not None and pace_threshold_s_per_km > 0:
+            threshold_ratio = avg_pace_s_per_km / pace_threshold_s_per_km
+
+        is_interval = bool(
+            (stability_cv is not None and stability_cv >= 0.16)
+            or (pace_ratio is not None and pace_ratio <= 0.82)
+        )
+
+        is_tempo = bool(
+            (threshold_ratio is not None and 0.92 <= threshold_ratio <= 1.12)
+            and (stability_cv is None or stability_cv <= 0.11)
+            and (decoupling_pct is None or abs(decoupling_pct) <= 8.0)
+            and (moving_time_s is None or moving_time_s >= 1200)
+        )
+
+        if is_interval:
+            session_tag = "interval"
+        elif is_tempo:
+            session_tag = "tempo"
+
+    return session_tag, terrain_tag
 
 
 def _build_pace_hr_bins(
@@ -316,6 +375,30 @@ def index_activity(
         data_points=data_points,
     )
     repo.upsert_activity_index(session, row)
+
+    session_tag, terrain_tag = _classify_session_and_terrain(
+        activity_type=activity_type,
+        distance_m=distance_m,
+        moving_time_s=moving_time_s,
+        elevation_gain_m=elevation_gain_m,
+        avg_pace_s_per_km=avg_pace_s_per_km,
+        best_pace_s_per_km=best_pace_s_per_km,
+        pace_threshold_s_per_km=pace_threshold_s_per_km,
+        stability_cv=stability_cv,
+        decoupling_pct=decoupling_pct,
+    )
+    repo.upsert_activity_tag(
+        session,
+        row=ProgressActivityTag(
+            activity_id=activity_id,
+            session_tag=session_tag,
+            terrain_tag=terrain_tag,
+            race_marker=0,
+            source="auto",
+            updated_at_ts=indexed_at_ts,
+        ),
+        preserve_manual=True,
+    )
 
     # Best-efforts timeline (pace) for standard durations.
     durations_s = [60, 180, 300, 720, 1200, 1800, 3600]

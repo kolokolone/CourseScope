@@ -155,3 +155,19 @@ class ProgressPaceHrBin(Base):
 
     hr_mean_w_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
     hr_q50_w_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class ProgressActivityTag(Base):
+    __tablename__ = "progress_activity_tags"
+    __table_args__ = (
+        Index("ix_progress_tags_session", "session_tag"),
+        Index("ix_progress_tags_terrain", "terrain_tag"),
+        Index("ix_progress_tags_race", "race_marker"),
+    )
+
+    activity_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    session_tag: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    terrain_tag: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    race_marker: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="auto")
+    updated_at_ts: Mapped[str] = mapped_column(Text, nullable=False)
