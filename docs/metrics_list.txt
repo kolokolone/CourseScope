@@ -1,4 +1,4 @@
-# CourseScope - Metrics file-only (v1.1.48)
+# CourseScope - Metrics file-only (v1.1.64)
 
 Toutes les metriques ci-dessous sont calculees a partir d'un seul fichier GPX/FIT uploade.
 Certaines metriques sont conditionnelles aux champs disponibles (ex: HR, power, cadence).

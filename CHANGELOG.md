@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.64] - 2026-02-14
+
+### Changed
+- Progression: Phase 3 adds session taxonomy (easy/tempo/interval/long_run), terrain tags (flat/rolling/hilly), and optional race/test markers (auto + manual override).
+- Progression: added Pace-HR Waterfall 3D (WebGL) with like-for-like filters and server-side binned curves for efficient rendering.
+- Progression charts: adjusted smoothing and robust axis domains (Best effort now uses P10-P90 +/-10%).
+- Docs: updated metrics catalog/list with progression endpoints and computed artifacts.
+
 ## [1.1.63] - 2026-02-14
 
 ### Changed

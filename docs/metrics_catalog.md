@@ -342,3 +342,107 @@ See `docs/metrics_list.txt` for a categorized list of all file-only metrics.
 | `limits.downsampled` | bool | - | downsampled |
 | `limits.original_points` | int | - | original points |
 | `limits.note` | string | - | note |
+
+## Progression API (GET /progress/*)
+
+Progression endpoints are backed by the SQLite progression index (computed artifacts). They are designed for dashboard queries and support optional filtering.
+
+### Index verification (POST /progress/verify, GET /progress/verify-status)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `running` | bool | - | background indexing/verification is running |
+| `last_started_at_utc` | string\|null | - | ISO UTC timestamp |
+| `last_finished_at_utc` | string\|null | - | ISO UTC timestamp |
+| `last_error` | string\|null | - | last error message |
+| `last_result.scanned` | int | - | activities scanned |
+| `last_result.indexed` | int | - | activities reindexed |
+| `last_result.up_to_date` | int | - | activities already up-to-date |
+| `last_result.errors` | int | - | errors encountered |
+
+### Indexed activities list (GET /progress/activities)
+
+Query params:
+- `from`, `to` (date or ISO datetime)
+- `type` (`real`/`theoretical`)
+- `limit` (max rows)
+- `session_tag`, `terrain_tag`, `race_marker` (optional filters)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `activities[].activity_id` | string | - | UUID |
+| `activities[].start_ts_utc` | string | - | ISO UTC timestamp |
+| `activities[].distance_m` | float\|null | m | distance |
+| `activities[].moving_time_s` | float\|null | s | moving time |
+| `activities[].elapsed_time_s` | float\|null | s | elapsed time |
+| `activities[].elevation_gain_m` | float\|null | m | elevation gain |
+| `activities[].avg_pace_s_per_km` | float\|null | s/km | average pace |
+| `activities[].best_pace_s_per_km` | float\|null | s/km | best pace |
+| `activities[].pace_threshold_s_per_km` | float\|null | s/km | threshold proxy |
+| `activities[].avg_hr_bpm` | float\|null | bpm | average HR |
+| `activities[].max_hr_bpm` | float\|null | bpm | max HR |
+| `activities[].trimp` | float\|null | - | TRIMP |
+| `activities[].aerobic_efficiency_m_s_per_bpm` | float\|null | m/s/bpm | aerobic efficiency |
+| `activities[].decoupling_pct` | float\|null | % | cardiac drift (alias) |
+| `activities[].stability_cv` | float\|null | - | pacing stability CV |
+| `activities[].stability_iqr_ratio` | float\|null | - | pacing stability IQR ratio |
+| `activities[].has_hr` | bool | - | HR sensor present |
+| `activities[].has_power` | bool | - | power sensor present |
+| `activities[].has_cadence` | bool | - | cadence present |
+| `activities[].data_points` | int\|null | - | stored points count |
+| `activities[].session_tag` | string\|null | - | session taxonomy tag |
+| `activities[].terrain_tag` | string\|null | - | terrain taxonomy tag |
+| `activities[].race_marker` | bool | - | race/test day marker |
+| `activities[].tag_source` | string\|null | - | `auto` or `manual` |
+
+### Series aggregation (GET /progress/series)
+
+Returns: `[ { bucket_start: 'YYYY-MM-DD', value: number } ]`.
+
+### Best efforts timeline (GET /progress/best-efforts)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `points[].start_ts_utc` | string | - | ISO UTC timestamp |
+| `points[].value` | float | s/km | best-effort pace |
+| `points[].is_pr` | bool | - | running PR flag |
+
+### HR at fixed pace / Pace at fixed HR (GET /progress/hr-at-pace, GET /progress/pace-at-hr)
+
+Optional like-for-like filters: `session_tag`, `terrain_tag`, `endurance_only`.
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `series[].pace_s_per_km` | float | s/km | reference pace |
+| `series[].hr_bpm` | float | bpm | reference HR |
+| `series[].points[].value` | float | bpm or s/km | interpolated value |
+
+### Session taxonomy (GET /progress/session-taxonomy)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `session_counts[].tag` | string | - | session tag |
+| `session_counts[].count` | int | - | count |
+| `terrain_counts[].tag` | string | - | terrain tag |
+| `terrain_counts[].count` | int | - | count |
+| `race_markers` | int | - | activities marked as race |
+| `total_tagged` | int | - | total activities with a tag row |
+
+### Manual tag upsert (POST /progress/tags)
+
+Request: `{ activity_id, session_tag?, terrain_tag?, race_marker? }`.
+Response: `{ ok, activity_id }`.
+
+### Pace-HR Waterfall (GET /progress/pace-hr-waterfall)
+
+Returns binned Pace\u2194HR curves per activity for 3D rendering.
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `activities[].start_ts_utc` | string | - | ISO UTC timestamp |
+| `activities[].session_tag` | string | - | session tag |
+| `activities[].terrain_tag` | string | - | terrain tag |
+| `activities[].race_marker` | bool | - | race marker |
+| `activities[].points[].pace_bin_s_per_km` | float | s/km | pace bin |
+| `activities[].points[].hr_bpm` | float | bpm | aggregated HR |
+| `activities[].points[].time_s_bin` | float | s | time weight |
