@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from backend.api.main import app
 
 
-def _insert_rows(client: TestClient, rows, best_efforts, pace_hr_bins):
+def _insert_rows(client: TestClient, rows, best_efforts, pace_hr_bins, tags):
     factory = getattr(client.app.state, "db_session_factory", None)
     assert factory is not None
     session = factory()
@@ -14,6 +14,8 @@ def _insert_rows(client: TestClient, rows, best_efforts, pace_hr_bins):
             session.add(p)
         for b in pace_hr_bins:
             session.add(b)
+        for t in tags:
+            session.add(t)
         session.commit()
     finally:
         session.close()
@@ -22,7 +24,7 @@ def _insert_rows(client: TestClient, rows, best_efforts, pace_hr_bins):
 def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
     monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
 
-    from backend.db.models import ProgressActivityIndex, ProgressBestEffortPoint, ProgressPaceHrBin
+    from backend.db.models import ProgressActivityIndex, ProgressActivityTag, ProgressBestEffortPoint, ProgressPaceHrBin
 
     with TestClient(app) as client:
         rows = [
@@ -199,7 +201,34 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
             ),
         ]
 
-        _insert_rows(client, rows, points, bins)
+        tags = [
+            ProgressActivityTag(
+                activity_id="a1",
+                session_tag="easy",
+                terrain_tag="flat",
+                race_marker=0,
+                source="auto",
+                updated_at_ts="2026-02-03T10:00:00Z",
+            ),
+            ProgressActivityTag(
+                activity_id="a2",
+                session_tag="tempo",
+                terrain_tag="rolling",
+                race_marker=0,
+                source="auto",
+                updated_at_ts="2026-02-04T10:00:00Z",
+            ),
+            ProgressActivityTag(
+                activity_id="a3",
+                session_tag="long_run",
+                terrain_tag="hilly",
+                race_marker=1,
+                source="manual",
+                updated_at_ts="2026-02-10T10:00:00Z",
+            ),
+        ]
+
+        _insert_rows(client, rows, points, bins, tags)
 
         series = client.get(
             "/progress/series",
@@ -231,6 +260,7 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
         assert acts.status_code == 200
         acts_payload = acts.json()
         assert len(acts_payload["activities"]) == 3
+        assert acts_payload["activities"][0]["session_tag"] == "easy"
 
         hr_at_pace = client.get(
             "/progress/hr-at-pace",
@@ -251,6 +281,42 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
         assert len(pace_payload["series"]) == 1
         assert pace_payload["series"][0]["hr_bpm"] == 145.0
         assert len(pace_payload["series"][0]["points"]) == 3
+
+        taxonomy = client.get("/progress/session-taxonomy", params={"from": "2026-02-01", "to": "2026-02-28"})
+        assert taxonomy.status_code == 200
+        tax_payload = taxonomy.json()
+        assert tax_payload["total_tagged"] == 3
+        assert tax_payload["race_markers"] == 1
+
+        waterfall = client.get(
+            "/progress/pace-hr-waterfall",
+            params={
+                "from": "2026-02-01",
+                "to": "2026-02-28",
+                "limit": 30,
+                "bin_step_s_per_km": 10,
+                "session_tag": "easy",
+            },
+        )
+        assert waterfall.status_code == 200
+        w_payload = waterfall.json()
+        assert len(w_payload["activities"]) == 1
+        assert w_payload["activities"][0]["activity_id"] == "a1"
+
+        tag_update = client.post(
+            "/progress/tags",
+            json={"activity_id": "a2", "session_tag": "interval", "race_marker": True},
+        )
+        assert tag_update.status_code == 200
+
+        acts_filtered = client.get(
+            "/progress/activities",
+            params={"from": "2026-02-01", "to": "2026-02-28", "session_tag": "interval", "race_marker": "true"},
+        )
+        assert acts_filtered.status_code == 200
+        filtered_payload = acts_filtered.json()
+        assert len(filtered_payload["activities"]) == 1
+        assert filtered_payload["activities"][0]["activity_id"] == "a2"
 
 
 def test_progress_verify_status_endpoint(tmp_path, monkeypatch):
