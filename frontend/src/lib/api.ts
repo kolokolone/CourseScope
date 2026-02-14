@@ -18,8 +18,12 @@ import {
   ProgressGroupBy,
   ProgressSeriesMetric,
   ProgressSeriesResponse,
+  ProgressSessionTag,
+  ProgressSessionTaxonomyResponse,
+  ProgressTerrainTag,
   ProgressType,
   ProgressHrAtPaceResponse,
+  ProgressPaceHrWaterfallResponse,
   ProgressPaceAtHrResponse,
   ProgressVerifyResponse,
 } from '@/types/api';
@@ -230,6 +234,9 @@ export const progressApi = {
     from: string;
     to: string;
     type?: ProgressType;
+    session_tag?: ProgressSessionTag;
+    terrain_tag?: ProgressTerrainTag;
+    endurance_only?: boolean;
   }) => {
     const sp = new URLSearchParams();
     sp.append('from', params.from);
@@ -238,6 +245,9 @@ export const progressApi = {
     if (params.paces_s_per_km && params.paces_s_per_km.length > 0) {
       sp.append('paces_s_per_km', params.paces_s_per_km.join(','));
     }
+    if (params.session_tag) sp.append('session_tag', params.session_tag);
+    if (params.terrain_tag) sp.append('terrain_tag', params.terrain_tag);
+    if (params.endurance_only) sp.append('endurance_only', 'true');
     return apiRequest<ProgressHrAtPaceResponse>(`/progress/hr-at-pace?${sp.toString()}`);
   },
 
@@ -246,6 +256,9 @@ export const progressApi = {
     from: string;
     to: string;
     type?: ProgressType;
+    session_tag?: ProgressSessionTag;
+    terrain_tag?: ProgressTerrainTag;
+    endurance_only?: boolean;
   }) => {
     const sp = new URLSearchParams();
     sp.append('from', params.from);
@@ -254,7 +267,55 @@ export const progressApi = {
     if (params.hrs_bpm && params.hrs_bpm.length > 0) {
       sp.append('hrs_bpm', params.hrs_bpm.join(','));
     }
+    if (params.session_tag) sp.append('session_tag', params.session_tag);
+    if (params.terrain_tag) sp.append('terrain_tag', params.terrain_tag);
+    if (params.endurance_only) sp.append('endurance_only', 'true');
     return apiRequest<ProgressPaceAtHrResponse>(`/progress/pace-at-hr?${sp.toString()}`);
+  },
+
+  sessionTaxonomy: async (params: {
+    from: string;
+    to: string;
+    type?: ProgressType;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.append('from', params.from);
+    sp.append('to', params.to);
+    sp.append('type', params.type ?? 'real');
+    return apiRequest<ProgressSessionTaxonomyResponse>(`/progress/session-taxonomy?${sp.toString()}`);
+  },
+
+  setTag: async (payload: {
+    activity_id: string;
+    session_tag?: ProgressSessionTag;
+    terrain_tag?: ProgressTerrainTag;
+    race_marker?: boolean;
+  }) =>
+    apiRequest<{ ok: boolean; activity_id: string }>('/progress/tags', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  paceHrWaterfall: async (params: {
+    from: string;
+    to: string;
+    type?: ProgressType;
+    limit?: number;
+    bin_step_s_per_km?: 5 | 10;
+    session_tag?: ProgressSessionTag;
+    terrain_tag?: ProgressTerrainTag;
+    endurance_only?: boolean;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.append('from', params.from);
+    sp.append('to', params.to);
+    sp.append('type', params.type ?? 'real');
+    if (typeof params.limit === 'number') sp.append('limit', String(params.limit));
+    if (typeof params.bin_step_s_per_km === 'number') sp.append('bin_step_s_per_km', String(params.bin_step_s_per_km));
+    if (params.session_tag) sp.append('session_tag', params.session_tag);
+    if (params.terrain_tag) sp.append('terrain_tag', params.terrain_tag);
+    if (params.endurance_only) sp.append('endurance_only', 'true');
+    return apiRequest<ProgressPaceHrWaterfallResponse>(`/progress/pace-hr-waterfall?${sp.toString()}`);
   },
 
   series: async (params: {
@@ -296,12 +357,18 @@ export const progressApi = {
     to: string;
     type: ProgressType;
     limit?: number;
+    session_tag?: ProgressSessionTag;
+    terrain_tag?: ProgressTerrainTag;
+    race_marker?: boolean;
   }) => {
     const sp = new URLSearchParams();
     sp.append('from', params.from);
     sp.append('to', params.to);
     sp.append('type', params.type);
     if (typeof params.limit === 'number') sp.append('limit', String(params.limit));
+    if (params.session_tag) sp.append('session_tag', params.session_tag);
+    if (params.terrain_tag) sp.append('terrain_tag', params.terrain_tag);
+    if (typeof params.race_marker === 'boolean') sp.append('race_marker', String(params.race_marker));
 
     return apiRequest<ProgressActivitiesResponse>(`/progress/activities?${sp.toString()}`);
   },

@@ -239,6 +239,10 @@ export interface ProgressActivity {
   has_power: boolean;
   has_cadence: boolean;
   data_points: number | null;
+  session_tag?: ProgressSessionTag | null;
+  terrain_tag?: ProgressTerrainTag | null;
+  race_marker?: boolean;
+  tag_source?: 'auto' | 'manual' | string | null;
 }
 
 export interface ProgressActivitiesResponse {
@@ -282,4 +286,38 @@ export interface ProgressPaceAtHrSeries {
 
 export interface ProgressPaceAtHrResponse {
   series: ProgressPaceAtHrSeries[];
+}
+
+export type ProgressSessionTag = 'easy' | 'tempo' | 'interval' | 'long_run' | 'unknown';
+export type ProgressTerrainTag = 'flat' | 'rolling' | 'hilly' | 'unknown';
+
+export interface ProgressTaxonomyCount {
+  tag: string;
+  count: number;
+}
+
+export interface ProgressSessionTaxonomyResponse {
+  session_counts: ProgressTaxonomyCount[];
+  terrain_counts: ProgressTaxonomyCount[];
+  race_markers: number;
+  total_tagged: number;
+}
+
+export interface ProgressPaceHrWaterfallPoint {
+  pace_bin_s_per_km: number;
+  hr_bpm: number;
+  time_s_bin: number;
+}
+
+export interface ProgressPaceHrWaterfallActivity {
+  activity_id: string;
+  start_ts_utc: string;
+  session_tag: ProgressSessionTag | string;
+  terrain_tag: ProgressTerrainTag | string;
+  race_marker: boolean;
+  points: ProgressPaceHrWaterfallPoint[];
+}
+
+export interface ProgressPaceHrWaterfallResponse {
+  activities: ProgressPaceHrWaterfallActivity[];
 }

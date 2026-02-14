@@ -8,7 +8,11 @@ import type {
   ProgressGroupBy,
   ProgressHrAtPaceResponse,
   ProgressPaceAtHrResponse,
+  ProgressPaceHrWaterfallResponse,
+  ProgressSessionTag,
+  ProgressSessionTaxonomyResponse,
   ProgressSeriesMetric,
+  ProgressTerrainTag,
   ProgressSeriesResponse,
   ProgressType,
 } from '@/types/api';
@@ -25,6 +29,10 @@ export const progressKeys = {
   hrAtPaceQuery: (params: string) => [...progressKeys.hrAtPace(), params] as const,
   paceAtHr: () => [...progressKeys.all, 'pace-at-hr'] as const,
   paceAtHrQuery: (params: string) => [...progressKeys.paceAtHr(), params] as const,
+  sessionTaxonomy: () => [...progressKeys.all, 'session-taxonomy'] as const,
+  sessionTaxonomyQuery: (params: string) => [...progressKeys.sessionTaxonomy(), params] as const,
+  paceHrWaterfall: () => [...progressKeys.all, 'pace-hr-waterfall'] as const,
+  paceHrWaterfallQuery: (params: string) => [...progressKeys.paceHrWaterfall(), params] as const,
 };
 
 export function useProgressSeries(params: {
@@ -66,6 +74,9 @@ export function useProgressActivities(params: {
   to: string;
   type: ProgressType;
   limit?: number;
+  session_tag?: ProgressSessionTag;
+  terrain_tag?: ProgressTerrainTag;
+  race_marker?: boolean;
 }) {
   const paramString = JSON.stringify(params);
 
@@ -82,6 +93,9 @@ export function useProgressHrAtPace(params: {
   from: string;
   to: string;
   type?: ProgressType;
+  session_tag?: ProgressSessionTag;
+  terrain_tag?: ProgressTerrainTag;
+  endurance_only?: boolean;
 }) {
   const paramString = JSON.stringify(params);
 
@@ -98,12 +112,50 @@ export function useProgressPaceAtHr(params: {
   from: string;
   to: string;
   type?: ProgressType;
+  session_tag?: ProgressSessionTag;
+  terrain_tag?: ProgressTerrainTag;
+  endurance_only?: boolean;
 }) {
   const paramString = JSON.stringify(params);
 
   return useQuery({
     queryKey: progressKeys.paceAtHrQuery(paramString),
     queryFn: (): Promise<ProgressPaceAtHrResponse> => progressApi.paceAtHr(params),
+    enabled: Boolean(params.from && params.to),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useProgressSessionTaxonomy(params: {
+  from: string;
+  to: string;
+  type?: ProgressType;
+}) {
+  const paramString = JSON.stringify(params);
+
+  return useQuery({
+    queryKey: progressKeys.sessionTaxonomyQuery(paramString),
+    queryFn: (): Promise<ProgressSessionTaxonomyResponse> => progressApi.sessionTaxonomy(params),
+    enabled: Boolean(params.from && params.to),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useProgressPaceHrWaterfall(params: {
+  from: string;
+  to: string;
+  type?: ProgressType;
+  limit?: number;
+  bin_step_s_per_km?: 5 | 10;
+  session_tag?: ProgressSessionTag;
+  terrain_tag?: ProgressTerrainTag;
+  endurance_only?: boolean;
+}) {
+  const paramString = JSON.stringify(params);
+
+  return useQuery({
+    queryKey: progressKeys.paceHrWaterfallQuery(paramString),
+    queryFn: (): Promise<ProgressPaceHrWaterfallResponse> => progressApi.paceHrWaterfall(params),
     enabled: Boolean(params.from && params.to),
     staleTime: 60 * 1000,
   });
