@@ -19,6 +19,8 @@ import {
   ProgressSeriesMetric,
   ProgressSeriesResponse,
   ProgressType,
+  ProgressHrAtPaceResponse,
+  ProgressPaceAtHrResponse,
   ProgressVerifyResponse,
 } from '@/types/api';
 
@@ -222,6 +224,38 @@ export const progressApi = {
   verify: async () => apiRequest<ProgressVerifyResponse>('/progress/verify', { method: 'POST' }),
 
   verifyStatus: async () => apiRequest<ProgressVerifyResponse>('/progress/verify-status'),
+
+  hrAtPace: async (params: {
+    paces_s_per_km?: number[];
+    from: string;
+    to: string;
+    type?: ProgressType;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.append('from', params.from);
+    sp.append('to', params.to);
+    sp.append('type', params.type ?? 'real');
+    if (params.paces_s_per_km && params.paces_s_per_km.length > 0) {
+      sp.append('paces_s_per_km', params.paces_s_per_km.join(','));
+    }
+    return apiRequest<ProgressHrAtPaceResponse>(`/progress/hr-at-pace?${sp.toString()}`);
+  },
+
+  paceAtHr: async (params: {
+    hrs_bpm?: number[];
+    from: string;
+    to: string;
+    type?: ProgressType;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.append('from', params.from);
+    sp.append('to', params.to);
+    sp.append('type', params.type ?? 'real');
+    if (params.hrs_bpm && params.hrs_bpm.length > 0) {
+      sp.append('hrs_bpm', params.hrs_bpm.join(','));
+    }
+    return apiRequest<ProgressPaceAtHrResponse>(`/progress/pace-at-hr?${sp.toString()}`);
+  },
 
   series: async (params: {
     metric: ProgressSeriesMetric;

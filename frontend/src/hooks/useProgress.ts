@@ -6,6 +6,8 @@ import type {
   ProgressBestEffortKind,
   ProgressBestEffortsResponse,
   ProgressGroupBy,
+  ProgressHrAtPaceResponse,
+  ProgressPaceAtHrResponse,
   ProgressSeriesMetric,
   ProgressSeriesResponse,
   ProgressType,
@@ -19,6 +21,10 @@ export const progressKeys = {
   bestEffortsQuery: (params: string) => [...progressKeys.bestEfforts(), params] as const,
   activities: () => [...progressKeys.all, 'activities'] as const,
   activitiesQuery: (params: string) => [...progressKeys.activities(), params] as const,
+  hrAtPace: () => [...progressKeys.all, 'hr-at-pace'] as const,
+  hrAtPaceQuery: (params: string) => [...progressKeys.hrAtPace(), params] as const,
+  paceAtHr: () => [...progressKeys.all, 'pace-at-hr'] as const,
+  paceAtHrQuery: (params: string) => [...progressKeys.paceAtHr(), params] as const,
 };
 
 export function useProgressSeries(params: {
@@ -67,6 +73,38 @@ export function useProgressActivities(params: {
     queryKey: progressKeys.activitiesQuery(paramString),
     queryFn: (): Promise<ProgressActivitiesResponse> => progressApi.activities(params),
     enabled: Boolean(params.from && params.to && params.type),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useProgressHrAtPace(params: {
+  paces_s_per_km?: number[];
+  from: string;
+  to: string;
+  type?: ProgressType;
+}) {
+  const paramString = JSON.stringify(params);
+
+  return useQuery({
+    queryKey: progressKeys.hrAtPaceQuery(paramString),
+    queryFn: (): Promise<ProgressHrAtPaceResponse> => progressApi.hrAtPace(params),
+    enabled: Boolean(params.from && params.to),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useProgressPaceAtHr(params: {
+  hrs_bpm?: number[];
+  from: string;
+  to: string;
+  type?: ProgressType;
+}) {
+  const paramString = JSON.stringify(params);
+
+  return useQuery({
+    queryKey: progressKeys.paceAtHrQuery(paramString),
+    queryFn: (): Promise<ProgressPaceAtHrResponse> => progressApi.paceAtHr(params),
+    enabled: Boolean(params.from && params.to),
     staleTime: 60 * 1000,
   });
 }

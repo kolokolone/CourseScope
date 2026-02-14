@@ -28,6 +28,8 @@ vi.mock('@/hooks/useProgress', () => ({
   useProgressSeries: () => ({ data: [], isLoading: false, error: null }),
   useProgressBestEfforts: () => ({ data: { points: [] }, isLoading: false, error: null }),
   useProgressActivities: () => ({ data: { activities: [] }, isLoading: false, error: null }),
+  useProgressHrAtPace: () => ({ data: { series: [] }, isLoading: false, error: null }),
+  useProgressPaceAtHr: () => ({ data: { series: [] }, isLoading: false, error: null }),
 }));
 
 describe('ProgressPage', () => {

@@ -20,7 +20,13 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useProgressActivities, useProgressBestEfforts, useProgressSeries } from '@/hooks/useProgress';
+import {
+  useProgressActivities,
+  useProgressBestEfforts,
+  useProgressHrAtPace,
+  useProgressPaceAtHr,
+  useProgressSeries,
+} from '@/hooks/useProgress';
 import { progressApi } from '@/lib/api';
 import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
 import type { ProgressActivity, ProgressSeriesMetric, ProgressVerifyResponse } from '@/types/api';
@@ -114,6 +120,10 @@ const VOLUME_METRICS: VolumeMetricSpec[] = [
   },
 ];
 
+const HR_AT_PACE_REFS = [300, 330, 360] as const;
+const PACE_AT_HR_REFS = [140, 150, 160] as const;
+const SERIES_COLORS = ['#0f172a', '#334155', '#64748b', '#93c5fd', '#16a34a'];
+
 export default function ProgressPage() {
   const verifyStartedRef = React.useRef(false);
   const [range, setRange] = React.useState<HistoryRange>('6m');
@@ -202,6 +212,8 @@ export default function ProgressPage() {
 
   const activitiesLimit = range === 'all' ? 10000 : 5000;
   const activitiesQuery = useProgressActivities({ from, to, type: 'real', limit: activitiesLimit });
+  const hrAtPaceQuery = useProgressHrAtPace({ from, to, type: 'real', paces_s_per_km: [...HR_AT_PACE_REFS] });
+  const paceAtHrQuery = useProgressPaceAtHr({ from, to, type: 'real', hrs_bpm: [...PACE_AT_HR_REFS] });
 
   const volumeData = React.useMemo(() => {
     const items = volumeQuery.data ?? [];
@@ -245,6 +257,58 @@ export default function ProgressPage() {
       })
       .filter((p) => p.dateMs > 0 && Number.isFinite(p.value));
   }, [bestQuery.data?.points]);
+
+  const hrAtPaceMeta = React.useMemo(
+    () =>
+      (hrAtPaceQuery.data?.series ?? []).map((s) => ({
+        key: `pace_${Math.round(s.pace_s_per_km)}`,
+        label: `HR @ ${formatPaceSecondsPerKm(s.pace_s_per_km)}`,
+      })),
+    [hrAtPaceQuery.data?.series]
+  );
+
+  const hrAtPaceData = React.useMemo(() => {
+    const byDate = new Map<number, Record<string, number>>();
+    for (const s of hrAtPaceQuery.data?.series ?? []) {
+      const key = `pace_${Math.round(s.pace_s_per_km)}`;
+      for (const p of s.points) {
+        const dateMs = new Date(p.start_ts_utc).getTime();
+        if (!Number.isFinite(dateMs)) continue;
+        const value = finiteNumber(p.value);
+        if (value === null) continue;
+        const row = byDate.get(dateMs) ?? { dateMs };
+        row[key] = value;
+        byDate.set(dateMs, row);
+      }
+    }
+    return [...byDate.values()].sort((a, b) => Number(a.dateMs) - Number(b.dateMs));
+  }, [hrAtPaceQuery.data?.series]);
+
+  const paceAtHrMeta = React.useMemo(
+    () =>
+      (paceAtHrQuery.data?.series ?? []).map((s) => ({
+        key: `hr_${Math.round(s.hr_bpm)}`,
+        label: `Pace @ ${Math.round(s.hr_bpm)} bpm`,
+      })),
+    [paceAtHrQuery.data?.series]
+  );
+
+  const paceAtHrData = React.useMemo(() => {
+    const byDate = new Map<number, Record<string, number>>();
+    for (const s of paceAtHrQuery.data?.series ?? []) {
+      const key = `hr_${Math.round(s.hr_bpm)}`;
+      for (const p of s.points) {
+        const dateMs = new Date(p.start_ts_utc).getTime();
+        if (!Number.isFinite(dateMs)) continue;
+        const value = finiteNumber(p.value);
+        if (value === null) continue;
+        const row = byDate.get(dateMs) ?? { dateMs };
+        row[key] = value;
+        byDate.set(dateMs, row);
+      }
+    }
+    return [...byDate.values()].sort((a, b) => Number(a.dateMs) - Number(b.dateMs));
+  }, [paceAtHrQuery.data?.series]);
 
   const { efPoints, decouplingPoints } = React.useMemo(() => {
     const items: ProgressActivity[] = activitiesQuery.data?.activities ?? [];
@@ -600,6 +664,118 @@ export default function ProgressPage() {
                       />
                       <Scatter data={decouplingPoints} fill="#64748b" opacity={0.7} />
                     </ScatterChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-base">HR @ allure de reference</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {hrAtPaceQuery.isLoading ? (
+                <div className="text-muted-foreground">Chargement...</div>
+              ) : hrAtPaceQuery.error ? (
+                <div className="text-sm text-red-600">Erreur de chargement.</div>
+              ) : hrAtPaceData.length === 0 || hrAtPaceMeta.length === 0 ? (
+                <div className="text-muted-foreground">Aucun point HR@pace.</div>
+              ) : (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={hrAtPaceData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                      <XAxis
+                        dataKey="dateMs"
+                        type="number"
+                        domain={['dataMin', 'dataMax']}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v: any) => {
+                          const ms = Number(v);
+                          return Number.isFinite(ms) ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
+                        }}
+                        minTickGap={16}
+                      />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: any) => formatNumber(Number(v), { integer: true })} />
+                      <Tooltip
+                        formatter={(value: any, name: any) => {
+                          const n = finiteNumber(value);
+                          const meta = hrAtPaceMeta.find((m) => m.key === String(name));
+                          return [n === null ? '—' : `${formatNumber(n, { integer: true })} bpm`, meta?.label ?? String(name)];
+                        }}
+                        labelFormatter={(label: any) => formatDateLabel(Number(label))}
+                      />
+                      {hrAtPaceMeta.map((m, idx) => (
+                        <Line
+                          key={m.key}
+                          type="monotone"
+                          dataKey={m.key}
+                          stroke={SERIES_COLORS[idx % SERIES_COLORS.length]}
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                          connectNulls
+                        />
+                      ))}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-base">Allure @ FC de reference</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {paceAtHrQuery.isLoading ? (
+                <div className="text-muted-foreground">Chargement...</div>
+              ) : paceAtHrQuery.error ? (
+                <div className="text-sm text-red-600">Erreur de chargement.</div>
+              ) : paceAtHrData.length === 0 || paceAtHrMeta.length === 0 ? (
+                <div className="text-muted-foreground">Aucun point pace@HR.</div>
+              ) : (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={paceAtHrData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                      <XAxis
+                        dataKey="dateMs"
+                        type="number"
+                        domain={['dataMin', 'dataMax']}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v: any) => {
+                          const ms = Number(v);
+                          return Number.isFinite(ms) ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
+                        }}
+                        minTickGap={16}
+                      />
+                      <YAxis reversed tick={{ fontSize: 11 }} tickFormatter={(v: any) => formatPaceSecondsPerKm(Number(v))} />
+                      <Tooltip
+                        formatter={(value: any, name: any) => {
+                          const n = finiteNumber(value);
+                          const meta = paceAtHrMeta.find((m) => m.key === String(name));
+                          return [n === null ? '—' : `${formatPaceSecondsPerKm(n)} / km`, meta?.label ?? String(name)];
+                        }}
+                        labelFormatter={(label: any) => formatDateLabel(Number(label))}
+                      />
+                      {paceAtHrMeta.map((m, idx) => (
+                        <Line
+                          key={m.key}
+                          type="monotone"
+                          dataKey={m.key}
+                          stroke={SERIES_COLORS[idx % SERIES_COLORS.length]}
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                          connectNulls
+                        />
+                      ))}
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               )}

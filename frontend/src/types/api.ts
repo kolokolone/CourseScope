@@ -259,3 +259,27 @@ export interface ProgressVerifyResponse {
   last_error: string | null;
   last_result: ProgressVerifyResult | null;
 }
+
+export interface ProgressReferencePoint {
+  activity_id: string;
+  start_ts_utc: string;
+  value: number;
+}
+
+export interface ProgressHrAtPaceSeries {
+  pace_s_per_km: number;
+  points: ProgressReferencePoint[];
+}
+
+export interface ProgressHrAtPaceResponse {
+  series: ProgressHrAtPaceSeries[];
+}
+
+export interface ProgressPaceAtHrSeries {
+  hr_bpm: number;
+  points: ProgressReferencePoint[];
+}
+
+export interface ProgressPaceAtHrResponse {
+  series: ProgressPaceAtHrSeries[];
+}
