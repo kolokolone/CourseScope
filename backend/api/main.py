@@ -14,7 +14,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from storage.activity_store import InMemoryStorage, LocalTempStorage
 from registry.series_registry import SeriesRegistry
-from config import get_activities_dir
+from config import get_activities_dir, get_data_dir
 from db.session import init_db, make_engine, make_session_factory
 
 
@@ -26,8 +26,8 @@ class _DefaultRequestIdFilter(logging.Filter):
 
 
 def _configure_logging() -> logging.Logger:
-    repo_root = Path(__file__).resolve().parents[2]
-    logs_dir = repo_root / "logs"
+    # Logs are runtime data: keep them under COURSESCOPE_DATA_DIR (default: ./data).
+    logs_dir = (get_data_dir() / "logs").resolve()
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

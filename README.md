@@ -107,7 +107,7 @@ CourseScope/
 ### Robustesse (v1.1.33)
 - **Backend** : supporte maintenant les routes *avec* et *sans* préfixe `/api`
   - `/activity/load` et `/api/activity/load` fonctionnent tous les deux
-- **Observabilité** : chaque requête a un `X-Request-ID` et un fichier log est créé à chaque run (`./logs/backend_<timestamp>.log`)
+- **Observabilité** : chaque requête a un `X-Request-ID` et un fichier log est créé à chaque run (`./data/logs/backend_<timestamp>.log`)
 
 ### Variables d'environnement
 ```bash

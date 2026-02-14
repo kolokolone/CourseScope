@@ -7,7 +7,7 @@ cd /d "%PROJECT_DIR%" || goto :fail
 set "VENV_DIR=%PROJECT_DIR%.venv"
 set "PYTHON_EXE=%VENV_DIR%\Scripts\python.exe"
 set "FRONTEND_DIR=%PROJECT_DIR%frontend"
-set "LOG_DIR=%PROJECT_DIR%logs"
+set "LOG_DIR=%PROJECT_DIR%data\logs"
 set "STARTUP_LOG=%LOG_DIR%\startup_win.log"
 
 rem Usage:
