@@ -6,13 +6,22 @@ from typing import Iterable
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .models import ProgressActivityIndex, ProgressBestEffortPoint
+from .models import ProgressActivityIndex, ProgressBestEffortPoint, ProgressPaceHrBin
 
 
 @dataclass(frozen=True)
 class ProgressSeriesRow:
     start_ts_utc: str
     value: float | None
+
+
+@dataclass(frozen=True)
+class ProgressPaceHrRow:
+    activity_id: str
+    start_ts_utc: str
+    pace_bin_s_per_km: float
+    hr_mean_w_bpm: float | None
+    hr_q50_w_bpm: float | None
 
 
 class ProgressRepository:
@@ -49,6 +58,20 @@ class ProgressRepository:
         )
         for p in points:
             session.add(p)
+
+    def replace_pace_hr_bins(
+        self,
+        session: Session,
+        *,
+        activity_id: str,
+        bins: Iterable[ProgressPaceHrBin],
+    ) -> None:
+        session.execute(
+            delete(ProgressPaceHrBin)
+            .where(ProgressPaceHrBin.activity_id == activity_id)
+        )
+        for row in bins:
+            session.add(row)
 
     def list_activity_rows(
         self,
@@ -115,3 +138,42 @@ class ProgressRepository:
             stmt = stmt.where(ProgressBestEffortPoint.start_ts_utc <= to_ts_utc)
         stmt = stmt.order_by(ProgressBestEffortPoint.start_ts_utc.asc())
         return list(session.execute(stmt).scalars().all())
+
+    def list_pace_hr_rows(
+        self,
+        session: Session,
+        *,
+        from_ts_utc: str | None,
+        to_ts_utc: str | None,
+        activity_type: str | None,
+    ) -> list[ProgressPaceHrRow]:
+        stmt = select(
+            ProgressPaceHrBin.activity_id,
+            ProgressPaceHrBin.start_ts_utc,
+            ProgressPaceHrBin.pace_bin_s_per_km,
+            ProgressPaceHrBin.hr_mean_w_bpm,
+            ProgressPaceHrBin.hr_q50_w_bpm,
+        )
+        if from_ts_utc is not None:
+            stmt = stmt.where(ProgressPaceHrBin.start_ts_utc >= from_ts_utc)
+        if to_ts_utc is not None:
+            stmt = stmt.where(ProgressPaceHrBin.start_ts_utc <= to_ts_utc)
+        if activity_type is not None:
+            stmt = stmt.where(ProgressPaceHrBin.activity_type == activity_type)
+        stmt = stmt.order_by(
+            ProgressPaceHrBin.start_ts_utc.asc(),
+            ProgressPaceHrBin.pace_bin_s_per_km.asc(),
+        )
+        rows = session.execute(stmt).all()
+        out: list[ProgressPaceHrRow] = []
+        for activity_id, start_ts_utc, pace_bin_s_per_km, hr_mean_w_bpm, hr_q50_w_bpm in rows:
+            out.append(
+                ProgressPaceHrRow(
+                    activity_id=str(activity_id),
+                    start_ts_utc=str(start_ts_utc),
+                    pace_bin_s_per_km=float(pace_bin_s_per_km),
+                    hr_mean_w_bpm=(float(hr_mean_w_bpm) if hr_mean_w_bpm is not None else None),
+                    hr_q50_w_bpm=(float(hr_q50_w_bpm) if hr_q50_w_bpm is not None else None),
+                )
+            )
+        return out

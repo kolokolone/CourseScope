@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from core.metrics import compute_garmin_like_stats
 from core.real_run_analysis import compute_best_efforts_by_duration, compute_derived_series
 from core.stats.basic_stats import compute_basic_stats
-from db.models import ProgressActivityIndex, ProgressBestEffortPoint
+from db.models import ProgressActivityIndex, ProgressBestEffortPoint, ProgressPaceHrBin
 from db.progress_repository import ProgressRepository
 from db.models import utc_now_iso
 
@@ -81,6 +81,118 @@ def _finite_or_none(value: object) -> float | None:
     if not math.isfinite(v):
         return None
     return v
+
+
+def _weighted_median(values: list[float], weights: list[float]) -> float | None:
+    if len(values) != len(weights) or not values:
+        return None
+    pairs = sorted(zip(values, weights), key=lambda x: x[0])
+    total = float(sum(w for _, w in pairs if math.isfinite(w) and w > 0))
+    if total <= 0 or not math.isfinite(total):
+        return None
+    cutoff = total * 0.5
+    acc = 0.0
+    for value, weight in pairs:
+        if not (math.isfinite(value) and math.isfinite(weight) and weight > 0):
+            continue
+        acc += float(weight)
+        if acc >= cutoff:
+            return float(value)
+    return float(pairs[-1][0]) if pairs else None
+
+
+def _build_pace_hr_bins(
+    *,
+    df: pd.DataFrame,
+    activity_id: str,
+    activity_type: str,
+    start_ts_utc: str,
+    pace_bin_step_s_per_km: float = 10.0,
+    min_time_s_bin: float = 60.0,
+) -> list[ProgressPaceHrBin]:
+    required = {"pace_s_per_km", "heart_rate", "delta_time_s", "speed_m_s"}
+    if not required.issubset(set(df.columns)):
+        return []
+
+    dt_num = pd.to_numeric(df.loc[:, "delta_time_s"], errors="coerce")
+    pace_num = pd.to_numeric(df.loc[:, "pace_s_per_km"], errors="coerce")
+    hr_num = pd.to_numeric(df.loc[:, "heart_rate"], errors="coerce")
+    speed_num = pd.to_numeric(df.loc[:, "speed_m_s"], errors="coerce")
+
+    dt = pd.Series(dt_num, index=df.index).fillna(0.0).astype(float)
+    pace = pd.Series(pace_num, index=df.index).astype(float)
+    hr = pd.Series(hr_num, index=df.index).astype(float)
+    speed = pd.Series(speed_num, index=df.index).fillna(0.0).astype(float)
+
+    moving_mask: pd.Series = (
+        (speed > 0.5)
+        & (dt > 0)
+        & pace.notna()
+        & hr.notna()
+        & (pace > 0)
+        & (pace < 1800)
+        & (hr > 40)
+        & (hr < 240)
+    )
+    if not bool(moving_mask.any()):
+        return []
+
+    work = pd.DataFrame(
+        {
+            "pace": pace[moving_mask],
+            "hr": hr[moving_mask],
+            "dt": dt[moving_mask],
+        }
+    )
+    if work.empty:
+        return []
+
+    step = float(pace_bin_step_s_per_km)
+    work["pace_bin"] = (work["pace"] / step).round() * step
+
+    rows: list[ProgressPaceHrBin] = []
+    for pace_bin, g in work.groupby("pace_bin", sort=True):
+        values = g["hr"].astype(float).tolist()
+        weights = g["dt"].astype(float).tolist()
+        time_s_bin = float(sum(w for w in weights if math.isfinite(w) and w > 0))
+        if not math.isfinite(time_s_bin) or time_s_bin < float(min_time_s_bin):
+            continue
+        weighted_sum = 0.0
+        for v, w in zip(values, weights):
+            if not (math.isfinite(v) and math.isfinite(w) and w > 0):
+                continue
+            weighted_sum += float(v) * float(w)
+        hr_mean_w_bpm_raw = (weighted_sum / time_s_bin) if time_s_bin > 0 else None
+        hr_q50_w_bpm_raw = _weighted_median(values, weights)
+        hr_mean_w_bpm: float | None = None
+        if hr_mean_w_bpm_raw is not None:
+            v = float(hr_mean_w_bpm_raw)
+            if math.isfinite(v):
+                hr_mean_w_bpm = v
+        hr_q50_w_bpm: float | None = None
+        if hr_q50_w_bpm_raw is not None:
+            v = float(hr_q50_w_bpm_raw)
+            if math.isfinite(v):
+                hr_q50_w_bpm = v
+
+        pace_bin_num = pd.to_numeric(g["pace_bin"], errors="coerce")
+        pace_bin_arr = pd.Series(pace_bin_num).to_numpy(dtype=float)
+        if pace_bin_arr.size == 0:
+            continue
+        pace_bin_value = float(pace_bin_arr[0])
+
+        rows.append(
+            ProgressPaceHrBin(
+                activity_id=activity_id,
+                activity_type=activity_type,
+                start_ts_utc=start_ts_utc,
+                pace_bin_s_per_km=pace_bin_value,
+                time_s_bin=float(time_s_bin),
+                hr_mean_w_bpm=hr_mean_w_bpm,
+                hr_q50_w_bpm=hr_q50_w_bpm,
+            )
+        )
+    return rows
 
 
 def index_activity(
@@ -164,9 +276,9 @@ def index_activity(
         if math.isfinite(speed_m_s) and speed_m_s > 0:
             aerobic_efficiency = speed_m_s / avg_hr_bpm
 
-    has_hr = 1 if ("heart_rate" in df.columns and df["heart_rate"].notna().any()) else 0
-    has_power = 1 if ("power" in df.columns and df["power"].notna().any()) else 0
-    has_cadence = 1 if ("cadence" in df.columns and df["cadence"].notna().any()) else 0
+    has_hr = 1 if ("heart_rate" in df.columns and bool(df["heart_rate"].notna().any())) else 0
+    has_power = 1 if ("power" in df.columns and bool(df["power"].notna().any())) else 0
+    has_cadence = 1 if ("cadence" in df.columns and bool(df["cadence"].notna().any())) else 0
     data_points = int(len(df))
 
     fingerprint = build_fingerprint(meta, parquet_path)
@@ -225,3 +337,11 @@ def index_activity(
                 )
             )
     repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="pace_s_per_km", points=points)
+
+    pace_hr_bins = _build_pace_hr_bins(
+        df=df,
+        activity_id=activity_id,
+        activity_type=activity_type,
+        start_ts_utc=start_ts_utc,
+    )
+    repo.replace_pace_hr_bins(session, activity_id=activity_id, bins=pace_hr_bins)

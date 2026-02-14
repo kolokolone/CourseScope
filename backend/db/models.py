@@ -133,3 +133,25 @@ class ProgressBestEffortPoint(Base):
     effort_kind: Mapped[str] = mapped_column(String(64), nullable=False)
     duration_s: Mapped[int] = mapped_column(Integer, nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class ProgressPaceHrBin(Base):
+    __tablename__ = "progress_pace_hr_bins"
+    __table_args__ = (
+        UniqueConstraint("activity_id", "pace_bin_s_per_km", name="uq_progress_pace_hr_bin"),
+        Index("ix_progress_pace_hr_start", "start_ts_utc"),
+        Index("ix_progress_pace_hr_type_start", "activity_type", "start_ts_utc"),
+        Index("ix_progress_pace_hr_pace", "pace_bin_s_per_km"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    activity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    activity_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    start_ts_utc: Mapped[str] = mapped_column(Text, nullable=False)
+
+    pace_bin_s_per_km: Mapped[float] = mapped_column(Float, nullable=False)
+    time_s_bin: Mapped[float] = mapped_column(Float, nullable=False)
+
+    hr_mean_w_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hr_q50_w_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
