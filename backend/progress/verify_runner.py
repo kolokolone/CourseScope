@@ -23,15 +23,19 @@ _thread: threading.Thread | None = None
 _state = VerifyState()
 
 
+def _snapshot_state_unlocked() -> VerifyState:
+    return VerifyState(
+        running=_state.running,
+        last_started_at_utc=_state.last_started_at_utc,
+        last_finished_at_utc=_state.last_finished_at_utc,
+        last_result=_state.last_result,
+        last_error=_state.last_error,
+    )
+
+
 def get_verify_state() -> VerifyState:
     with _lock:
-        return VerifyState(
-            running=_state.running,
-            last_started_at_utc=_state.last_started_at_utc,
-            last_finished_at_utc=_state.last_finished_at_utc,
-            last_result=_state.last_result,
-            last_error=_state.last_error,
-        )
+        return _snapshot_state_unlocked()
 
 
 def _now_utc_iso() -> str:
@@ -49,7 +53,7 @@ def start_verify_in_background(
 
     with _lock:
         if _thread is not None and _thread.is_alive():
-            return get_verify_state()
+            return _snapshot_state_unlocked()
 
         _state.running = True
         _state.last_started_at_utc = _now_utc_iso()
@@ -77,4 +81,4 @@ def start_verify_in_background(
 
         _thread = threading.Thread(target=_run, name="progress-verify", daemon=True)
         _thread.start()
-        return get_verify_state()
+        return _snapshot_state_unlocked()

@@ -244,3 +244,18 @@ export interface ProgressActivity {
 export interface ProgressActivitiesResponse {
   activities: ProgressActivity[];
 }
+
+export interface ProgressVerifyResult {
+  scanned: number;
+  indexed: number;
+  up_to_date: number;
+  errors: number;
+}
+
+export interface ProgressVerifyResponse {
+  running: boolean;
+  last_started_at_utc: string | null;
+  last_finished_at_utc: string | null;
+  last_error: string | null;
+  last_result: ProgressVerifyResult | null;
+}

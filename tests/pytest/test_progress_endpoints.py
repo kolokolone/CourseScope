@@ -172,3 +172,17 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
         assert acts.status_code == 200
         acts_payload = acts.json()
         assert len(acts_payload["activities"]) == 3
+
+
+def test_progress_verify_status_endpoint(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        res = client.get("/progress/verify-status")
+        assert res.status_code == 200
+        body = res.json()
+        assert isinstance(body["running"], bool)
+        assert "last_started_at_utc" in body
+        assert "last_finished_at_utc" in body
+        assert "last_error" in body
+        assert "last_result" in body

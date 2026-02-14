@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { useProgressActivities, useProgressBestEfforts, useProgressSeries } from '@/hooks/useProgress';
 import { progressApi } from '@/lib/api';
 import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
-import type { ProgressActivity, ProgressSeriesMetric } from '@/types/api';
+import type { ProgressActivity, ProgressSeriesMetric, ProgressVerifyResponse } from '@/types/api';
 import { Activity, Home, Settings, TrendingUp } from 'lucide-react';
 
 type HistoryRange = '3m' | '6m' | '1y' | 'all';
@@ -119,12 +119,53 @@ export default function ProgressPage() {
   const [range, setRange] = React.useState<HistoryRange>('6m');
   const [volumeMetric, setVolumeMetric] = React.useState<ProgressSeriesMetric>('distance_m');
   const [bestDuration, setBestDuration] = React.useState(1200);
+  const [verifyState, setVerifyState] = React.useState<ProgressVerifyResponse | null>(null);
 
   React.useEffect(() => {
     if (verifyStartedRef.current) return;
     verifyStartedRef.current = true;
-    // Fire-and-forget: backend runs verification/indexing in a separate thread.
-    progressApi.verify().catch(() => {});
+
+    let cancelled = false;
+    let timer: number | null = null;
+
+    const applyState = (state: ProgressVerifyResponse) => {
+      if (cancelled) return;
+      setVerifyState(state);
+      if (!state.running && timer !== null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const pollStatus = async () => {
+      try {
+        const state = await progressApi.verifyStatus();
+        applyState(state);
+      } catch {
+        // Keep silent: this status should not block chart rendering.
+      }
+    };
+
+    const startVerify = async () => {
+      try {
+        const state = await progressApi.verify();
+        applyState(state);
+        if (state.running) {
+          timer = window.setInterval(() => {
+            void pollStatus();
+          }, 2000);
+        }
+      } catch {
+        // Keep silent: endpoint can fail while app stays usable.
+      }
+    };
+
+    void startVerify();
+
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearInterval(timer);
+    };
   }, []);
 
   const now = React.useMemo(() => new Date(), []);
@@ -159,7 +200,8 @@ export default function ProgressPage() {
     to,
   });
 
-  const activitiesQuery = useProgressActivities({ from, to, type: 'real', limit: 5000 });
+  const activitiesLimit = range === 'all' ? 10000 : 5000;
+  const activitiesQuery = useProgressActivities({ from, to, type: 'real', limit: activitiesLimit });
 
   const volumeData = React.useMemo(() => {
     const items = volumeQuery.data ?? [];
@@ -263,6 +305,18 @@ export default function ProgressPage() {
       </div>
 
       <div className="mt-6 space-y-4">
+        {verifyState?.running ? (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Indexation en cours: les graphes peuvent etre incomplets pendant quelques secondes.
+          </div>
+        ) : null}
+
+        {!verifyState?.running && verifyState?.last_error ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            Echec de l'indexation: {verifyState.last_error}
+          </div>
+        ) : null}
+
         <Card>
           <CardHeader className="py-3 px-4">
             <div className="flex items-center justify-between gap-3">

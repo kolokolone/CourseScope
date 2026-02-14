@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from db.progress_repository import ProgressRepository
-from progress.verify_runner import start_verify_in_background
+from progress.verify_runner import get_verify_state, start_verify_in_background
 
 
 router = APIRouter()
@@ -19,6 +19,22 @@ async def verify_progress_index_endpoint(request: Request):
         raise HTTPException(status_code=500, detail="DB not initialized")
 
     state = start_verify_in_background(db_session_factory=db_session_factory)
+    return {
+        "running": bool(state.running),
+        "last_started_at_utc": state.last_started_at_utc,
+        "last_finished_at_utc": state.last_finished_at_utc,
+        "last_error": state.last_error,
+        "last_result": state.last_result.__dict__ if state.last_result is not None else None,
+    }
+
+
+@router.get("/progress/verify-status")
+async def verify_progress_status_endpoint(request: Request):
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+
+    state = get_verify_state()
     return {
         "running": bool(state.running),
         "last_started_at_utc": state.last_started_at_utc,

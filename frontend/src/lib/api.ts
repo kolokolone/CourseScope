@@ -19,6 +19,7 @@ import {
   ProgressSeriesMetric,
   ProgressSeriesResponse,
   ProgressType,
+  ProgressVerifyResponse,
 } from '@/types/api';
 
 // Base URL strategy:
@@ -218,7 +219,9 @@ export const healthApi = {
 };
 
 export const progressApi = {
-  verify: async () => apiRequest<{ running: boolean }>('/progress/verify', { method: 'POST' }),
+  verify: async () => apiRequest<ProgressVerifyResponse>('/progress/verify', { method: 'POST' }),
+
+  verifyStatus: async () => apiRequest<ProgressVerifyResponse>('/progress/verify-status'),
 
   series: async (params: {
     metric: ProgressSeriesMetric;
