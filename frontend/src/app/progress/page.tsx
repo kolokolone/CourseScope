@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 
 import {
   Area,
@@ -125,7 +126,9 @@ const PACE_AT_HR_REFS = [140, 150, 160] as const;
 const SERIES_COLORS = ['#0f172a', '#334155', '#64748b', '#93c5fd', '#16a34a'];
 
 export default function ProgressPage() {
+  const queryClient = useQueryClient();
   const verifyStartedRef = React.useRef(false);
+  const lastVerifyRefreshAtRef = React.useRef<string | null>(null);
   const [range, setRange] = React.useState<HistoryRange>('6m');
   const [volumeMetric, setVolumeMetric] = React.useState<ProgressSeriesMetric>('distance_m');
   const [bestDuration, setBestDuration] = React.useState(1200);
@@ -140,6 +143,13 @@ export default function ProgressPage() {
 
     const applyState = (state: ProgressVerifyResponse) => {
       if (cancelled) return;
+
+      const finishedAt = state.last_finished_at_utc;
+      if (!state.running && finishedAt && lastVerifyRefreshAtRef.current !== finishedAt) {
+        lastVerifyRefreshAtRef.current = finishedAt;
+        void queryClient.invalidateQueries({ queryKey: ['progress'] });
+      }
+
       setVerifyState(state);
       if (!state.running && timer !== null) {
         window.clearInterval(timer);
@@ -176,7 +186,7 @@ export default function ProgressPage() {
       cancelled = true;
       if (timer !== null) window.clearInterval(timer);
     };
-  }, []);
+  }, [queryClient]);
 
   const now = React.useMemo(() => new Date(), []);
   const fromDate = React.useMemo(() => shiftRangeStart(now, range), [now, range]);
@@ -426,7 +436,9 @@ export default function ProgressPage() {
               <div className="text-sm text-red-600">Erreur de chargement.</div>
             ) : volumeData.length === 0 ? (
               <div className="text-muted-foreground">
-                Aucune donnee indexee. Lance `python scripts/reindex_progress.py` si tu as deja des activites sur disque.
+                {verifyState?.running
+                  ? 'Indexation automatique en cours. Les donnees vont apparaitre des la fin du calcul.'
+                  : 'Aucune donnee indexee pour le moment. La page lance automatiquement une verification/reindexation a l ouverture.'}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>

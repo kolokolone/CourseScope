@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.62] - 2026-02-14
+
+### Changed
+- Progression: opening `/progress` now auto-runs verify/reindex for stale indexes (including new pace-HR bins) and refreshes charts automatically when background indexing completes.
+- Progression UI: clarified empty-state messaging to reflect automatic background indexing (no manual `scripts/reindex_progress.py` required in normal flow).
+
 ## [1.1.54] - 2026-02-09
 
 ### Changed

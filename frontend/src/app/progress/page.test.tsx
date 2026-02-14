@@ -1,6 +1,7 @@
 'use client';
 
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
 import ProgressPage from './page';
@@ -34,7 +35,12 @@ vi.mock('@/hooks/useProgress', () => ({
 
 describe('ProgressPage', () => {
   it('renders without crashing', async () => {
-    render(<ProgressPage />);
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ProgressPage />
+      </QueryClientProvider>
+    );
     expect(screen.getByText('Progression')).toBeInTheDocument();
     expect(screen.getByText('Tendances multi-activites')).toBeInTheDocument();
     expect(await screen.findByText(/Indexation en cours/i)).toBeInTheDocument();

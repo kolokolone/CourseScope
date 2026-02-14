@@ -17,7 +17,7 @@ from db.progress_repository import ProgressRepository
 from db.models import utc_now_iso
 
 
-METRICS_VERSION = 1
+METRICS_VERSION = 2
 
 
 def _parse_iso_datetime(value: object) -> datetime | None:
