@@ -82,6 +82,62 @@ def _bucket_start(dt: datetime, group_by: str) -> datetime:
     return base.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=weekday)
 
 
+def _parse_csv_floats(raw: str | None, *, default_values: list[float]) -> list[float]:
+    if raw is None or str(raw).strip() == "":
+        return list(default_values)
+    out: list[float] = []
+    for part in str(raw).split(","):
+        token = part.strip()
+        if token == "":
+            continue
+        try:
+            value = float(token)
+        except Exception:
+            continue
+        if math.isfinite(value):
+            out.append(value)
+    if not out:
+        return list(default_values)
+    return sorted(set(out))
+
+
+def _dedupe_xy(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    if not points:
+        return []
+    grouped: dict[float, list[float]] = {}
+    for x, y in points:
+        grouped.setdefault(float(x), []).append(float(y))
+    out = []
+    for x in sorted(grouped.keys()):
+        vals = grouped[x]
+        out.append((x, float(sum(vals) / len(vals))))
+    return out
+
+
+def _interp_linear(points: list[tuple[float, float]], target_x: float) -> float | None:
+    if not points:
+        return None
+    pts = _dedupe_xy(points)
+    if not pts:
+        return None
+    x0 = pts[0][0]
+    x1 = pts[-1][0]
+    if target_x < x0 or target_x > x1:
+        return None
+    for i in range(len(pts) - 1):
+        xa, ya = pts[i]
+        xb, yb = pts[i + 1]
+        if xa == xb:
+            continue
+        if xa <= target_x <= xb:
+            ratio = (target_x - xa) / (xb - xa)
+            y = ya + ratio * (yb - ya)
+            return float(y) if math.isfinite(y) else None
+    if target_x == pts[-1][0]:
+        return float(pts[-1][1])
+    return None
+
+
 @router.get("/progress/activities")
 async def list_progress_activities(
     request: Request,
@@ -275,3 +331,133 @@ async def get_progress_best_efforts(
         )
 
     return {"points": out}
+
+
+@router.get("/progress/hr-at-pace")
+async def get_progress_hr_at_pace(
+    request: Request,
+    paces_s_per_km: str | None = Query(None),
+    from_ts: str | None = Query(None, alias="from"),
+    to_ts: str | None = Query(None, alias="to"),
+    activity_type: str | None = Query(None, alias="type"),
+):
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+    if activity_type is not None and activity_type not in {"real", "theoretical"}:
+        raise HTTPException(status_code=400, detail="Invalid type")
+
+    refs = _parse_csv_floats(paces_s_per_km, default_values=[300.0, 330.0, 360.0])
+    refs = [r for r in refs if 120.0 <= r <= 1200.0]
+    if not refs:
+        raise HTTPException(status_code=400, detail="Invalid paces_s_per_km")
+
+    from_ts_utc = _parse_ts_utc(from_ts, is_end=False)
+    to_ts_utc = _parse_ts_utc(to_ts, is_end=True)
+
+    repo = ProgressRepository()
+    session = db_session_factory()
+    try:
+        rows = repo.list_pace_hr_rows(
+            session,
+            from_ts_utc=from_ts_utc,
+            to_ts_utc=to_ts_utc,
+            activity_type=activity_type,
+        )
+    finally:
+        session.close()
+
+    per_activity: dict[str, dict] = {}
+    for r in rows:
+        hr_value = r.hr_q50_w_bpm if r.hr_q50_w_bpm is not None else r.hr_mean_w_bpm
+        if hr_value is None:
+            continue
+        if not math.isfinite(hr_value):
+            continue
+        if not math.isfinite(r.pace_bin_s_per_km):
+            continue
+        data = per_activity.setdefault(r.activity_id, {"start_ts_utc": r.start_ts_utc, "pairs": []})
+        data["pairs"].append((float(r.pace_bin_s_per_km), float(hr_value)))
+
+    out_series = []
+    for ref in refs:
+        pts = []
+        for activity_id, data in per_activity.items():
+            value = _interp_linear(list(data["pairs"]), float(ref))
+            if value is None:
+                continue
+            pts.append(
+                {
+                    "activity_id": activity_id,
+                    "start_ts_utc": data["start_ts_utc"],
+                    "value": float(value),
+                }
+            )
+        pts.sort(key=lambda x: str(x["start_ts_utc"]))
+        out_series.append({"pace_s_per_km": float(ref), "points": pts})
+
+    return {"series": out_series}
+
+
+@router.get("/progress/pace-at-hr")
+async def get_progress_pace_at_hr(
+    request: Request,
+    hrs_bpm: str | None = Query(None),
+    from_ts: str | None = Query(None, alias="from"),
+    to_ts: str | None = Query(None, alias="to"),
+    activity_type: str | None = Query(None, alias="type"),
+):
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+    if activity_type is not None and activity_type not in {"real", "theoretical"}:
+        raise HTTPException(status_code=400, detail="Invalid type")
+
+    refs = _parse_csv_floats(hrs_bpm, default_values=[140.0, 150.0, 160.0])
+    refs = [r for r in refs if 80.0 <= r <= 220.0]
+    if not refs:
+        raise HTTPException(status_code=400, detail="Invalid hrs_bpm")
+
+    from_ts_utc = _parse_ts_utc(from_ts, is_end=False)
+    to_ts_utc = _parse_ts_utc(to_ts, is_end=True)
+
+    repo = ProgressRepository()
+    session = db_session_factory()
+    try:
+        rows = repo.list_pace_hr_rows(
+            session,
+            from_ts_utc=from_ts_utc,
+            to_ts_utc=to_ts_utc,
+            activity_type=activity_type,
+        )
+    finally:
+        session.close()
+
+    per_activity: dict[str, dict] = {}
+    for r in rows:
+        hr_value = r.hr_q50_w_bpm if r.hr_q50_w_bpm is not None else r.hr_mean_w_bpm
+        if hr_value is None:
+            continue
+        if not (math.isfinite(hr_value) and math.isfinite(r.pace_bin_s_per_km)):
+            continue
+        data = per_activity.setdefault(r.activity_id, {"start_ts_utc": r.start_ts_utc, "pairs": []})
+        data["pairs"].append((float(hr_value), float(r.pace_bin_s_per_km)))
+
+    out_series = []
+    for ref in refs:
+        pts = []
+        for activity_id, data in per_activity.items():
+            value = _interp_linear(list(data["pairs"]), float(ref))
+            if value is None:
+                continue
+            pts.append(
+                {
+                    "activity_id": activity_id,
+                    "start_ts_utc": data["start_ts_utc"],
+                    "value": float(value),
+                }
+            )
+        pts.sort(key=lambda x: str(x["start_ts_utc"]))
+        out_series.append({"hr_bpm": float(ref), "points": pts})
+
+    return {"series": out_series}

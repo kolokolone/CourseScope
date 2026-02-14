@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from backend.api.main import app
 
 
-def _insert_rows(client: TestClient, rows, best_efforts):
+def _insert_rows(client: TestClient, rows, best_efforts, pace_hr_bins):
     factory = getattr(client.app.state, "db_session_factory", None)
     assert factory is not None
     session = factory()
@@ -12,6 +12,8 @@ def _insert_rows(client: TestClient, rows, best_efforts):
             session.add(r)
         for p in best_efforts:
             session.add(p)
+        for b in pace_hr_bins:
+            session.add(b)
         session.commit()
     finally:
         session.close()
@@ -20,7 +22,7 @@ def _insert_rows(client: TestClient, rows, best_efforts):
 def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
     monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
 
-    from backend.db.models import ProgressActivityIndex, ProgressBestEffortPoint
+    from backend.db.models import ProgressActivityIndex, ProgressBestEffortPoint, ProgressPaceHrBin
 
     with TestClient(app) as client:
         rows = [
@@ -140,7 +142,64 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
             ),
         ]
 
-        _insert_rows(client, rows, points)
+        bins = [
+            ProgressPaceHrBin(
+                activity_id="a1",
+                activity_type="real",
+                start_ts_utc="2026-02-03T10:00:00Z",
+                pace_bin_s_per_km=300.0,
+                time_s_bin=120.0,
+                hr_mean_w_bpm=140.0,
+                hr_q50_w_bpm=140.0,
+            ),
+            ProgressPaceHrBin(
+                activity_id="a1",
+                activity_type="real",
+                start_ts_utc="2026-02-03T10:00:00Z",
+                pace_bin_s_per_km=330.0,
+                time_s_bin=120.0,
+                hr_mean_w_bpm=148.0,
+                hr_q50_w_bpm=148.0,
+            ),
+            ProgressPaceHrBin(
+                activity_id="a2",
+                activity_type="real",
+                start_ts_utc="2026-02-04T10:00:00Z",
+                pace_bin_s_per_km=300.0,
+                time_s_bin=120.0,
+                hr_mean_w_bpm=138.0,
+                hr_q50_w_bpm=138.0,
+            ),
+            ProgressPaceHrBin(
+                activity_id="a2",
+                activity_type="real",
+                start_ts_utc="2026-02-04T10:00:00Z",
+                pace_bin_s_per_km=330.0,
+                time_s_bin=120.0,
+                hr_mean_w_bpm=146.0,
+                hr_q50_w_bpm=146.0,
+            ),
+            ProgressPaceHrBin(
+                activity_id="a3",
+                activity_type="real",
+                start_ts_utc="2026-02-10T10:00:00Z",
+                pace_bin_s_per_km=300.0,
+                time_s_bin=120.0,
+                hr_mean_w_bpm=142.0,
+                hr_q50_w_bpm=142.0,
+            ),
+            ProgressPaceHrBin(
+                activity_id="a3",
+                activity_type="real",
+                start_ts_utc="2026-02-10T10:00:00Z",
+                pace_bin_s_per_km=330.0,
+                time_s_bin=120.0,
+                hr_mean_w_bpm=150.0,
+                hr_q50_w_bpm=150.0,
+            ),
+        ]
+
+        _insert_rows(client, rows, points, bins)
 
         series = client.get(
             "/progress/series",
@@ -172,6 +231,26 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
         assert acts.status_code == 200
         acts_payload = acts.json()
         assert len(acts_payload["activities"]) == 3
+
+        hr_at_pace = client.get(
+            "/progress/hr-at-pace",
+            params={"from": "2026-02-01", "to": "2026-02-28", "paces_s_per_km": "300,330"},
+        )
+        assert hr_at_pace.status_code == 200
+        hr_payload = hr_at_pace.json()
+        assert len(hr_payload["series"]) == 2
+        assert hr_payload["series"][0]["pace_s_per_km"] == 300.0
+        assert len(hr_payload["series"][0]["points"]) == 3
+
+        pace_at_hr = client.get(
+            "/progress/pace-at-hr",
+            params={"from": "2026-02-01", "to": "2026-02-28", "hrs_bpm": "145"},
+        )
+        assert pace_at_hr.status_code == 200
+        pace_payload = pace_at_hr.json()
+        assert len(pace_payload["series"]) == 1
+        assert pace_payload["series"][0]["hr_bpm"] == 145.0
+        assert len(pace_payload["series"][0]["points"]) == 3
 
 
 def test_progress_verify_status_endpoint(tmp_path, monkeypatch):
