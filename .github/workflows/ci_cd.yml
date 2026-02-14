@@ -40,10 +40,10 @@ jobs:
 
       - name: Run CI pipeline (backend + frontend)
         run: |
-          python scripts/ci_pipeline.py
+          python dev/scripts/ci_pipeline.py
 
       - name: Upload CI report
         uses: actions/upload-artifact@v4
         with:
           name: ci-report
-          path: ci_report.json
+          path: reports/ci/ci_report.json

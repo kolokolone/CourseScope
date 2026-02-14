@@ -51,7 +51,7 @@ Details: `docs/climbs.md`
 ## CI (local)
 
 ```bash
-python scripts/ci_pipeline.py
+python dev/scripts/ci_pipeline.py
 ```
 
 ## 📁 Architecture du projet
@@ -215,10 +215,10 @@ python tests/smoke_test.py
 ### Profilage performance
 ```bash
 # Profilage GPX
-python tools/profile_pipeline.py --input tests/course.gpx --mode all --repeat 3
+python dev/scripts/profiling/profile_pipeline.py --input tests/course.gpx --mode all --repeat 3
 
 # Profilage FIT  
-python tools/profile_pipeline.py --input tests/course.fit --mode all --repeat 3
+python dev/scripts/profiling/profile_pipeline.py --input tests/course.fit --mode all --repeat 3
 ```
 
 ## 📋 Dépendances

@@ -2,7 +2,7 @@
 """CourseScope CI helper.
 
 v1.1.32+: legacy UI removed. This script runs the real backend + frontend test
-suites and produces `ci_report.json`.
+suites and produces `reports/ci/ci_report.json`.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def run_command(cmd: str, description: str, *, cwd: Path, timeout: int = 900):
@@ -58,9 +58,10 @@ def run_command(cmd: str, description: str, *, cwd: Path, timeout: int = 900):
 
 
 def run_backend_tests(results: list[dict]):
+    py = f"\"{sys.executable}\""
     for cmd, name in [
-        ("python -m pytest tests/unit -v", "Backend: pytest tests/unit"),
-        ("python -m pytest tests/pytest -v", "Backend: pytest tests/pytest"),
+        (f"{py} -m pytest tests/unit -v", "Backend: pytest tests/unit"),
+        (f"{py} -m pytest tests/pytest -v", "Backend: pytest tests/pytest"),
     ]:
         success, _, duration = run_command(cmd, name, cwd=REPO_ROOT)
         results.append({"name": name, "success": success, "duration": duration})
@@ -116,11 +117,12 @@ def generate_report(results):
     }
     
     # Sauvegarder le rapport
-    report_path = Path("ci_report.json")
-    with open(report_path, 'w', encoding='utf-8') as f:
+    report_path = REPO_ROOT / "reports" / "ci" / "ci_report.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(report_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
-    
-    return report
+
+    return report, report_path
 
 
 def main():
@@ -133,7 +135,7 @@ def main():
     run_frontend_tests(results)
     
     # Générer le rapport
-    report = generate_report(results)
+    report, report_path = generate_report(results)
     
     # Afficher le résumé
     print(f"\n{'='*80}")
@@ -156,7 +158,7 @@ def main():
             if not result["success"]:
                 print(f"  - {result['name']}")
     
-    print("\nReport: ci_report.json")
+    print(f"\nReport: {report_path}")
     
     # Retourner le résultat global
     overall_success = failed == 0

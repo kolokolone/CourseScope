@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def wait_http_ok(url: str, *, timeout_s: float) -> None:

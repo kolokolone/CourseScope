@@ -1,31 +1,31 @@
 {
-  "timestamp": "2026-01-31T16:54:40.096528",
-  "total_duration": 95.1359314918518,
+  "timestamp": "2026-02-14T10:40:16.291411",
+  "total_duration": 92.69478678703308,
   "results": [
     {
       "name": "Backend: pytest tests/unit",
       "success": true,
-      "duration": 31.304632663726807
+      "duration": 17.219815969467163
     },
     {
       "name": "Backend: pytest tests/pytest",
       "success": true,
-      "duration": 18.116318941116333
+      "duration": 28.434884071350098
     },
     {
-      "name": "Frontend: install (fallback)",
+      "name": "Frontend: install",
       "success": true,
-      "duration": 30.801954746246338
+      "duration": 30.73357057571411
     },
     {
       "name": "Frontend: npm test",
       "success": true,
-      "duration": 4.220911026000977
+      "duration": 4.540529489517212
     },
     {
       "name": "Frontend: npm run build",
       "success": true,
-      "duration": 10.692114114761353
+      "duration": 11.765986680984497
     }
   ],
   "summary": {
