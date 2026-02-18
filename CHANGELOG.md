@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.65] - 2026-02-18
+
+### Changed
+- Settings/Garmin: formatte les timestamps (date+heure lisibles) et affiche un delta sync plus user-friendly.
+- Activites: ajoute un tri via l'en-tete du tableau (Date/Km/D+).
+- Backend: `/integrations/garmin/status` expose `cursor_updated_at_utc`, `last_run.processed_count` et `last_run.duration_s` (champs optionnels).
+
 ## [1.1.64] - 2026-02-14
 
 ### Changed
