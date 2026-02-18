@@ -66,6 +66,9 @@ class ActivityIndexRepository:
         stmt = select(SyncState.cursor_time_utc).where(SyncState.source == source)
         return session.execute(stmt).scalar_one_or_none()
 
+    def get_sync_state(self, session: Session, source: str) -> SyncState | None:
+        return session.get(SyncState, source)
+
     def set_cursor(self, session: Session, source: str, cursor_time_utc: str | None) -> None:
         row = session.get(SyncState, source)
         now = utc_now_iso()
@@ -114,14 +117,14 @@ class ActivityIndexRepository:
 
     def delete_sync_state(self, session: Session, source: str) -> int:
         res = session.execute(delete(SyncState).where(SyncState.source == source))
-        return int(res.rowcount or 0)
+        return int(getattr(res, "rowcount", 0) or 0)
 
     def delete_activity_sources_by_source(self, session: Session, source: str) -> int:
         res = session.execute(delete(ActivitySource).where(ActivitySource.source == source))
-        return int(res.rowcount or 0)
+        return int(getattr(res, "rowcount", 0) or 0)
 
     def delete_all_activities(self, session: Session) -> int:
         # Delete sources first to avoid FK issues.
         session.execute(delete(ActivitySource))
         res = session.execute(delete(Activity))
-        return int(res.rowcount or 0)
+        return int(getattr(res, "rowcount", 0) or 0)

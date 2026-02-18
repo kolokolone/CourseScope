@@ -72,6 +72,19 @@ def test_garmin_sync_idempotent(_isolated_env, monkeypatch):
         assert p1["status"] == "ok"
         assert p1["imported_count"] == 1
 
+        status = client.get("/integrations/garmin/status")
+        assert status.status_code == 200
+        s = status.json()
+        assert isinstance(s.get("tokens_present"), bool)
+        assert isinstance(s.get("tokens_dir"), str)
+        assert isinstance(s.get("cursor_time_utc"), str)
+        assert isinstance(s.get("cursor_updated_at_utc"), str)
+        assert isinstance(s.get("last_run"), dict)
+        last = s["last_run"]
+        assert last["status"] in {"ok", "error", "running"}
+        assert last["processed_count"] == int(last["imported_count"]) + int(last["skipped_count"])
+        assert isinstance(last.get("duration_s"), (int, type(None)))
+
         r2 = client.post("/integrations/garmin/sync")
         assert r2.status_code == 200
         p2 = r2.json()

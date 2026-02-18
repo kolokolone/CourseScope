@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -49,6 +50,7 @@ class GarminStatusResponse(BaseModel):
     tokens_present: bool
     tokens_dir: str
     cursor_time_utc: str | None
+    cursor_updated_at_utc: str | None = None
     last_run: dict | None = None
 
 
@@ -134,9 +136,9 @@ async def garmin_sync(request: Request):
         storage=storage,
         db_session_factory=db_session_factory,
     )
-    import anyio
+    from anyio.to_thread import run_sync
 
-    result = await anyio.to_thread.run_sync(service.sync)
+    result = await run_sync(service.sync)
     return GarminSyncResponse(**result.__dict__)
 
 
@@ -169,14 +171,26 @@ async def garmin_status(request: Request):
 
     db_session_factory = getattr(request.app.state, "db_session_factory", None)
     cursor = None
+    cursor_updated_at_utc = None
     last_run_payload = None
     if db_session_factory is not None:
         repo = ActivityIndexRepository()
         session = db_session_factory()
         try:
-            cursor = repo.get_cursor(session, "garmin")
+            state = repo.get_sync_state(session, "garmin")
+            if state is not None:
+                cursor = state.cursor_time_utc
+                cursor_updated_at_utc = state.updated_at_utc
             last_run = repo.get_last_sync_run(session, "garmin")
             if last_run is not None:
+                duration_s = None
+                try:
+                    if last_run.finished_at_utc:
+                        a = datetime.fromisoformat(last_run.started_at_utc.replace("Z", "+00:00"))
+                        b = datetime.fromisoformat(last_run.finished_at_utc.replace("Z", "+00:00"))
+                        duration_s = int((b - a).total_seconds())
+                except Exception:
+                    duration_s = None
                 last_run_payload = {
                     "id": last_run.id,
                     "source": last_run.source,
@@ -185,12 +199,20 @@ async def garmin_status(request: Request):
                     "status": last_run.status,
                     "imported_count": last_run.imported_count,
                     "skipped_count": last_run.skipped_count,
+                    "processed_count": int(last_run.imported_count) + int(last_run.skipped_count),
+                    "duration_s": duration_s,
                     "error": last_run.error,
                 }
         finally:
             session.close()
 
-    return GarminStatusResponse(tokens_present=present, tokens_dir=str(tokens_dir), cursor_time_utc=cursor, last_run=last_run_payload)
+    return GarminStatusResponse(
+        tokens_present=present,
+        tokens_dir=str(tokens_dir),
+        cursor_time_utc=cursor,
+        cursor_updated_at_utc=cursor_updated_at_utc,
+        last_run=last_run_payload,
+    )
 
 
 @router.get(
