@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
 import type { ActivityMetadata } from '@/types/api';
-import { Activity, RefreshCw, Settings, TrendingUp } from 'lucide-react';
+import { Activity, ArrowUpDown, ChevronDown, ChevronUp, RefreshCw, Settings, TrendingUp } from 'lucide-react';
 import { garminApi } from '@/lib/api';
 import {
   Area,
@@ -22,6 +22,8 @@ import {
 } from 'recharts';
 
 type HistoryRange = '3m' | '6m' | '1y' | 'all';
+type SortKey = 'date' | 'distance_km' | 'elevation_gain_m';
+type SortDir = 'asc' | 'desc';
 
 function weekStartUtc(date: Date): Date {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -109,6 +111,31 @@ export default function ActivitiesPage() {
   const { data, isLoading } = useActivityList();
 
   const [range, setRange] = React.useState<HistoryRange>('6m');
+  const [sortKey, setSortKey] = React.useState<SortKey>('date');
+  const [sortDir, setSortDir] = React.useState<SortDir>('desc');
+
+  const toggleSort = React.useCallback((key: SortKey) => {
+    setSortKey((prev) => {
+      if (prev !== key) {
+        setSortDir('desc');
+        return key;
+      }
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+      return prev;
+    });
+  }, []);
+
+  const sortIcon = React.useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) return <ArrowUpDown className="h-3.5 w-3.5 opacity-60" />;
+      return sortDir === 'desc' ? (
+        <ChevronDown className="h-4 w-4" />
+      ) : (
+        <ChevronUp className="h-4 w-4" />
+      );
+    },
+    [sortDir, sortKey]
+  );
 
   const syncMutation = useMutation({
     mutationFn: () => garminApi.sync(),
@@ -123,8 +150,28 @@ export default function ActivitiesPage() {
       const t = new Date(x.started_at ?? x.created_at).getTime();
       return Number.isFinite(t) ? t : 0;
     };
-    return list.slice().sort((a, b) => epoch(b) - epoch(a));
-  }, [data]);
+    const metric = (x: ActivityMetadata) => {
+      if (sortKey === 'distance_km') return x.stats_sidebar.distance_km;
+      if (sortKey === 'elevation_gain_m') return x.stats_sidebar.elevation_gain_m;
+      return null;
+    };
+    const dir = sortDir === 'desc' ? -1 : 1;
+    return list.slice().sort((a, b) => {
+      if (sortKey === 'date') return epoch(b) - epoch(a);
+      const av = metric(a);
+      const bv = metric(b);
+      const aNum = typeof av === 'number' ? av : NaN;
+      const bNum = typeof bv === 'number' ? bv : NaN;
+
+      const aOk = Number.isFinite(aNum);
+      const bOk = Number.isFinite(bNum);
+      if (aOk && bOk && aNum !== bNum) return (aNum - bNum) * dir;
+      if (aOk !== bOk) return aOk ? -1 : 1;
+
+      // Tiebreaker: keep newest first.
+      return epoch(b) - epoch(a);
+    });
+  }, [data, sortDir, sortKey]);
 
   const weekly = React.useMemo(() => buildWeeklySeries(items, range), [items, range]);
 
@@ -270,10 +317,40 @@ export default function ActivitiesPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40">
                     <tr>
-                      <th className="text-left px-3 py-2 font-medium">Date</th>
+                      <th className="text-left px-3 py-2 font-medium">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 hover:underline"
+                          onClick={() => toggleSort('date')}
+                          title="Trier par date"
+                        >
+                          Date
+                          {sortIcon('date')}
+                        </button>
+                      </th>
                       <th className="text-left px-3 py-2 font-medium">Nom</th>
-                      <th className="text-right px-3 py-2 font-medium">Distance (km)</th>
-                      <th className="text-right px-3 py-2 font-medium">Denivele (m)</th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 justify-end w-full hover:underline"
+                          onClick={() => toggleSort('distance_km')}
+                          title="Trier par distance"
+                        >
+                          Distance (km)
+                          {sortIcon('distance_km')}
+                        </button>
+                      </th>
+                      <th className="text-right px-3 py-2 font-medium">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 justify-end w-full hover:underline"
+                          onClick={() => toggleSort('elevation_gain_m')}
+                          title="Trier par denivele"
+                        >
+                          Denivele (m)
+                          {sortIcon('elevation_gain_m')}
+                        </button>
+                      </th>
                       <th className="text-right px-3 py-2 font-medium">Duree</th>
                     </tr>
                   </thead>

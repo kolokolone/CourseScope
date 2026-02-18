@@ -17,6 +17,26 @@ import { useCleanupActivities } from '@/hooks/useActivity';
 
 const PERSIST_UPLOADS_KEY = 'coursescope.persist_uploads_to_disk';
 
+function formatIsoUtcFr(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return iso;
+  const date = d.toLocaleDateString('fr-FR', { timeZone: 'UTC' });
+  const time = d.toLocaleTimeString('fr-FR', {
+    timeZone: 'UTC',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return `${date} ${time}`;
+}
+
+function formatSyncDelta(importedCount: number, skippedCount: number): string {
+  const imported = Number.isFinite(importedCount) ? importedCount : 0;
+  const skipped = Number.isFinite(skippedCount) ? skippedCount : 0;
+  return `+${imported} activites ajoutees (${skipped} activites evitees)`;
+}
+
 function getPersistUploads(): boolean {
   if (typeof window === 'undefined') return false;
   const raw = window.localStorage.getItem(PERSIST_UPLOADS_KEY);
@@ -229,11 +249,16 @@ export default function SettingsPage() {
                     Tokens: <span className="font-medium">{garminStatus.data.tokens_present ? 'OK' : 'absents'}</span>
                   </div>
                   <div>
-                    Cursor sync: <span className="font-medium">{garminStatus.data.cursor_time_utc ?? '—'}</span>
+                    Cursor sync: <span className="font-medium">{formatIsoUtcFr(garminStatus.data.cursor_time_utc)}</span>
                   </div>
+                  {garminStatus.data.cursor_updated_at_utc ? (
+                    <div className="text-xs text-muted-foreground">
+                      Maj cursor: {formatIsoUtcFr(garminStatus.data.cursor_updated_at_utc)}
+                    </div>
+                  ) : null}
                   {garminStatus.data.last_run ? (
                     <div className="text-xs text-muted-foreground">
-                      Derniere sync: {garminStatus.data.last_run.status} • +{garminStatus.data.last_run.imported_count} / skip {garminStatus.data.last_run.skipped_count}
+                      Derniere sync: {formatIsoUtcFr(garminStatus.data.last_run.finished_at_utc ?? garminStatus.data.last_run.started_at_utc)} • {garminStatus.data.last_run.status} • {formatSyncDelta(garminStatus.data.last_run.imported_count, garminStatus.data.last_run.skipped_count)}
                     </div>
                   ) : null}
                 </div>
@@ -325,7 +350,7 @@ export default function SettingsPage() {
 
             {sync.data ? (
               <div className="text-sm text-muted-foreground">
-                Sync: {sync.data.status} • +{sync.data.imported_count} / skip {sync.data.skipped_count}
+                Sync: {sync.data.status} • {formatSyncDelta(sync.data.imported_count, sync.data.skipped_count)}
               </div>
             ) : null}
           </CardContent>

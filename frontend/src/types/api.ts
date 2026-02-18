@@ -130,6 +130,7 @@ export interface GarminStatusResponse {
   tokens_present: boolean;
   tokens_dir: string;
   cursor_time_utc?: string | null;
+  cursor_updated_at_utc?: string | null;
   last_run?: {
     id: string;
     source: string;
@@ -138,6 +139,8 @@ export interface GarminStatusResponse {
     status: string;
     imported_count: number;
     skipped_count: number;
+    processed_count?: number;
+    duration_s?: number | null;
     error?: string | null;
   } | null;
 }
