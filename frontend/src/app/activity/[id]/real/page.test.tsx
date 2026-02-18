@@ -65,8 +65,7 @@ describe('RealActivityPage', () => {
 
     render(<RealActivityPage />);
 
-    expect(screen.getByText('Activite reelle')).toBeInTheDocument();
-    expect(screen.getByText('Analyse')).toBeInTheDocument();
+    expect(screen.getByText('ID: activity-1')).toBeInTheDocument();
 
     // Tabs
     expect(screen.getByRole('button', { name: 'Aperçu' })).toBeInTheDocument();

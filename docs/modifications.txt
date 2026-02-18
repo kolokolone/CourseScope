@@ -1,0 +1,8 @@
+**Ce document sert de feuille de route pour l'implémentation des modifications à faire ci dessous**
+
+- le fichier C:\Users\domin\Documents\Python Scripts\CourseScope\data\coursescope.sqlite est ma base de donnée, il est top. Est-ce qu'il n'y aurait pas d'autres métriques que je pourrais tracer facilement dans ce fichier pour mon application ? Je parle de métriques fonctionnelles pour la gestion de l'application en elle meme (il y a notamment sync_state).
+- après une sync avec garmin, le fichier C:\Users\domin\Documents\Python Scripts\CourseScope\data\coursescope.sqlite trace le nombre d'activité ajoutés, est-ce qu'on pourrait pas rendre le visuel un peu plus userfriendly parce que j'ai deja ca qui s'affiche masi c'est moche : "Tokens: OK
+Cursor sync: 2026-02-14T09:42:07Z
+Derniere sync: ok • +2 / skip 3", la date ne s'affiche pas comme 14/02/2026 et l'heure n'apparait apparait pas visuellement bien (ils sont collés), ajoute une meilleur mention : "+2 activités ajoutés (3 activités évitées)", comme ce qui est tracé dans le sqlite       .
+- dans la page des Activités, le tableau permet de montrer toutes les activités triées de base par date (plus récent en haut). Est-ce qu'il est possible d'ajouter un tri dans la premiere ligne du tableau, par exemple par Km ou D+ ?
+

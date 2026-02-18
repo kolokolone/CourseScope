@@ -34,15 +34,15 @@ export default function TheoreticalActivityPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
-        <div className="text-center">Loading activity...</div>
+      <div className="py-8 text-center">
+        <div>Loading activity...</div>
       </div>
     );
   }
 
   if (error || !activity) {
     return (
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
+      <div className="py-8">
         <div className="text-center text-red-600">Failed to load activity: {error?.message || 'Unknown error'}</div>
         <div className="flex justify-center gap-3 mt-4">
           <Button onClick={() => refetch()}>Retry</Button>
@@ -58,39 +58,25 @@ export default function TheoreticalActivityPage() {
   const showCharts = hasAnyChartSeries(seriesAvailable);
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-7xl">
-      <div className="sticky top-0 z-40 -mx-4 px-4 pb-3 bg-background/90 backdrop-blur border-b">
-        <div className="pt-2">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-xs text-muted-foreground">Activite theorique</div>
-              <h1 className="text-2xl font-bold truncate">Analyse</h1>
-              <div className="text-xs text-muted-foreground truncate">{`ID: ${activityId}`}</div>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline">
-                Export
-              </Button>
-            </div>
-          </div>
-        </div>
-
+    <div className="space-y-4">
+      <div className="rounded-lg border bg-card px-4 py-3">
+        <div className="text-sm text-muted-foreground">ID: {activityId}</div>
         <div className="mt-3 overflow-x-auto">
           <div className="flex gap-2 whitespace-nowrap">
             <Button size="sm" variant={activeTab === 'overview' ? 'default' : 'outline'} onClick={() => setActiveTab('overview')}>
-              Aperçu
+              Apercu
             </Button>
             <Button size="sm" variant={activeTab === 'charts' ? 'default' : 'outline'} onClick={() => setActiveTab('charts')}>
               Charts
             </Button>
             <Button size="sm" variant={activeTab === 'details' ? 'default' : 'outline'} onClick={() => setActiveTab('details')}>
-              Détails
+              Details
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="mt-6 space-y-4">
+      <div className="space-y-4">
         {activeTab === 'overview' ? (
           <MetricsRegistryRenderer data={activity} sections={mainSections} density="compact" tableMaxHeight="max-h-[520px]" />
         ) : null}

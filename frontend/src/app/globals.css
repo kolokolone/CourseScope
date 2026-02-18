@@ -2,8 +2,23 @@
 @import "leaflet/dist/leaflet.css";
 
 :root {
-  --background: #fbfbf8;
-  --foreground: #1a1a1a;
+  --background: #f4f6f9;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --muted: #e8edf4;
+  --muted-foreground: #475569;
+  --accent: #dfe8f5;
+  --accent-foreground: #0f172a;
+  --primary: #1d3557;
+  --primary-foreground: #f8fafc;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #0f172a;
+  --border: #ced8e3;
+  --input: #ced8e3;
+  --ring: #7890b2;
+  --destructive: #b42318;
+  --destructive-foreground: #ffffff;
   --font-sans: var(--font-space-grotesk);
   --font-mono: var(--font-jetbrains-mono);
 }
@@ -11,11 +26,31 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 }
 
+* {
+  border-color: var(--border);
+}
+
 body {
+  min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);

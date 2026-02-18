@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,7 @@ import type {
   GarminStatusResponse,
   GarminSyncResponse,
 } from '@/types/api';
-import { Activity, Save, Settings, Trash2 } from 'lucide-react';
+import { Save, Settings, Trash2 } from 'lucide-react';
 import { useCleanupActivities } from '@/hooks/useActivity';
 
 const PERSIST_UPLOADS_KEY = 'coursescope.persist_uploads_to_disk';
@@ -148,214 +147,194 @@ export default function SettingsPage() {
   const connectLabel = canConnectWithTyped ? 'Connecter' : 'Connecter (cred stockes)';
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-4xl">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs text-muted-foreground">CourseScope</div>
-          <h1 className="text-2xl font-bold truncate">Parametres</h1>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href="/">
-              <Activity className="h-4 w-4 mr-2" />
-              Accueil
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/activities">Historique</Link>
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-6 space-y-4">
-        <Card>
-          <CardHeader className="py-3 px-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Upload
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <label className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-medium">Enregistrer les uploads sur disque</div>
-                <div className="text-sm text-muted-foreground">
-                  Par defaut: OFF. Si OFF, l'analyse reste disponible tant que le backend tourne (pas d'historique).
-                </div>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Upload
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <label className="flex items-center justify-between gap-3">
+            <div>
+              <div className="font-medium">Enregistrer les uploads sur disque</div>
+              <div className="text-sm text-muted-foreground">
+                Par defaut: OFF. Si OFF, l'analyse reste disponible tant que le backend tourne (pas d'historique).
               </div>
-              <input
-                type="checkbox"
-                className="h-5 w-5"
-                checked={persistUploadsToDisk}
-                onChange={(e) => {
-                  const next = e.target.checked;
-                  setPersistUploads(next);
-                  setPersistUploadsToDisk(next);
-                }}
-              />
-            </label>
-
-            <div className="mt-4">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleCleanup}
-                disabled={cleanupMutation.isPending}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Cleanup activites
-              </Button>
             </div>
-          </CardContent>
-        </Card>
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              checked={persistUploadsToDisk}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setPersistUploads(next);
+                setPersistUploadsToDisk(next);
+              }}
+            />
+          </label>
 
-        <Card>
-          <CardHeader className="py-3 px-4">
-            <CardTitle className="text-base">Garmin</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-4">
-            <div className="rounded-md border p-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div className="font-medium">Statut</div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => garminStatus.refetch()} disabled={garminStatus.isFetching}>
-                    Rafraichir
-                  </Button>
-                  <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
-                    Sync
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      if (!window.confirm('Relancer une synchronisation complete Garmin ?')) return;
-                      fullSync.mutate();
-                    }}
-                    disabled={fullSync.isPending}
-                    title="Reset cursor + relance sync"
-                  >
-                    Sync complet
-                  </Button>
-                </div>
-              </div>
+          <div className="mt-4">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCleanup}
+              disabled={cleanupMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Cleanup activites
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-              {garminStatus.isLoading ? (
-                <div className="text-muted-foreground mt-2">Chargement...</div>
-              ) : garminStatus.isError ? (
-                <div className="text-red-600 mt-2">Erreur: {String(garminStatus.error)}</div>
-              ) : garminStatus.data ? (
-                <div className="mt-2 space-y-1">
-                  <div>
-                    Tokens: <span className="font-medium">{garminStatus.data.tokens_present ? 'OK' : 'absents'}</span>
-                  </div>
-                  <div>
-                    Cursor sync: <span className="font-medium">{formatIsoUtcFr(garminStatus.data.cursor_time_utc)}</span>
-                  </div>
-                  {garminStatus.data.cursor_updated_at_utc ? (
-                    <div className="text-xs text-muted-foreground">
-                      Maj cursor: {formatIsoUtcFr(garminStatus.data.cursor_updated_at_utc)}
-                    </div>
-                  ) : null}
-                  {garminStatus.data.last_run ? (
-                    <div className="text-xs text-muted-foreground">
-                      Derniere sync: {formatIsoUtcFr(garminStatus.data.last_run.finished_at_utc ?? garminStatus.data.last_run.started_at_utc)} • {garminStatus.data.last_run.status} • {formatSyncDelta(garminStatus.data.last_run.imported_count, garminStatus.data.last_run.skipped_count)}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-md border p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="font-medium">Identifiants</div>
-                  <div className="text-sm text-muted-foreground">Stockes localement sur disque (exclus de git).</div>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => credsStatus.refetch()} disabled={credsStatus.isFetching}>
-                  Verifier
+      <Card>
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-base">Garmin</CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-4">
+          <div className="rounded-md border p-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="font-medium">Statut</div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => garminStatus.refetch()} disabled={garminStatus.isFetching}>
+                  Rafraichir
+                </Button>
+                <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
+                  Sync
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    if (!window.confirm('Relancer une synchronisation complete Garmin ?')) return;
+                    fullSync.mutate();
+                  }}
+                  disabled={fullSync.isPending}
+                  title="Reset cursor + relance sync"
+                >
+                  Sync complet
                 </Button>
               </div>
-
-              {credsStatus.data ? (
-                <div className="mt-2 text-sm">
-                  Configure: <span className="font-medium">{credsStatus.data.configured ? 'oui' : 'non'}</span>
-                  {credsStatus.data.email ? <span className="text-muted-foreground"> • {credsStatus.data.email}</span> : null}
-                  <div className="text-xs text-muted-foreground break-all">{credsStatus.data.path}</div>
-                </div>
-              ) : null}
-
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <label className="text-sm">
-                  <div className="text-muted-foreground">Email</div>
-                  <input
-                    className="mt-1 w-full rounded-md border px-3 py-2"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email@example.com"
-                    autoComplete="username"
-                  />
-                </label>
-                <label className="text-sm">
-                  <div className="text-muted-foreground">Mot de passe</div>
-                  <input
-                    className="mt-1 w-full rounded-md border px-3 py-2"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    type="password"
-                    autoComplete="current-password"
-                  />
-                </label>
-                {otpStep ? (
-                  <label className="text-sm">
-                    <div className="text-muted-foreground">OTP</div>
-                    <input
-                      className="mt-1 w-full rounded-md border px-3 py-2"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      placeholder="123456"
-                      inputMode="numeric"
-                    />
-                  </label>
-                ) : null}
-                <div className="flex items-end gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => saveCreds.mutate({ email, password })}
-                    disabled={saveCreds.isPending || email.trim().length === 0 || password.length === 0}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Enregistrer
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => startConnect(canConnectWithTyped ? { email, password } : {})}
-                    disabled={connect.isPending || otpStep || (!canConnectWithTyped && !canConnectWithStored)}
-                  >
-                    {connectLabel}
-                  </Button>
-                  {otpStep ? (
-                    <Button
-                      size="sm"
-                      onClick={confirmOtp}
-                      disabled={connect.isPending || otp.trim().length === 0 || !mfaSessionId}
-                    >
-                      Confirmer
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
             </div>
 
-            {sync.data ? (
-              <div className="text-sm text-muted-foreground">
-                Sync: {sync.data.status} • {formatSyncDelta(sync.data.imported_count, sync.data.skipped_count)}
+            {garminStatus.isLoading ? (
+              <div className="text-muted-foreground mt-2">Chargement...</div>
+            ) : garminStatus.isError ? (
+              <div className="text-red-600 mt-2">Erreur: {String(garminStatus.error)}</div>
+            ) : garminStatus.data ? (
+              <div className="mt-2 space-y-1">
+                <div>
+                  Tokens: <span className="font-medium">{garminStatus.data.tokens_present ? 'OK' : 'absents'}</span>
+                </div>
+                <div>
+                  Cursor sync: <span className="font-medium">{formatIsoUtcFr(garminStatus.data.cursor_time_utc)}</span>
+                </div>
+                {garminStatus.data.cursor_updated_at_utc ? (
+                  <div className="text-xs text-muted-foreground">
+                    Maj cursor: {formatIsoUtcFr(garminStatus.data.cursor_updated_at_utc)}
+                  </div>
+                ) : null}
+                {garminStatus.data.last_run ? (
+                  <div className="text-xs text-muted-foreground">
+                    Derniere sync: {formatIsoUtcFr(garminStatus.data.last_run.finished_at_utc ?? garminStatus.data.last_run.started_at_utc)} • {garminStatus.data.last_run.status} • {formatSyncDelta(garminStatus.data.last_run.imported_count, garminStatus.data.last_run.skipped_count)}
+                  </div>
+                ) : null}
               </div>
             ) : null}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+
+          <div className="rounded-md border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-medium">Identifiants</div>
+                <div className="text-sm text-muted-foreground">Stockes localement sur disque (exclus de git).</div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => credsStatus.refetch()} disabled={credsStatus.isFetching}>
+                Verifier
+              </Button>
+            </div>
+
+            {credsStatus.data ? (
+              <div className="mt-2 text-sm">
+                Configure: <span className="font-medium">{credsStatus.data.configured ? 'oui' : 'non'}</span>
+                {credsStatus.data.email ? <span className="text-muted-foreground"> • {credsStatus.data.email}</span> : null}
+                <div className="text-xs text-muted-foreground break-all">{credsStatus.data.path}</div>
+              </div>
+            ) : null}
+
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <label className="text-sm">
+                <div className="text-muted-foreground">Email</div>
+                <input
+                  className="mt-1 w-full rounded-md border px-3 py-2"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="email@example.com"
+                  autoComplete="username"
+                />
+              </label>
+              <label className="text-sm">
+                <div className="text-muted-foreground">Mot de passe</div>
+                <input
+                  className="mt-1 w-full rounded-md border px-3 py-2"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  type="password"
+                  autoComplete="current-password"
+                />
+              </label>
+              {otpStep ? (
+                <label className="text-sm">
+                  <div className="text-muted-foreground">OTP</div>
+                  <input
+                    className="mt-1 w-full rounded-md border px-3 py-2"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="123456"
+                    inputMode="numeric"
+                  />
+                </label>
+              ) : null}
+              <div className="flex items-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => saveCreds.mutate({ email, password })}
+                  disabled={saveCreds.isPending || email.trim().length === 0 || password.length === 0}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Enregistrer
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => startConnect(canConnectWithTyped ? { email, password } : {})}
+                  disabled={connect.isPending || otpStep || (!canConnectWithTyped && !canConnectWithStored)}
+                >
+                  {connectLabel}
+                </Button>
+                {otpStep ? (
+                  <Button
+                    size="sm"
+                    onClick={confirmOtp}
+                    disabled={connect.isPending || otp.trim().length === 0 || !mfaSessionId}
+                  >
+                    Confirmer
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {sync.data ? (
+            <div className="text-sm text-muted-foreground">
+              Sync: {sync.data.status} • {formatSyncDelta(sync.data.imported_count, sync.data.skipped_count)}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
     </div>
   );
 }

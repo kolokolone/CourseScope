@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -20,7 +19,6 @@ import {
 } from 'recharts';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import {
   useProgressActivities,
   useProgressBestEfforts,
@@ -40,7 +38,7 @@ import type {
   ProgressVerifyResponse,
 } from '@/types/api';
 import { PaceHr3DChart } from '@/components/charts/PaceHr3DChart';
-import { Activity, Home, Settings, TrendingUp } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 
 type HistoryRange = '3m' | '6m' | '1y' | 'all';
 
@@ -509,49 +507,20 @@ export default function ProgressPage() {
   }, []);
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-6xl">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs text-muted-foreground">CourseScope</div>
-          <h1 className="text-2xl font-bold truncate">Progression</h1>
-          <div className="text-xs text-muted-foreground truncate">Tendances multi-activites</div>
+    <div className="space-y-4">
+      {verifyState?.running ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Indexation en cours: les graphes peuvent etre incomplets pendant quelques secondes.
         </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href="/">
-              <Home className="h-4 w-4 mr-2" />
-              Accueil
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/activities">
-              <Activity className="h-4 w-4 mr-2" />
-              Historique
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/settings">
-              <Settings className="h-4 w-4 mr-2" />
-              Parametres
-            </Link>
-          </Button>
+      ) : null}
+
+      {!verifyState?.running && verifyState?.last_error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          Echec de l'indexation: {verifyState.last_error}
         </div>
-      </div>
+      ) : null}
 
-      <div className="mt-6 space-y-4">
-        {verifyState?.running ? (
-          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Indexation en cours: les graphes peuvent etre incomplets pendant quelques secondes.
-          </div>
-        ) : null}
-
-        {!verifyState?.running && verifyState?.last_error ? (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            Echec de l'indexation: {verifyState.last_error}
-          </div>
-        ) : null}
-
-        <Card>
+      <Card>
           <CardHeader className="py-3 px-4">
             <div className="flex items-center justify-between gap-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -638,7 +607,7 @@ export default function ProgressPage() {
           </CardContent>
         </Card>
 
-        <Card>
+      <Card>
           <CardHeader className="py-3 px-4">
             <CardTitle className="text-base">Charge (TRIMP) par semaine</CardTitle>
           </CardHeader>
@@ -677,7 +646,7 @@ export default function ProgressPage() {
           </CardContent>
         </Card>
 
-        <Card>
+      <Card>
           <CardHeader className="py-3 px-4">
             <div className="flex items-center justify-between gap-3">
               <CardTitle className="text-base">Best effort (allure) dans le temps</CardTitle>
@@ -758,7 +727,7 @@ export default function ProgressPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <CardHeader className="py-3 px-4">
               <CardTitle className="text-base">Efficacite aerobique (EF)</CardTitle>
@@ -874,7 +843,7 @@ export default function ProgressPage() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <CardHeader className="py-3 px-4">
               <CardTitle className="text-base">HR @ allure de reference</CardTitle>
@@ -1069,7 +1038,7 @@ export default function ProgressPage() {
           </Card>
         </div>
 
-        <Card>
+      <Card>
           <CardHeader className="py-3 px-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <CardTitle className="text-base">Pace-HR Waterfall 3D</CardTitle>
@@ -1152,8 +1121,7 @@ export default function ProgressPage() {
               </>
             )}
           </CardContent>
-        </Card>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -1,16 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActivityList } from '@/hooks/useActivity';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
 import type { ActivityMetadata } from '@/types/api';
-import { Activity, ArrowUpDown, ChevronDown, ChevronUp, RefreshCw, Settings, TrendingUp } from 'lucide-react';
-import { garminApi } from '@/lib/api';
+import { ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   Area,
   AreaChart,
@@ -107,7 +104,6 @@ function buildWeeklySeries(activities: ActivityMetadata[], range: HistoryRange) 
 
 export default function ActivitiesPage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { data, isLoading } = useActivityList();
 
   const [range, setRange] = React.useState<HistoryRange>('6m');
@@ -136,13 +132,6 @@ export default function ActivitiesPage() {
     },
     [sortDir, sortKey]
   );
-
-  const syncMutation = useMutation({
-    mutationFn: () => garminApi.sync(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['activities'] });
-    },
-  });
 
   const items = React.useMemo(() => {
     const list = data?.activities ?? [];
@@ -204,190 +193,151 @@ export default function ActivitiesPage() {
   );
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-6xl">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs text-muted-foreground">CourseScope</div>
-          <h1 className="text-2xl font-bold truncate">Historique des activites</h1>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href="/">
-              <Activity className="h-4 w-4 mr-2" />
-              Accueil
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/progress">
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Progression
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/settings">
-              <Settings className="h-4 w-4 mr-2" />
-              Parametres
-            </Link>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            title="Synchroniser avec Garmin"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Sync Garmin
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base">Kilometres par semaine</CardTitle>
+            <label className="text-sm text-muted-foreground flex items-center gap-2">
+              Intervalle
+              <select
+                className="h-8 rounded-md border bg-background px-2 text-sm"
+                value={range}
+                onChange={(e) => setRange(e.target.value as HistoryRange)}
+              >
+                <option value="3m">3 mois</option>
+                <option value="6m">6 mois</option>
+                <option value="1y">1 an</option>
+                <option value="all">Tout</option>
+              </select>
+            </label>
+          </div>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={weekly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis
+                dataKey="key"
+                tick={{ fontSize: 11 }}
+                tickFormatter={(value: any) => {
+                  const s = String(value);
+                  const idx = s.indexOf('-W');
+                  if (idx === -1) return s;
+                  const w = s.slice(idx + 2);
+                  return `S${Number(w)}`;
+                }}
+              />
+              <YAxis />
+              <Tooltip
+                formatter={(value: any) => {
+                  const km = typeof value === 'number' ? value : Number(value);
+                  return [`${formatNumber(km, { decimals: 1 })} km`, 'KM'];
+                }}
+                labelFormatter={(_label: any, payload: any) => {
+                  const p = Array.isArray(payload) && payload[0] ? payload[0].payload : null;
+                  if (p && typeof p.year === 'number' && typeof p.week === 'number') return `${p.year} • S${p.week}`;
+                  return String(_label);
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="km"
+                stroke="#93c5fd"
+                strokeWidth={2}
+                fill="rgba(147,197,253,0.4)"
+                dot={renderDot}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
-      <div className="mt-6 space-y-4">
-        <Card>
-          <CardHeader className="py-3 px-4">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-base">Kilometres par semaine</CardTitle>
-              <label className="text-sm text-muted-foreground flex items-center gap-2">
-                Intervalle
-                <select
-                  className="h-8 rounded-md border bg-background px-2 text-sm"
-                  value={range}
-                  onChange={(e) => setRange(e.target.value as HistoryRange)}
-                >
-                  <option value="3m">3 mois</option>
-                  <option value="6m">6 mois</option>
-                  <option value="1y">1 an</option>
-                  <option value="all">Tout</option>
-                </select>
-              </label>
+      <Card>
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-base">Toutes les activites</CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          {isLoading ? (
+            <div className="text-muted-foreground">Chargement...</div>
+          ) : items.length === 0 ? (
+            <div className="text-muted-foreground">Aucune activite.</div>
+          ) : (
+            <div className="overflow-auto rounded-md border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:underline"
+                        onClick={() => toggleSort('date')}
+                        title="Trier par date"
+                      >
+                        Date
+                        {sortIcon('date')}
+                      </button>
+                    </th>
+                    <th className="text-left px-3 py-2 font-medium">Nom</th>
+                    <th className="text-right px-3 py-2 font-medium">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 justify-end w-full hover:underline"
+                        onClick={() => toggleSort('distance_km')}
+                        title="Trier par distance"
+                      >
+                        Distance (km)
+                        {sortIcon('distance_km')}
+                      </button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-medium">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 justify-end w-full hover:underline"
+                        onClick={() => toggleSort('elevation_gain_m')}
+                        title="Trier par denivele"
+                      >
+                        Denivele (m)
+                        {sortIcon('elevation_gain_m')}
+                      </button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-medium">Duree</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {items.map((a) => {
+                    const dist = a.stats_sidebar.distance_km;
+                    const elev = a.stats_sidebar.elevation_gain_m;
+                    const dur = a.stats_sidebar.elapsed_time_s;
+                    const dt = new Date(a.started_at ?? a.created_at);
+                    const dateLabel = Number.isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString();
+                    return (
+                      <tr
+                        key={a.id}
+                        className="hover:bg-accent/30 cursor-pointer"
+                        onClick={() => router.push(`/activity/${a.id}/${a.activity_type}`)}
+                      >
+                        <td className="px-3 py-2 whitespace-nowrap">{dateLabel}</td>
+                        <td className="px-3 py-2 max-w-[32rem] truncate">{a.name || a.filename}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {typeof dist === 'number' ? formatNumber(dist, { decimals: 1 }) : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {typeof elev === 'number' ? formatNumber(elev, { integer: true }) : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {typeof dur === 'number' ? formatDurationSeconds(dur) : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={weekly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis
-                  dataKey="key"
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(value: any) => {
-                    const s = String(value);
-                    const idx = s.indexOf('-W');
-                    if (idx === -1) return s;
-                    const w = s.slice(idx + 2);
-                    return `S${Number(w)}`;
-                  }}
-                />
-                <YAxis />
-                <Tooltip
-                  formatter={(value: any) => {
-                    const km = typeof value === 'number' ? value : Number(value);
-                    return [`${formatNumber(km, { decimals: 1 })} km`, 'KM'];
-                  }}
-                  labelFormatter={(_label: any, payload: any) => {
-                    const p = Array.isArray(payload) && payload[0] ? payload[0].payload : null;
-                    if (p && typeof p.year === 'number' && typeof p.week === 'number') return `${p.year} • S${p.week}`;
-                    return String(_label);
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="km"
-                  stroke="#93c5fd"
-                  strokeWidth={2}
-                  fill="rgba(147,197,253,0.4)"
-                  dot={renderDot}
-                  isAnimationActive={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="py-3 px-4">
-            <CardTitle className="text-base">Toutes les activites</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            {isLoading ? (
-              <div className="text-muted-foreground">Chargement...</div>
-            ) : items.length === 0 ? (
-              <div className="text-muted-foreground">Aucune activite.</div>
-            ) : (
-              <div className="overflow-auto rounded-md border">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 hover:underline"
-                          onClick={() => toggleSort('date')}
-                          title="Trier par date"
-                        >
-                          Date
-                          {sortIcon('date')}
-                        </button>
-                      </th>
-                      <th className="text-left px-3 py-2 font-medium">Nom</th>
-                      <th className="text-right px-3 py-2 font-medium">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 justify-end w-full hover:underline"
-                          onClick={() => toggleSort('distance_km')}
-                          title="Trier par distance"
-                        >
-                          Distance (km)
-                          {sortIcon('distance_km')}
-                        </button>
-                      </th>
-                      <th className="text-right px-3 py-2 font-medium">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 justify-end w-full hover:underline"
-                          onClick={() => toggleSort('elevation_gain_m')}
-                          title="Trier par denivele"
-                        >
-                          Denivele (m)
-                          {sortIcon('elevation_gain_m')}
-                        </button>
-                      </th>
-                      <th className="text-right px-3 py-2 font-medium">Duree</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {items.map((a) => {
-                      const dist = a.stats_sidebar.distance_km;
-                      const elev = a.stats_sidebar.elevation_gain_m;
-                      const dur = a.stats_sidebar.elapsed_time_s;
-                      const dt = new Date(a.started_at ?? a.created_at);
-                      const dateLabel = Number.isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString();
-                      return (
-                        <tr
-                          key={a.id}
-                          className="hover:bg-accent/30 cursor-pointer"
-                          onClick={() => router.push(`/activity/${a.id}/${a.activity_type}`)}
-                        >
-                          <td className="px-3 py-2 whitespace-nowrap">{dateLabel}</td>
-                          <td className="px-3 py-2 max-w-[32rem] truncate">{a.name || a.filename}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">
-                            {typeof dist === 'number' ? formatNumber(dist, { decimals: 1 }) : '—'}
-                          </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
-                            {typeof elev === 'number' ? formatNumber(elev, { integer: true }) : '—'}
-                          </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
-                            {typeof dur === 'number' ? formatDurationSeconds(dur) : '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

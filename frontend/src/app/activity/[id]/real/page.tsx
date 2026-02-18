@@ -204,15 +204,15 @@ export default function RealActivityPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
-        <div className="text-center">Loading activity...</div>
+      <div className="py-8 text-center">
+        <div>Loading activity...</div>
       </div>
     );
   }
 
   if (error || !activity) {
     return (
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
+      <div className="py-8">
         <div className="text-center text-red-600">Failed to load activity: {error?.message || 'Unknown error'}</div>
         <div className="flex justify-center gap-3 mt-4">
           <Button onClick={() => refetch()}>Retry</Button>
@@ -226,39 +226,20 @@ export default function RealActivityPage() {
 
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-7xl">
-      <div className="sticky top-0 z-40 -mx-4 px-4 pb-3 bg-background/90 backdrop-blur border-b">
-        <div className="pt-2">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-xs text-muted-foreground">Activite reelle</div>
-              <h1 className="text-2xl font-bold truncate">Analyse</h1>
-              <div className="text-xs text-muted-foreground truncate">{`ID: ${activityId}`}</div>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline">
-                Export
-              </Button>
-              <Button size="sm" variant="outline">
-                Comparer
-              </Button>
-              <Button size="sm" variant="outline">
-                Options
-              </Button>
-            </div>
-          </div>
+    <div className="space-y-4">
+      <div className="rounded-lg border bg-card px-4 py-3">
+        <div className="text-sm text-muted-foreground">ID: {activityId}</div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            {primaryKpis.slice(0, 6).map((k) => (
-              <div key={k.id} className="inline-flex items-center gap-2 rounded-full border bg-background/60 px-3 py-1">
-                <div className="text-xs text-muted-foreground whitespace-nowrap">{k.label}</div>
-                <div className="text-sm font-semibold tabular-nums whitespace-nowrap">
-                  {k.formatted}
-                  {k.unit ? ` ${k.unit}` : ''}
-                </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {primaryKpis.slice(0, 6).map((k) => (
+            <div key={k.id} className="inline-flex items-center gap-2 rounded-full border bg-background/60 px-3 py-1">
+              <div className="text-xs text-muted-foreground whitespace-nowrap">{k.label}</div>
+              <div className="text-sm font-semibold tabular-nums whitespace-nowrap">
+                {k.formatted}
+                {k.unit ? ` ${k.unit}` : ''}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
 
         <div className="mt-3 overflow-x-auto">
@@ -277,7 +258,7 @@ export default function RealActivityPage() {
         </div>
       </div>
 
-      <div className="mt-6">
+      <div>
         {activeTab === 'overview' ? (
           <div className="space-y-4">
             <KpiHeader title="Apercu" subtitle="Essentiel, en un coup d'oeil" items={kpiItems} />

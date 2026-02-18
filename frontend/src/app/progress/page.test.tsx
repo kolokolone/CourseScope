@@ -43,8 +43,8 @@ describe('ProgressPage', () => {
         <ProgressPage />
       </QueryClientProvider>
     );
-    expect(screen.getByText('Progression')).toBeInTheDocument();
-    expect(screen.getByText('Tendances multi-activites')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Volume hebdo' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Charge (TRIMP) par semaine' })).toBeInTheDocument();
     expect(await screen.findByText(/Indexation en cours/i)).toBeInTheDocument();
   });
 });
