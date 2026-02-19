@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.67] - 2026-02-19
+
+### Changed
+- Settings: added a "Mentions personnelles" card under Garmin with author note, GitHub link, and a placeholder for a future "buy me a coffee" link.
+- Docker: install Python dependencies inside a virtual environment during image build (avoids PEP 668 externally-managed pip error on Debian/Ubuntu).
+- Docs: refreshed README (quickstart + docker-compose example).
+
 ## [1.1.66] - 2026-02-19
 
 ### Changed
