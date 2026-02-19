@@ -6,6 +6,7 @@ import { Star } from 'lucide-react';
 
 import { GradeTimeBarChart } from '@/components/charts/GradeTimeBarChart';
 import { PaceTimeBarChart } from '@/components/charts/PaceTimeBarChart';
+import { TheoreticalElevationChart } from '@/components/charts/TheoreticalElevationChart';
 import { TheoreticalPaceElevationChart } from '@/components/charts/TheoreticalPaceElevationChart';
 import { ActivityMap } from '@/components/maps/ActivityMap';
 import { SectionCard } from '@/components/metrics/SectionCard';
@@ -21,6 +22,11 @@ type TabId = 'overview' | 'charts' | 'map';
 function parseFlexibleSeconds(input: string): number | null {
   const raw = input.trim();
   if (raw.length === 0) return null;
+  if (/^\d+$/.test(raw)) {
+    const minutes = Number(raw);
+    if (!Number.isFinite(minutes) || minutes <= 0) return null;
+    return minutes * 60;
+  }
   const parts = raw.split(':').map((p) => p.trim());
   if (!parts.every((p) => /^\d+$/.test(p))) return null;
   if (parts.length === 2) {
@@ -127,16 +133,38 @@ export default function TheoreticalActivityPage() {
   const isSaved = Boolean(traceStatus?.saved);
   const traceId = traceStatus?.trace_id;
 
-  const [traceNameInput, setTraceNameInput] = React.useState('');
+  const defaultTraceName = React.useMemo(() => {
+    const prefix = (activityId || rawId || '').slice(0, 8);
+    return prefix ? `Trace ${prefix}` : 'Trace';
+  }, [activityId, rawId]);
+
+  const [isEditingTitle, setIsEditingTitle] = React.useState(false);
+  const titleInputRef = React.useRef<HTMLInputElement | null>(null);
+  const baselineNameRef = React.useRef<string>(defaultTraceName);
+
+  const [traceNameDraft, setTraceNameDraft] = React.useState('');
   React.useEffect(() => {
     if (!activity) return;
-    const next = (traceStatus?.trace_name || '').trim();
-    if (next.length > 0) {
-      setTraceNameInput(next);
-      return;
-    }
-    setTraceNameInput(`Trace ${activityId.slice(0, 8)}`);
-  }, [activity, activityId, traceStatus?.trace_name]);
+    const serverName = (traceStatus?.trace_name ?? '').trim();
+    const baseline = serverName.length > 0 ? serverName : defaultTraceName;
+
+    const prevBaseline = baselineNameRef.current;
+    baselineNameRef.current = baseline;
+
+    setTraceNameDraft((prev) => {
+      if (isEditingTitle) return prev;
+      const prevClean = prev.trim();
+      if (prevClean.length === 0) return baseline;
+      if (prevClean === prevBaseline) return baseline;
+      return prev;
+    });
+  }, [activity, defaultTraceName, isEditingTitle, traceStatus?.trace_name]);
+
+  React.useEffect(() => {
+    if (!isEditingTitle) return;
+    const t = window.setTimeout(() => titleInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(t);
+  }, [isEditingTitle]);
 
   const summary = activity?.summary as Record<string, unknown> | undefined;
   const secondary = (activity?.secondary_metrics ?? {}) as Record<string, unknown>;
@@ -167,7 +195,7 @@ export default function TheoreticalActivityPage() {
 
   const handleToggleSaveTrace = async () => {
     if (isSaved) return;
-    const cleanName = traceNameInput.trim();
+    const cleanName = traceNameDraft.trim();
     await saveTraceMutation.mutateAsync({
       activityId,
       name: cleanName.length > 0 ? cleanName : undefined,
@@ -177,8 +205,9 @@ export default function TheoreticalActivityPage() {
 
   const handleRenameTrace = async () => {
     if (!traceId) return;
-    const cleanName = traceNameInput.trim();
+    const cleanName = traceNameDraft.trim();
     await renameTraceMutation.mutateAsync({ traceId, name: cleanName.length > 0 ? cleanName : null });
+    setIsEditingTitle(false);
     await refetch();
   };
 
@@ -228,13 +257,52 @@ export default function TheoreticalActivityPage() {
 
   const hasMap = Boolean(mapData?.polyline?.length);
 
+  const titleBaseline = baselineNameRef.current;
+  const isTitleDirty = isSaved && traceId ? traceNameDraft.trim() !== titleBaseline.trim() : false;
+  const titleDisplay = (traceStatus?.trace_name ?? '').trim() || traceNameDraft.trim() || defaultTraceName;
+
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-card px-4 py-3 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-xs text-muted-foreground">Nom du trace</div>
-            <div className="text-base font-semibold">{traceStatus?.trace_name || traceNameInput || `Trace ${activityId.slice(0, 8)}`}</div>
+
+            {!isEditingTitle ? (
+              <button
+                type="button"
+                className="text-base font-semibold text-left hover:underline underline-offset-2"
+                onClick={() => setIsEditingTitle(true)}
+              >
+                {titleDisplay}
+              </button>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={titleInputRef}
+                  className="h-9 w-full max-w-md rounded-md border px-3 text-sm"
+                  value={traceNameDraft}
+                  onChange={(e) => setTraceNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setTraceNameDraft(titleBaseline);
+                      setIsEditingTitle(false);
+                    }
+                    if (e.key === 'Enter') {
+                      if (isTitleDirty) handleRenameTrace();
+                      else setIsEditingTitle(false);
+                    }
+                  }}
+                  placeholder="Nom personnalise du trace"
+                />
+                {isTitleDirty ? (
+                  <Button size="sm" variant="outline" onClick={handleRenameTrace} disabled={renameTraceMutation.isPending}>
+                    Renommer
+                  </Button>
+                ) : null}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -249,20 +317,6 @@ export default function TheoreticalActivityPage() {
             <div className="text-xs text-muted-foreground">
               {isSaved ? 'Trace enregistree' : 'Trace non enregistree'}
             </div>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <div className="flex gap-2 whitespace-nowrap">
-            <Button size="sm" variant={activeTab === 'overview' ? 'default' : 'outline'} onClick={() => setActiveTab('overview')}>
-              Apercu
-            </Button>
-            <Button size="sm" variant={activeTab === 'charts' ? 'default' : 'outline'} onClick={() => setActiveTab('charts')}>
-              Graphiques
-            </Button>
-            <Button size="sm" variant={activeTab === 'map' ? 'default' : 'outline'} onClick={() => setActiveTab('map')}>
-              Carte
-            </Button>
           </div>
         </div>
 
@@ -313,22 +367,22 @@ export default function TheoreticalActivityPage() {
             <Button size="sm" onClick={applyInputs}>
               Appliquer
             </Button>
-            {traceId ? (
-              <Button size="sm" variant="outline" onClick={handleRenameTrace} disabled={renameTraceMutation.isPending}>
-                Renommer
-              </Button>
-            ) : null}
+            <div className="text-xs text-muted-foreground">VMA active: {typeof activity.vma_kmh === 'number' ? `${activity.vma_kmh} km/h` : '—'}</div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-2 items-center">
-          <input
-            className="h-9 rounded-md border px-3 text-sm"
-            value={traceNameInput}
-            onChange={(e) => setTraceNameInput(e.target.value)}
-            placeholder="Nom personnalise du trace"
-          />
-          <div className="text-xs text-muted-foreground">VMA active: {typeof activity.vma_kmh === 'number' ? `${activity.vma_kmh} km/h` : '—'}</div>
+        <div className="overflow-x-auto">
+          <div className="flex gap-2 whitespace-nowrap">
+            <Button size="sm" variant={activeTab === 'overview' ? 'default' : 'outline'} onClick={() => setActiveTab('overview')}>
+              Apercu
+            </Button>
+            <Button size="sm" variant={activeTab === 'charts' ? 'default' : 'outline'} onClick={() => setActiveTab('charts')}>
+              Graphiques
+            </Button>
+            <Button size="sm" variant={activeTab === 'map' ? 'default' : 'outline'} onClick={() => setActiveTab('map')}>
+              Carte
+            </Button>
+          </div>
         </div>
 
         {validationError ? <div className="text-sm text-red-600">{validationError}</div> : null}
@@ -448,11 +502,16 @@ export default function TheoreticalActivityPage() {
           <SectionCard title="Allure vs distance" description="Courbe principale" accentColor="#009E73">
             <TheoreticalPaceElevationChart data={activity.pace_elevation_series ?? []} />
           </SectionCard>
-          <SectionCard title="Temps par % de pente" description="Bins de 0.5%" accentColor="#0072B2">
-            <GradeTimeBarChart data={activity.grade_time_bins ?? []} />
-          </SectionCard>
-          <SectionCard title="Temps par allure" description="Bins de 30s / km" accentColor="#334155">
-            <PaceTimeBarChart data={activity.pace_time_bins ?? []} />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <SectionCard title="Temps par allure" description="Bins de 15s / km" accentColor="#334155">
+              <PaceTimeBarChart data={activity.pace_time_bins ?? []} />
+            </SectionCard>
+            <SectionCard title="Temps par % de pente" description="Bins de 0.5%" accentColor="#0072B2">
+              <GradeTimeBarChart data={activity.grade_time_bins ?? []} />
+            </SectionCard>
+          </div>
+          <SectionCard title="Denivele" description="Profil altitude vs distance" accentColor="#475569">
+            <TheoreticalElevationChart data={activity.pace_elevation_series ?? []} />
           </SectionCard>
         </div>
       ) : null}

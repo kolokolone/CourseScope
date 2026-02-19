@@ -21,7 +21,7 @@ from api.schemas import (
 from registry.series_registry import SeriesRegistry
 from services import real_activity_service
 from services.serialization import df_to_records, to_jsonable
-from services.models import RealRunViewParams
+from services.models import RealRunParams, RealRunViewParams
 from db.settings_repository import SettingsRepository
 from db.trace_repository import TraceRepository
 from storage.trace_store import compute_route_fingerprint
@@ -82,7 +82,39 @@ def _build_cardio_summary(garmin: dict) -> dict | None:
         if _is_finite_number(val):
             cardio[out_key] = float(val)
 
+    hr_max_used = heart_rate.get("hr_max_used")
+    if _is_finite_number(hr_max_used):
+        cardio["hr_max_used_bpm"] = float(hr_max_used)
+
     return cardio or None
+
+
+def _resolve_hr_max_effective(request: Request) -> float | None:
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        return None
+
+    session = db_session_factory()
+    repo = SettingsRepository()
+    try:
+        row = repo.get_or_create(session)
+        detected = repo.get_detected_hr_max(session)
+        session.commit()
+        effective = detected if row.hr_max_source == "detected" and detected is not None else row.hr_max_manual_bpm
+        if effective is None:
+            return None
+        try:
+            numeric = float(effective)
+        except Exception:
+            return None
+        if not math.isfinite(numeric) or numeric <= 0:
+            return None
+        return numeric
+    except Exception:
+        session.rollback()
+        return None
+    finally:
+        session.close()
 
 
 def get_series_registry(request: Request) -> SeriesRegistry:
@@ -98,8 +130,10 @@ def _build_limits(df):
     )
 
 
-def prepare_real_response(activity_df, registry: SeriesRegistry) -> RealActivityResponse:
-    result = real_activity_service.analyze_real_activity(activity_df)
+def prepare_real_response(request: Request, activity_df, registry: SeriesRegistry) -> RealActivityResponse:
+    hr_max_effective = _resolve_hr_max_effective(request)
+    params = RealRunParams(hr_max=hr_max_effective) if hr_max_effective is not None else None
+    result = real_activity_service.analyze_real_activity(activity_df, params=params)
     series_index = SeriesIndex(available=registry.get_available_series(activity_df))
 
     zones = {}
@@ -204,7 +238,15 @@ def _parse_hms_to_seconds(value: str | None) -> float | None:
 
 
 def _parse_pace_to_seconds_per_km(value: str | None) -> float | None:
-    seconds = _parse_hms_to_seconds(value)
+    raw = "" if value is None else str(value).strip()
+    if raw.isdigit():
+        minutes = int(raw)
+        if minutes > 0:
+            seconds = float(minutes * 60)
+        else:
+            seconds = None
+    else:
+        seconds = _parse_hms_to_seconds(value)
     if seconds is None:
         return None
     if 120.0 <= seconds <= 600.0:
@@ -339,6 +381,7 @@ def _build_grade_time_bins(df_segments: pd.DataFrame) -> list[dict[str, float | 
         return []
     grades = df_segments["segment_grade_percent"].to_numpy(dtype=float)
     time_s = df_segments["segment_time_s"].to_numpy(dtype=float)
+    grades = np.clip(grades, -20.0, 20.0)
     centers = np.round(grades * 2.0) / 2.0
     table: dict[float, float] = {}
     for center, t in zip(centers, time_s):
@@ -362,7 +405,8 @@ def _build_pace_time_bins(df_segments: pd.DataFrame) -> list[dict[str, float | s
         return []
     pace = df_segments["target_pace_s_per_km"].to_numpy(dtype=float)
     time_s = df_segments["segment_time_s"].to_numpy(dtype=float)
-    floors = np.floor(pace / 30.0) * 30.0
+    bin_width_s = 15.0
+    floors = np.floor(pace / bin_width_s) * bin_width_s
     table: dict[float, float] = {}
     for floor_s, t in zip(floors, time_s):
         if not (math.isfinite(floor_s) and math.isfinite(t) and t > 0):
@@ -373,7 +417,7 @@ def _build_pace_time_bins(df_segments: pd.DataFrame) -> list[dict[str, float | s
         out.append(
             {
                 "pace_bin_floor_s_per_km": floor_s,
-                "label": _format_pace_bucket_label(floor_s, 30.0),
+                "label": _format_pace_bucket_label(floor_s, bin_width_s),
                 "time_s": table[floor_s],
             }
         )
@@ -617,7 +661,7 @@ async def get_real_activity(request: Request, activity_id: str):
             raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
 
         registry = get_series_registry(request)
-        return prepare_real_response(df, registry)
+        return prepare_real_response(request, df, registry)
 
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
