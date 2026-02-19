@@ -2,6 +2,7 @@ import sys
 import logging
 import time
 import uuid
+import os
 from datetime import datetime
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -137,7 +138,11 @@ async def request_logging_middleware(request: Request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=[
+        origin.strip()
+        for origin in os.getenv("COURSESCOPE_CORS_ORIGINS", "http://localhost:3000,http://localhost:3001").split(",")
+        if origin.strip()
+    ],
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
