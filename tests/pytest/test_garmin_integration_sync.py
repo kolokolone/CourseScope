@@ -109,7 +109,7 @@ def test_garmin_sync_skips_when_manual_upload_matches_file_hash(_isolated_env, m
         manual = client.post(
             "/activity/load",
             files={"file": (filename, fit_bytes, "application/octet-stream")},
-            data={"name": "Manual Upload", "persist_to_disk": "true"},
+    data={"name": "Manual Upload"},
         )
         assert manual.status_code == 200
         manual_id = manual.json()["id"]

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.66] - 2026-02-19
+
+### Changed
+- Docker deployment: add single-image stack artifacts (`Dockerfile`, `.dockerignore`, GHCR workflow) and launcher support for `run_linux.sh --docker`.
+- Theoretical trace UI: target pace input now accepts minute-only values (example `6` -> `6:00`), charts layout updated, and denivele chart added.
+- Theoretical analytics: pace bins switched to 15s and grade-time bins are clipped to `[-20%, 20%]`.
+
 ## [1.1.65] - 2026-02-18
 
 ### Changed

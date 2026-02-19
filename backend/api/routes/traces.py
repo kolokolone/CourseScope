@@ -138,6 +138,29 @@ async def list_traces(request: Request):
         session.close()
 
 
+@router.delete("/traces")
+async def cleanup_traces(request: Request):
+    db_session_factory = _get_db_session_factory(request)
+    trace_store = _get_trace_store(request)
+
+    session = db_session_factory()
+    repo = TraceRepository()
+    try:
+        rows = repo.list_traces(session)
+        deleted = 0
+        for row in rows:
+            if repo.delete_trace(session, row.id):
+                deleted += 1
+            trace_store.delete_trace(row.id)
+        session.commit()
+        return {"deleted": deleted}
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to cleanup traces: {exc}")
+    finally:
+        session.close()
+
+
 @router.post("/traces/upload", response_model=TraceUploadResponse)
 async def upload_trace(
     request: Request,

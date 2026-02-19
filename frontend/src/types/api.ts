@@ -136,7 +136,6 @@ export interface ActivityMetadata {
 export interface ActivityLoadRequest {
   file: File;
   name?: string;
-  persist_to_disk?: boolean;
   activity_type?: 'real' | 'theoretical';
 }
 

@@ -14,8 +14,7 @@ import type {
 import { Save, Settings, Trash2 } from 'lucide-react';
 import { useCleanupActivities } from '@/hooks/useActivity';
 import { useDetectedHrMax, usePatchPersonalSettings, usePersonalSettings } from '@/hooks/useSettings';
-
-const PERSIST_UPLOADS_KEY = 'coursescope.persist_uploads_to_disk';
+import { useCleanupTraces } from '@/hooks/useTraces';
 
 function formatIsoUtcFr(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -37,17 +36,6 @@ function formatSyncDelta(importedCount: number, skippedCount: number): string {
   return `+${imported} activites ajoutees (${skipped} activites evitees)`;
 }
 
-function getPersistUploads(): boolean {
-  if (typeof window === 'undefined') return false;
-  const raw = window.localStorage.getItem(PERSIST_UPLOADS_KEY);
-  if (raw === null) return false;
-  return raw === 'true';
-}
-
-function setPersistUploads(next: boolean) {
-  window.localStorage.setItem(PERSIST_UPLOADS_KEY, next ? 'true' : 'false');
-}
-
 function normalizeDecimalInput(value: string): string {
   return value.replace(',', '.').trim();
 }
@@ -62,7 +50,6 @@ function parseOptionalInt(value: string): number | null {
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
-  const [persistUploadsToDisk, setPersistUploadsToDisk] = React.useState(false);
   const personalSettingsQuery = usePersonalSettings();
   const detectedHrQuery = useDetectedHrMax();
   const patchPersonalMutation = usePatchPersonalSettings();
@@ -71,10 +58,6 @@ export default function SettingsPage() {
   const [manualHrInput, setManualHrInput] = React.useState('');
   const [hrSource, setHrSource] = React.useState<'detected' | 'manual'>('detected');
   const [personalMessage, setPersonalMessage] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    setPersistUploadsToDisk(getPersistUploads());
-  }, []);
 
   React.useEffect(() => {
     const data = personalSettingsQuery.data;
@@ -135,6 +118,7 @@ export default function SettingsPage() {
   });
 
   const cleanupMutation = useCleanupActivities();
+  const cleanupTracesMutation = useCleanupTraces();
 
   const handleCleanup = async () => {
     if (window.confirm('Supprimer toutes les activites sur disque ?')) {
@@ -143,6 +127,17 @@ export default function SettingsPage() {
         queryClient.invalidateQueries({ queryKey: ['activities'] });
       } catch {
         alert('Failed to cleanup activities');
+      }
+    }
+  };
+
+  const handleCleanupTraces = async () => {
+    if (window.confirm('Supprimer toutes les traces GPX enregistrees ?')) {
+      try {
+        await cleanupTracesMutation.mutateAsync();
+        queryClient.invalidateQueries({ queryKey: ['traces'] });
+      } catch {
+        alert('Failed to cleanup traces');
       }
     }
   };
@@ -243,7 +238,9 @@ export default function SettingsPage() {
                 Utilise pour calculer l&apos;allure theorique selon la pente.
               </div>
             </label>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2 text-sm">
               <div className="text-muted-foreground">FC max detectee</div>
               <div className="flex items-center gap-2">
@@ -256,9 +253,7 @@ export default function SettingsPage() {
                 Source active: <span className="font-medium">{hrSource === 'detected' ? 'detectee' : 'manuelle'}</span>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="text-sm">
               <div className="text-muted-foreground">FC max manuelle (bpm)</div>
               <input
@@ -269,6 +264,7 @@ export default function SettingsPage() {
                 onChange={(e) => setManualHrInput(e.target.value)}
               />
             </label>
+
             <label className="text-sm">
               <div className="text-muted-foreground">Source FC max</div>
               <select
@@ -295,30 +291,11 @@ export default function SettingsPage() {
         <CardHeader className="py-3 px-4">
           <CardTitle className="text-base flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            Upload
+            Maintenance
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
-          <label className="flex items-center justify-between gap-3">
-            <div>
-              <div className="font-medium">Enregistrer les uploads sur disque</div>
-              <div className="text-sm text-muted-foreground">
-                Par defaut: OFF. Si OFF, l'analyse reste disponible tant que le backend tourne (pas d'historique).
-              </div>
-            </div>
-            <input
-              type="checkbox"
-              className="h-5 w-5"
-              checked={persistUploadsToDisk}
-              onChange={(e) => {
-                const next = e.target.checked;
-                setPersistUploads(next);
-                setPersistUploadsToDisk(next);
-              }}
-            />
-          </label>
-
-          <div className="mt-4">
+          <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -327,6 +304,16 @@ export default function SettingsPage() {
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Cleanup activites
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCleanupTraces}
+              disabled={cleanupTracesMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Cleanup traces GPX
             </Button>
           </div>
         </CardContent>

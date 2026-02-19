@@ -55,7 +55,6 @@ async def load_activity_endpoint(
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
     activity_type: Literal["real", "theoretical"] | None = Form(None),
-    persist_to_disk: bool = Form(False),
     max_size: int = Header(100_000_000),
 ):
     """Charge une activité GPX/FIT et retourne son ID"""
@@ -118,18 +117,13 @@ async def load_activity_endpoint(
         activity = load_activity(data=file_bytes, name=parse_name, activity_type=activity_type)
 
         storage = get_activity_storage(request)
-        temp_storage = getattr(request.app.state, "temp_storage", None)
 
         file_hash = hashlib.sha256(file_bytes).hexdigest()
         existing_id = getattr(storage, "get_activity_id_by_hash", lambda _h: None)(file_hash)
         if existing_id is not None:
             activity_id = existing_id
-        elif persist_to_disk:
-            activity_id = storage.store(activity, file.filename, file_bytes, name=display_name)
         else:
-            if temp_storage is None:
-                raise RuntimeError("Temp storage not initialized")
-            activity_id = temp_storage.store(activity, file.filename, file_bytes, name=display_name)
+            activity_id = storage.store(activity, file.filename, file_bytes, name=display_name)
 
         logger.info(
             "upload_store_ok",

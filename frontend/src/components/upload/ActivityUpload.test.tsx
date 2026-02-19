@@ -30,7 +30,6 @@ describe('ActivityUpload', () => {
       expect(mutateAsync).toHaveBeenCalledWith({
         file,
         name: 'sample.gpx',
-        persist_to_disk: false,
         activity_type: 'real',
       })
     );

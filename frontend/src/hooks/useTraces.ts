@@ -45,6 +45,16 @@ export function useDeleteTrace() {
   });
 }
 
+export function useCleanupTraces() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => tracesApi.cleanup(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: traceKeys.all });
+    },
+  });
+}
+
 export function useOpenTrace() {
   return useMutation({
     mutationFn: async (traceId: string) => tracesApi.open(traceId),

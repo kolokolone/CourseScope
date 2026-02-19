@@ -141,12 +141,11 @@ export const activityApi = {
   load: async (
     file: File,
     name: string,
-    options?: { persist_to_disk?: boolean; activity_type?: 'real' | 'theoretical' }
+    options?: { activity_type?: 'real' | 'theoretical' }
   ) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('name', name);
-    formData.append('persist_to_disk', String(Boolean(options?.persist_to_disk)));
     if (options?.activity_type) {
       formData.append('activity_type', options.activity_type);
     }
@@ -206,6 +205,8 @@ export const analysisApi = {
 
 export const tracesApi = {
   list: async () => apiRequest<TracesListResponse>('/traces'),
+
+  cleanup: async () => apiRequest<{ deleted: number }>('/traces', { method: 'DELETE' }),
 
   upload: async (file: File, name?: string) => {
     const formData = new FormData();

@@ -6,11 +6,11 @@ import { useDropzone } from 'react-dropzone';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useDeleteTrace, useOpenTrace, useRenameTrace, useTraceList, useUploadTrace } from '@/hooks/useTraces';
+import { useDeleteTrace, useRenameTrace, useTraceList, useUploadTrace } from '@/hooks/useTraces';
 import { formatNumber } from '@/lib/metricsFormat';
 import { getTraceDetailPath } from '@/lib/routes';
 
-type SortKey = 'name' | 'distance' | 'elevation' | 'created';
+type SortKey = 'name' | 'distance' | 'elevation' | 'ratio' | 'created';
 type SortDir = 'asc' | 'desc';
 
 function toTimestamp(value: string) {
@@ -22,7 +22,6 @@ export default function TracesPage() {
   const router = useRouter();
   const tracesQuery = useTraceList();
   const uploadMutation = useUploadTrace();
-  const openMutation = useOpenTrace();
   const renameMutation = useRenameTrace();
   const deleteMutation = useDeleteTrace();
 
@@ -56,7 +55,7 @@ export default function TracesPage() {
   const toggleSort = (next: SortKey) => {
     setSortKey((prev) => {
       if (prev !== next) {
-        setSortDir('desc');
+        setSortDir(next === 'name' ? 'asc' : next === 'created' ? 'desc' : 'desc');
         return next;
       }
       setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
@@ -77,6 +76,11 @@ export default function TracesPage() {
       }
       if (sortKey === 'distance') return (a.distance_km - b.distance_km) * dir;
       if (sortKey === 'elevation') return (a.elevation_gain_m - b.elevation_gain_m) * dir;
+      if (sortKey === 'ratio') {
+        const ar = a.distance_km > 0 ? a.elevation_gain_m / a.distance_km : 0;
+        const br = b.distance_km > 0 ? b.elevation_gain_m / b.distance_km : 0;
+        return (ar - br) * dir;
+      }
       return (toTimestamp(a.created_at_utc) - toTimestamp(b.created_at_utc)) * dir;
     });
   }, [sortDir, sortKey, tracesQuery.data?.traces]);
@@ -136,6 +140,11 @@ export default function TracesPage() {
                         D+ (m)
                       </button>
                     </th>
+                    <th className="px-3 py-2 text-right font-medium">
+                      <button type="button" className="hover:underline" onClick={() => toggleSort('ratio')}>
+                        Ratio D+/dist
+                      </button>
+                    </th>
                     <th className="px-3 py-2 text-left font-medium">
                       <button type="button" className="hover:underline" onClick={() => toggleSort('created')}>
                         Date d'ajout
@@ -147,29 +156,35 @@ export default function TracesPage() {
                 <tbody className="divide-y">
                   {traces.map((trace) => {
                     const label = trace.name || trace.original_filename || trace.id;
+                    const ratio = trace.distance_km > 0 ? trace.elevation_gain_m / trace.distance_km : null;
                     return (
-                      <tr key={trace.id}>
+                      <tr
+                        key={trace.id}
+                        className="cursor-pointer hover:bg-accent/30 transition-colors"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => router.push(getTraceDetailPath(trace.id))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            router.push(getTraceDetailPath(trace.id));
+                          }
+                        }}
+                      >
                         <td className="px-3 py-2 max-w-[24rem] truncate">{label}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatNumber(trace.distance_km, { decimals: 2 })}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatNumber(trace.elevation_gain_m, { integer: true })}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {ratio === null ? '—' : formatNumber(ratio, { decimals: 1 })}
+                        </td>
                         <td className="px-3 py-2">{new Date(trace.created_at_utc).toLocaleString()}</td>
                         <td className="px-3 py-2">
                           <div className="flex justify-end gap-2">
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={async () => {
-                                const out = await openMutation.mutateAsync(trace.id);
-                                router.push(getTraceDetailPath(out.trace_id || trace.id));
-                              }}
-                              disabled={openMutation.isPending}
-                            >
-                              Ouvrir
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={async () => {
+                              onClick={async (e) => {
+                                e.stopPropagation();
                                 const next = window.prompt('Nouveau nom du trace', trace.name ?? trace.original_filename ?? '')?.trim();
                                 if (next === undefined) return;
                                 await renameMutation.mutateAsync({ traceId: trace.id, name: next || null });
@@ -181,7 +196,8 @@ export default function TracesPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={async () => {
+                              onClick={async (e) => {
+                                e.stopPropagation();
                                 if (!window.confirm('Supprimer ce trace et toutes ses donnees ?')) return;
                                 await deleteMutation.mutateAsync(trace.id);
                               }}

@@ -25,6 +25,19 @@ const ZONE_LABELS: Record<number, string> = {
   6: 'Anaerobie',
 };
 
+const GARMIN_ZONE_COLORS: Record<number, string> = {
+  1: '#9ca3af',
+  2: '#3b82f6',
+  3: '#22c55e',
+  4: '#f59e0b',
+  5: '#ef4444',
+  6: '#991b1b',
+};
+
+function zoneColor(zone: number): string {
+  return GARMIN_ZONE_COLORS[zone] ?? '#64748b';
+}
+
 function parseZoneNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     const n = Math.round(value);
@@ -77,6 +90,26 @@ function formatHrRange(range: unknown) {
   return `${formatNumber(mm.min, { integer: true })}-${formatNumber(mm.max, { integer: true })} bpm`;
 }
 
+function parsePercentRange(raw: string): { lowPct: number; highPct: number | null } | null {
+  const cleaned = raw.replace(/\s/g, '');
+  const m1 = cleaned.match(/^>=?(\d+(?:\.\d+)?)%$/);
+  if (m1) {
+    const low = Number(m1[1]);
+    if (!Number.isFinite(low)) return null;
+    return { lowPct: low / 100, highPct: null };
+  }
+
+  const m2 = cleaned.match(/^(\d+(?:\.\d+)?)%?-[-–](\d+(?:\.\d+)?)%$/);
+  if (m2) {
+    const low = Number(m2[1]);
+    const high = Number(m2[2]);
+    if (!Number.isFinite(low) || !Number.isFinite(high)) return null;
+    return { lowPct: low / 100, highPct: high / 100 };
+  }
+
+  return null;
+}
+
 function formatPowerRange(range: unknown, ftpW?: number) {
   const mm = tryParseMinMax(range);
   if (!mm) return '—';
@@ -126,7 +159,7 @@ function getRecordValue(record: unknown, key: string, columnIndex: number): unkn
   return undefined;
 }
 
-function extractZoneRows(kind: ZoneKind, payload?: DataFramePayload, ftpW?: number): ZoneRow[] {
+function extractZoneRows(kind: ZoneKind, payload?: DataFramePayload, opts?: { ftpW?: number; hrMaxBpm?: number }): ZoneRow[] {
   const zeroRows: ZoneRow[] = [];
   for (let z = 6; z >= 1; z -= 1) {
     zeroRows.push({ zone: z, rangeText: '—', timeText: '—', timeSeconds: 0 });
@@ -156,12 +189,48 @@ function extractZoneRows(kind: ZoneKind, payload?: DataFramePayload, ftpW?: numb
     const row = byZone.get(z);
     const timeSeconds = row?.timeSeconds ?? 0;
 
-    const rangeText =
-      kind === 'heart_rate'
-        ? formatHrRange(row?.range)
-        : kind === 'pace'
-          ? formatPaceRange(row?.range)
-          : formatPowerRange(row?.range, ftpW);
+    const hrMaxBpm = opts?.hrMaxBpm;
+    const ftpW = opts?.ftpW;
+
+    let rangeText = '—';
+    if (kind === 'heart_rate') {
+      if (hrMaxBpm && typeof row?.range === 'string') {
+        const pr = parsePercentRange(row.range);
+        if (pr) {
+          const min = Math.round(pr.lowPct * hrMaxBpm);
+          const max = Math.round((pr.highPct ?? 1) * hrMaxBpm);
+          rangeText = formatHrRange({ min, max });
+        }
+      }
+      if (rangeText === '—' && typeof row?.range === 'string') {
+        rangeText = row.range;
+      }
+      if (rangeText === '—' && hrMaxBpm && z >= 1 && z <= 5) {
+        const bounds: Record<number, { low: number; high: number }> = {
+          1: { low: 0.5, high: 0.6 },
+          2: { low: 0.6, high: 0.7 },
+          3: { low: 0.7, high: 0.8 },
+          4: { low: 0.8, high: 0.9 },
+          5: { low: 0.9, high: 1.0 },
+        };
+        const b = bounds[z];
+        if (b) {
+          rangeText = formatHrRange({ min: Math.round(b.low * hrMaxBpm), max: Math.round(b.high * hrMaxBpm) });
+        }
+      }
+    } else if (kind === 'power') {
+      if (ftpW && typeof row?.range === 'string') {
+        const pr = parsePercentRange(row.range.replace(/FTP/i, ''));
+        if (pr) {
+          const min = Math.round(pr.lowPct * ftpW);
+          const max = Math.round((pr.highPct ?? 1.5) * ftpW);
+          rangeText = formatPowerRange({ min, max }, ftpW);
+        }
+      }
+      if (rangeText === '—') rangeText = formatPowerRange(row?.range, ftpW);
+    } else {
+      rangeText = formatPaceRange(row?.range);
+    }
 
     rows.push({
       zone: z,
@@ -197,10 +266,15 @@ function SectionTable({
         <tbody>
           {rows.map((row) => {
             const pct = maxTime > 0 ? (row.timeSeconds / maxTime) * 100 : 0;
+            const color = zoneColor(row.zone);
+            const barStyle = row.timeSeconds > 0 ? { width: `${pct}%`, backgroundColor: color } : { width: `${pct}%` };
             return (
               <tr key={`${kind}-z${row.zone}`} className="border-t">
                 <td className="px-3 py-2 whitespace-nowrap">
-                  <span className="font-medium tabular-nums">Z{row.zone}</span>
+                  <span className="font-medium tabular-nums inline-flex items-center">
+                    <span aria-hidden className="mr-2 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                    Z{row.zone}
+                  </span>
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">{ZONE_LABELS[row.zone] ?? '—'}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
@@ -212,8 +286,8 @@ function SectionTable({
                 <td className="px-3 py-2 min-w-44">
                   <div className="h-2 rounded bg-muted overflow-hidden">
                     <div
-                      className={cn('h-full rounded', row.timeSeconds > 0 ? 'bg-foreground/70' : 'bg-transparent')}
-                      style={{ width: `${pct}%` }}
+                      className={cn('h-full rounded', row.timeSeconds > 0 ? '' : 'bg-transparent')}
+                      style={barStyle}
                     />
                   </div>
                 </td>
@@ -231,17 +305,19 @@ export function ZonesBreakdown({
   pace,
   power,
   ftpW,
+  hrMaxBpm,
 }: {
   heartRate?: DataFramePayload;
   pace?: DataFramePayload;
   power?: DataFramePayload;
   ftpW?: number;
+  hrMaxBpm?: number;
 }) {
   const [active, setActive] = React.useState<ZoneKind>('heart_rate');
 
-  const hrRows = React.useMemo(() => extractZoneRows('heart_rate', heartRate, ftpW), [heartRate, ftpW]);
-  const paceRows = React.useMemo(() => extractZoneRows('pace', pace, ftpW), [pace, ftpW]);
-  const powerRows = React.useMemo(() => extractZoneRows('power', power, ftpW), [power, ftpW]);
+  const hrRows = React.useMemo(() => extractZoneRows('heart_rate', heartRate, { ftpW, hrMaxBpm }), [heartRate, ftpW, hrMaxBpm]);
+  const paceRows = React.useMemo(() => extractZoneRows('pace', pace, { ftpW, hrMaxBpm }), [pace, ftpW, hrMaxBpm]);
+  const powerRows = React.useMemo(() => extractZoneRows('power', power, { ftpW, hrMaxBpm }), [power, ftpW, hrMaxBpm]);
 
   const hasHr = Boolean(heartRate && heartRate.records.length > 0);
   const hasPace = Boolean(pace && pace.records.length > 0);

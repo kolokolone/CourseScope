@@ -270,10 +270,15 @@ export function MetricsRegistryRenderer({
                 accentColor={accentColor}
                 density={density}
               >
-                <ZonesBreakdown heartRate={heartRate} pace={paceFrame} power={powerFrame} ftpW={ftpW} />
-              </SectionCard>
-            );
-          }
+                 {(() => {
+                   const hrMaxUsedRaw = getValueAtPath(data, 'summary.cardio.hr_max_used_bpm');
+                   const hrMaxBpm =
+                     typeof hrMaxUsedRaw === 'number' && Number.isFinite(hrMaxUsedRaw) && hrMaxUsedRaw > 0 ? hrMaxUsedRaw : undefined;
+                   return <ZonesBreakdown heartRate={heartRate} pace={paceFrame} power={powerFrame} ftpW={ftpW} hrMaxBpm={hrMaxBpm} />;
+                 })()}
+               </SectionCard>
+             );
+           }
 
           const frames = (section.dataframes ?? [])
             .map((frame) => ({

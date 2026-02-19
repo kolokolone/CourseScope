@@ -9,8 +9,9 @@
 - Suivre les guidelines inclus dans la `docs/`.
 
 ## Regles et references (ne pas reecrire, juste suivre)
-- Runbook documentation: `docs/documentation_update_runbook.md`
-- Docs techniques (exemples de docs à implémenter par rapport aux nouvelles fonctions): `docs/pace_vs_grade.md`, `docs/climbs.md`, `docs/metrics_catalog.md`
+- Runbook documentation à suivre après chaque changement de code : `docs/documentation_update_runbook.md`.
+- Docs techniques (exemples de docs à implémenter par rapport aux nouvelles fonctions ajoutées): `docs/pace_vs_grade.md`, `docs/climbs.md`, `docs/metrics_catalog.md`.
+- Le style de la frontend est unifié et documenté dans le fichier `/docs/style-frontend-ui.md`, il faut le suivre s'il y a des ajouts/modifications de fonctions ou de pages.
 - Vue d'ensemble + commandes: `README.md`
 
 ## Mode operatoire

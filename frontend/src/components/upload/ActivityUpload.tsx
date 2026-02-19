@@ -12,7 +12,6 @@ interface ActivityUploadProps {
   description?: string;
   activityType: 'real' | 'theoretical';
   onUploadSuccess: (activityId: string, activityType: 'real' | 'theoretical') => void;
-  persistToDisk?: boolean;
 }
 
 export function ActivityUpload({
@@ -20,7 +19,6 @@ export function ActivityUpload({
   description,
   activityType,
   onUploadSuccess,
-  persistToDisk = false,
 }: ActivityUploadProps) {
   const [uploadingFile, setUploadingFile] = useState<File | null>(null);
   const uploadMutation = useUploadActivity();
@@ -33,7 +31,6 @@ export function ActivityUpload({
         const result = await uploadMutation.mutateAsync({
           file,
           name: file.name,
-          persist_to_disk: persistToDisk,
           activity_type: activityType,
         });
 
@@ -60,7 +57,7 @@ export function ActivityUpload({
         setUploadingFile(null);
       }
     },
-    [uploadMutation, onUploadSuccess, persistToDisk, activityType]
+    [uploadMutation, onUploadSuccess, activityType]
   );
 
   const onDrop = useCallback(

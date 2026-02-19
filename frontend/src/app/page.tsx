@@ -10,23 +10,9 @@ import { formatNumber } from '@/lib/metricsFormat';
 import { getActivityDetailPath } from '@/lib/routes';
 import { Activity, TrendingUp } from 'lucide-react';
 
-const PERSIST_UPLOADS_KEY = 'coursescope.persist_uploads_to_disk';
-
-function getPersistUploadsDefaultOff() {
-  if (typeof window === 'undefined') return false;
-  const raw = window.localStorage.getItem(PERSIST_UPLOADS_KEY);
-  if (raw === null) return false;
-  return raw === 'true';
-}
-
 export default function HomePage() {
   const router = useRouter();
   const { data: activities, isLoading } = useActivityList();
-
-  const [persistUploadsToDisk, setPersistUploadsToDisk] = React.useState(false);
-  React.useEffect(() => {
-    setPersistUploadsToDisk(getPersistUploadsDefaultOff());
-  }, []);
 
   const handleUploadSuccess = (activityId: string, activityType: 'real' | 'theoretical') => {
     router.push(getActivityDetailPath(activityId, activityType));
@@ -46,14 +32,12 @@ export default function HomePage() {
           title="Activite reelle"
           description="FIT ou GPX d'une activite courue (analyse reelle)."
           onUploadSuccess={handleUploadSuccess}
-          persistToDisk={persistUploadsToDisk}
         />
         <ActivityUpload
           activityType="theoretical"
           title="Trace (theorique)"
           description="FIT ou GPX vierge pour une analyse theorique (pas d'auto-detection)."
           onUploadSuccess={handleUploadSuccess}
-          persistToDisk={persistUploadsToDisk}
         />
       </div>
 
@@ -84,7 +68,7 @@ export default function HomePage() {
             <div className="text-center py-8">
               <Activity className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">Aucune activite enregistree</p>
-              <p className="text-sm text-gray-400 mt-2">Upload un fichier puis active l'enregistrement si besoin.</p>
+              <p className="text-sm text-gray-400 mt-2">Upload un fichier pour lancer une analyse.</p>
             </div>
           ) : (
             <div className="divide-y rounded-md border">

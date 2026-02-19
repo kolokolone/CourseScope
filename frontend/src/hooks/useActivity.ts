@@ -29,15 +29,13 @@ export function useUploadActivity() {
     mutationFn: async ({
       file,
       name,
-      persist_to_disk,
       activity_type,
     }: {
       file: File;
       name: string;
-      persist_to_disk?: boolean;
       activity_type?: 'real' | 'theoretical';
     }): Promise<ActivityLoadResponse> => {
-      return activityApi.load(file, name, { persist_to_disk, activity_type });
+      return activityApi.load(file, name, { activity_type });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: activityKeys.lists() });

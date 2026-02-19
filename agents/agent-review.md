@@ -28,7 +28,8 @@
 - Eviter les changements d'API/schemas/signatures; si indispensable, le signaler avant.
 
 ## Regles et references (ne pas reecrire, juste suivre)
-- Runbook documentation après chaque changement à suvre ici : `docs/documentation_update_runbook.md`
+- Le style de la frontend est unifié et documenté dans le fichier `/docs/style-frontend-ui.md`, vérifier que toutes les pages sont uniformes en terme d'UI.
+- Après chaque changement dans le code, suivre ce fichier de mise à jour de la documentation + github : `docs/documentation_update_runbook.md`
 - tu peux utiliser (dès que possible meme) le mode /ralph-loop de opencode (avec un max de 20 itérations)
 
 ## Historique (strict)
