@@ -239,3 +239,26 @@ async def cleanup_all_activities(request: Request):
         return {"message": "All activities cleaned up successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to cleanup activities: {str(e)}")
+
+
+@router.patch("/activities/{activity_id}")
+async def rename_activity(request: Request, activity_id: str, payload: dict):
+    """Renomme une activité."""
+    try:
+        storage = get_activity_storage(request)
+        name_raw = payload.get("name") if isinstance(payload, dict) else None
+        if name_raw is None:
+            name = None
+        else:
+            cleaned = str(name_raw).strip()
+            name = cleaned if cleaned else None
+
+        ok = storage.rename_activity(activity_id, name)
+        if not ok:
+            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+
+        return {"id": activity_id, "name": name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to rename activity: {str(e)}")

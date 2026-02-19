@@ -44,6 +44,7 @@ class ActivityLimitsDetail(BaseModel):
 
 # 3. GET /activity/{id}/real - Response
 class RealActivityResponse(BaseModel):
+    activity_name: Optional[str] = None
     summary: dict  # Structure existante services/
     highlights: dict
     zones: Optional[dict] = None
@@ -205,3 +206,32 @@ class PersonalSettingsPatchRequest(BaseModel):
     vma_kmh: Optional[float] = None
     hr_max_manual_bpm: Optional[int] = None
     hr_max_source: Optional[Literal["detected", "manual"]] = None
+
+
+class GoalItem(BaseModel):
+    id: str
+    name: str
+    event_date: str
+    distance_km: float
+    location: Optional[str] = None
+    target_time_s: Optional[float] = None
+    target_pace_s_per_km: Optional[float] = None
+    race_type: Literal["road", "trail"]
+    notes: Optional[str] = None
+    created_at_utc: str
+    updated_at_utc: str
+
+
+class GoalCreateRequest(BaseModel):
+    name: str
+    event_date: str
+    distance_km: float
+    location: Optional[str] = None
+    target_time_s: Optional[float] = None
+    target_pace_s_per_km: Optional[float] = None
+    race_type: Literal["road", "trail"]
+    notes: Optional[str] = None
+
+
+class GoalsListResponse(BaseModel):
+    goals: List[GoalItem]

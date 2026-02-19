@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CourseScope API",
     description="Analytics pour traces GPX/FIT",
-    version="1.1.67",
+    version="1.1.68",
     lifespan=lifespan,
 )
 
@@ -157,6 +157,7 @@ from api.routes.garmin_integration import router as garmin_router
 from api.routes.progress import router as progress_router
 from api.routes.traces import router as traces_router
 from api.routes.settings import router as settings_router
+from api.routes.goals import router as goals_router
 
 app.include_router(activities_router)
 app.include_router(analysis_router)
@@ -166,6 +167,7 @@ app.include_router(garmin_router)
 app.include_router(progress_router)
 app.include_router(traces_router)
 app.include_router(settings_router)
+app.include_router(goals_router)
 
 # Dynamic compatibility: also serve the same routes under /api/*
 app.include_router(activities_router, prefix="/api", include_in_schema=False)
@@ -176,6 +178,7 @@ app.include_router(garmin_router, prefix="/api", include_in_schema=False)
 app.include_router(progress_router, prefix="/api", include_in_schema=False)
 app.include_router(traces_router, prefix="/api", include_in_schema=False)
 app.include_router(settings_router, prefix="/api", include_in_schema=False)
+app.include_router(goals_router, prefix="/api", include_in_schema=False)
 
 
 def get_activity_storage():
@@ -190,7 +193,7 @@ def get_series_registry():
 async def root():
     return {
         "message": "CourseScope API",
-        "version": "1.1.67",
+        "version": "1.1.68",
         "docs": "/docs",
         "status": "operational",
     }

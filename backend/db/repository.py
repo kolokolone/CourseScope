@@ -128,3 +128,10 @@ class ActivityIndexRepository:
         session.execute(delete(ActivitySource))
         res = session.execute(delete(Activity))
         return int(getattr(res, "rowcount", 0) or 0)
+
+    def rename_activity(self, session: Session, activity_id: str, name: str | None) -> bool:
+        row = session.get(Activity, activity_id)
+        if row is None:
+            return False
+        row.name = name
+        return True

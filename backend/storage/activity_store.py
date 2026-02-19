@@ -84,6 +84,11 @@ class ActivityStorage(ABC):
         """Retourne filename/name/raw_bytes/df pour un activity_id."""
         pass
 
+    @abstractmethod
+    def rename_activity(self, activity_id: str, name: str | None) -> bool:
+        """Renomme une activité stockée."""
+        pass
+
 
 class LocalTempStorage(ActivityStorage):
     """Stockage local dans dossier persistant"""
@@ -448,6 +453,43 @@ class LocalTempStorage(ActivityStorage):
             "df": df,
         }
 
+    def rename_activity(self, activity_id: str, name: str | None) -> bool:
+        activity_dir = self._get_activity_dir(activity_id)
+        if not activity_dir.exists():
+            return False
+
+        meta_path = activity_dir / "meta.json"
+        if not meta_path.exists():
+            return False
+
+        with open(meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+
+        cleaned_name = str(name).strip() if isinstance(name, str) else ""
+        meta["name"] = cleaned_name if cleaned_name else None
+
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, default=str, indent=2)
+
+        if self._db_session_factory is not None and self._repo is not None:
+            session = self._db_session_factory()
+            try:
+                self._repo.rename_activity(session, activity_id, meta["name"])  # type: ignore[arg-type]
+                session.commit()  # type: ignore[attr-defined]
+            except Exception:
+                try:
+                    session.rollback()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                raise
+            finally:
+                try:
+                    session.close()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+
+        return True
+
 
 class InMemoryStorage(ActivityStorage):
     """Ephemeral storage (process memory only)."""
@@ -520,3 +562,11 @@ class InMemoryStorage(ActivityStorage):
             "raw_bytes": bytes(raw),
             "df": df,
         }
+
+    def rename_activity(self, activity_id: str, name: str | None) -> bool:
+        meta = self._metas.get(activity_id)
+        if meta is None:
+            return False
+        cleaned_name = str(name).strip() if isinstance(name, str) else ""
+        meta["name"] = cleaned_name if cleaned_name else None
+        return True

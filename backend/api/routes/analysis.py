@@ -130,7 +130,13 @@ def _build_limits(df):
     )
 
 
-def prepare_real_response(request: Request, activity_df, registry: SeriesRegistry) -> RealActivityResponse:
+def prepare_real_response(
+    request: Request,
+    activity_df,
+    registry: SeriesRegistry,
+    *,
+    activity_name: str | None = None,
+) -> RealActivityResponse:
     hr_max_effective = _resolve_hr_max_effective(request)
     params = RealRunParams(hr_max=hr_max_effective) if hr_max_effective is not None else None
     result = real_activity_service.analyze_real_activity(activity_df, params=params)
@@ -182,6 +188,7 @@ def prepare_real_response(request: Request, activity_df, registry: SeriesRegistr
         summary_payload["cardio"] = cardio_payload
 
     return RealActivityResponse(
+        activity_name=activity_name,
         summary=summary_payload,
         highlights={"items": result.highlights},
         zones=to_jsonable(zones_payload),
@@ -649,19 +656,36 @@ async def get_real_activity(request: Request, activity_id: str):
     """Retourne les données d'analyse pour une activité réelle"""
     try:
         storage = request.app.state.storage
+        activity_name: str | None = None
         try:
             df = storage.load_dataframe(activity_id)
+            try:
+                loaded_name = storage.load(activity_id).name
+                if isinstance(loaded_name, str) and loaded_name.strip():
+                    activity_name = loaded_name.strip()
+                else:
+                    activity_name = None
+            except Exception:
+                activity_name = None
         except FileNotFoundError:
             temp_storage = getattr(request.app.state, "temp_storage", None)
             if temp_storage is None:
                 raise
             df = temp_storage.load_dataframe(activity_id)
+            try:
+                loaded_name = temp_storage.load(activity_id).name
+                if isinstance(loaded_name, str) and loaded_name.strip():
+                    activity_name = loaded_name.strip()
+                else:
+                    activity_name = None
+            except Exception:
+                activity_name = None
 
         if df.empty:
             raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
 
         registry = get_series_registry(request)
-        return prepare_real_response(request, df, registry)
+        return prepare_real_response(request, df, registry, activity_name=activity_name)
 
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")

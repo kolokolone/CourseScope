@@ -12,6 +12,7 @@ vi.mock('@/hooks/useActivity', () => ({
   useMapData: () => ({ data: null }),
   useMultipleSeries: () => [],
   usePaceVsGrade: () => ({ data: { bins: [], pro_ref: [] }, isLoading: false, error: null }),
+  useRenameActivity: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('next/navigation', () => ({

@@ -27,6 +27,8 @@ import {
   ProgressPaceHrWaterfallResponse,
   ProgressPaceAtHrResponse,
   ProgressVerifyResponse,
+  GoalItem,
+  GoalsListResponse,
   TraceItem,
   TraceOpenResponse,
   TracesListResponse,
@@ -158,8 +160,32 @@ export const activityApi = {
   },
 
   list: async () => apiRequest<{ activities: ActivityMetadata[] }>('/activities'),
+  rename: async (activityId: string, name: string | null) =>
+    apiRequest<{ id: string; name: string | null }>(`/activities/${activityId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
   delete: async (activityId: string) => apiRequest<{ message: string }>(`/activity/${activityId}`, { method: 'DELETE' }),
   cleanup: async () => apiRequest<{ message: string }>('/activities', { method: 'DELETE' }),
+};
+
+export const goalsApi = {
+  list: async () => apiRequest<GoalsListResponse>('/goals'),
+  create: async (payload: {
+    name: string;
+    event_date: string;
+    distance_km: number;
+    location?: string;
+    target_time_s?: number;
+    target_pace_s_per_km?: number;
+    race_type: 'road' | 'trail';
+    notes?: string;
+  }) =>
+    apiRequest<GoalItem>('/goals', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  remove: async (goalId: string) => apiRequest<{ deleted: boolean }>(`/goals/${goalId}`, { method: 'DELETE' }),
 };
 
 export const garminApi = {

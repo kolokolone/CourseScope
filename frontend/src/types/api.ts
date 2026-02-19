@@ -37,6 +37,7 @@ export interface ActivityLimitsDetail {
 }
 
 export interface RealActivityResponse {
+  activity_name?: string;
   summary: Record<string, unknown>;
   highlights: Record<string, unknown>;
   zones?: Record<string, unknown>;
@@ -245,6 +246,26 @@ export interface PersonalSettingsResponse {
   hr_max_detected_bpm?: number | null;
   hr_max_effective_bpm?: number | null;
   updated_at_utc: string;
+}
+
+export type GoalRaceType = 'road' | 'trail';
+
+export interface GoalItem {
+  id: string;
+  name: string;
+  event_date: string;
+  distance_km: number;
+  location?: string | null;
+  target_time_s?: number | null;
+  target_pace_s_per_km?: number | null;
+  race_type: GoalRaceType;
+  notes?: string | null;
+  created_at_utc: string;
+  updated_at_utc: string;
+}
+
+export interface GoalsListResponse {
+  goals: GoalItem[];
 }
 
 export interface ChartPoint {

@@ -13,7 +13,7 @@ import { ActivityMap } from '@/components/maps/ActivityMap';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatMetricValue, formatNumber } from '@/lib/metricsFormat';
-import { useMapData, useRealActivity } from '@/hooks/useActivity';
+import { useMapData, useRealActivity, useRenameActivity } from '@/hooks/useActivity';
 import { CATEGORY_COLORS, CHART_SERIES, KPI_METRICS, REAL_METRIC_SECTIONS, type MetricItem, type MetricSection } from '@/lib/metricsRegistry';
 import type { SeriesInfo } from '@/types/api';
 
@@ -42,6 +42,40 @@ export default function RealActivityPage() {
 
   const { data: activity, isLoading, error, refetch } = useRealActivity(activityId);
   const { data: mapData } = useMapData(activityId);
+  const renameActivityMutation = useRenameActivity();
+
+  const [isEditingTitle, setIsEditingTitle] = React.useState(false);
+  const [activityNameDraft, setActivityNameDraft] = React.useState('');
+  const titleInputRef = React.useRef<HTMLInputElement | null>(null);
+  const baselineNameRef = React.useRef(`Activité ${activityId.slice(0, 8)}`);
+
+  React.useEffect(() => {
+    const serverName = (activity?.activity_name ?? '').trim();
+    const fallback = activityId ? `Activité ${activityId.slice(0, 8)}` : 'Activité';
+    const baseline = serverName.length > 0 ? serverName : fallback;
+    const previousBaseline = baselineNameRef.current;
+    baselineNameRef.current = baseline;
+
+    setActivityNameDraft((prev) => {
+      if (isEditingTitle) return prev;
+      const cleanPrev = prev.trim();
+      if (!cleanPrev || cleanPrev === previousBaseline) return baseline;
+      return prev;
+    });
+  }, [activity?.activity_name, activityId, isEditingTitle]);
+
+  React.useEffect(() => {
+    if (!isEditingTitle) return;
+    const timer = window.setTimeout(() => titleInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [isEditingTitle]);
+
+  const handleRenameActivity = React.useCallback(async () => {
+    const cleanName = activityNameDraft.trim();
+    await renameActivityMutation.mutateAsync({ activityId, name: cleanName.length > 0 ? cleanName : null });
+    setIsEditingTitle(false);
+    await refetch();
+  }, [activityId, activityNameDraft, refetch, renameActivityMutation]);
 
   const kpiItems = React.useMemo(() => buildKpiItems(activity), [activity]);
   const seriesAvailable = activity?.series_index?.available ?? [];
@@ -224,11 +258,57 @@ export default function RealActivityPage() {
     );
   }
 
+  const titleBaseline = baselineNameRef.current;
+  const isTitleDirty = activityNameDraft.trim() !== titleBaseline.trim();
+  const titleDisplay = activityNameDraft.trim() || titleBaseline;
+
 
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-card px-4 py-3">
-        <div className="text-sm text-muted-foreground">ID: {activityId}</div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            {!isEditingTitle ? (
+              <button
+                type="button"
+                className="text-base font-semibold text-left hover:underline underline-offset-2"
+                onClick={() => setIsEditingTitle(true)}
+              >
+                {titleDisplay}
+              </button>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={titleInputRef}
+                  className="h-9 w-full max-w-md rounded-md border px-3 text-sm"
+                  value={activityNameDraft}
+                  onChange={(e) => setActivityNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setActivityNameDraft(titleBaseline);
+                      setIsEditingTitle(false);
+                    }
+                    if (e.key === 'Enter') {
+                      if (isTitleDirty) {
+                        void handleRenameActivity();
+                      } else {
+                        setIsEditingTitle(false);
+                      }
+                    }
+                  }}
+                  placeholder="Nom personnalisé de l'activité"
+                />
+                {isTitleDirty ? (
+                  <Button size="sm" variant="outline" onClick={() => void handleRenameActivity()} disabled={renameActivityMutation.isPending}>
+                    Renommer
+                  </Button>
+                ) : null}
+              </div>
+            )}
+            <div className="text-xs text-muted-foreground">ID: {activityId}</div>
+          </div>
+        </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
           {primaryKpis.slice(0, 6).map((k) => (

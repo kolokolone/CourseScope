@@ -66,6 +66,25 @@ class Trace(Base):
     original_path: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+class Goal(Base):
+    __tablename__ = "goals"
+    __table_args__ = (
+        Index("ix_goals_event_date", "event_date"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    event_date: Mapped[str] = mapped_column(Text, nullable=False)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False)
+    location: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    target_pace_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    race_type: Mapped[str] = mapped_column(String(16), nullable=False, default="road")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class UserSettings(Base):
     __tablename__ = "user_settings"
 

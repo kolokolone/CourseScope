@@ -185,6 +185,21 @@ export function useDeleteActivity() {
   });
 }
 
+export function useRenameActivity() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ activityId, name }: { activityId: string; name: string | null }) => {
+      return activityApi.rename(activityId, name);
+    },
+    onSuccess: (_payload, vars) => {
+      queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: activityKeys.real(vars.activityId) });
+      queryClient.invalidateQueries({ queryKey: activityKeys.detail(vars.activityId) });
+    },
+  });
+}
+
 export function useCleanupActivities() {
   const queryClient = useQueryClient();
 

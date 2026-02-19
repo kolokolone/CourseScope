@@ -23,4 +23,11 @@ describe('resolvePageMetadata', () => {
     expect(meta.subtitle).toBe('Analyse théorique');
     expect(meta.container).toBe('wide');
   });
+
+  it('returns static metadata for /goals', () => {
+    const meta = resolvePageMetadata('/goals');
+    expect(meta.title).toBe('Objectifs');
+    expect(meta.subtitle).toBe('Courses et trails à venir');
+    expect(meta.container).toBe('default');
+  });
 });

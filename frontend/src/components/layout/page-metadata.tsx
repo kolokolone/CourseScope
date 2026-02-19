@@ -28,6 +28,11 @@ const STATIC_PAGE_METADATA: Record<string, PageMetadata> = {
     container: 'default',
     showToday: true,
   },
+  '/goals': {
+    title: 'Objectifs',
+    subtitle: 'Courses et trails à venir',
+    container: 'default',
+  },
   '/traces': {
     title: 'Traces GPX',
     subtitle: 'Bibliotheque des traces enregistrees',
