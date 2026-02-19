@@ -67,7 +67,15 @@ class RealActivityResponse(BaseModel):
 
 # 4. GET /activity/{id}/theoretical - Response
 class TheoreticalActivityResponse(RealActivityResponse):
-    pass  # Hérite structure identique
+    target_mode: Optional[Literal["pace", "time"]] = None
+    target_pace_s_per_km: Optional[float] = None
+    target_time_s: Optional[float] = None
+    vma_kmh: Optional[float] = None
+    pace_elevation_series: Optional[List[dict]] = None
+    grade_time_bins: Optional[List[dict]] = None
+    pace_time_bins: Optional[List[dict]] = None
+    secondary_metrics: Optional[dict] = None
+    trace_status: Optional[dict] = None
 
 
 # 5. GET /activity/{id}/series/{name} - Response
@@ -154,3 +162,46 @@ class ProPaceVsGradePoint(BaseModel):
 class PaceVsGradeResponse(BaseModel):
     bins: List[PaceVsGradeBin]
     pro_ref: List[ProPaceVsGradePoint]
+
+
+class TraceItem(BaseModel):
+    id: str
+    name: Optional[str] = None
+    created_at_utc: str
+    distance_km: float
+    elevation_gain_m: float
+    elevation_loss_m: Optional[float] = None
+    elevation_min_m: Optional[float] = None
+    elevation_max_m: Optional[float] = None
+    original_filename: Optional[str] = None
+
+
+class TracesListResponse(BaseModel):
+    traces: List[TraceItem]
+    sync: Optional[dict] = None
+
+
+class TraceUploadResponse(BaseModel):
+    trace: TraceItem
+    activity_id: str
+
+
+class TraceStatusResponse(BaseModel):
+    saved: bool
+    trace_id: Optional[str] = None
+    trace_name: Optional[str] = None
+
+
+class PersonalSettingsResponse(BaseModel):
+    vma_kmh: Optional[float] = None
+    hr_max_manual_bpm: Optional[int] = None
+    hr_max_source: Literal["detected", "manual"] = "detected"
+    hr_max_detected_bpm: Optional[int] = None
+    hr_max_effective_bpm: Optional[int] = None
+    updated_at_utc: str
+
+
+class PersonalSettingsPatchRequest(BaseModel):
+    vma_kmh: Optional[float] = None
+    hr_max_manual_bpm: Optional[int] = None
+    hr_max_source: Optional[Literal["detected", "manual"]] = None

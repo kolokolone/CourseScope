@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { ChartNoAxesCombined, Home, ListChecks, Settings } from 'lucide-react';
+import { ChartNoAxesCombined, Home, ListChecks, Route, Settings } from 'lucide-react';
 
 export type NavPlacement = 'main' | 'footer';
 
@@ -27,6 +27,12 @@ export const NAV_ITEMS: NavItemConfig[] = [
     label: 'Progression',
     href: '/progress',
     icon: ChartNoAxesCombined,
+    placement: 'main',
+  },
+  {
+    label: 'Traces GPX',
+    href: '/traces',
+    icon: Route,
     placement: 'main',
   },
   {

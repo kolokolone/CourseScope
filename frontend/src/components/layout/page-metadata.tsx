@@ -28,6 +28,11 @@ const STATIC_PAGE_METADATA: Record<string, PageMetadata> = {
     container: 'default',
     showToday: true,
   },
+  '/traces': {
+    title: 'Traces GPX',
+    subtitle: 'Bibliotheque des traces enregistrees',
+    container: 'default',
+  },
   '/settings': {
     title: 'Paramètres',
     subtitle: 'Configuration de l’application',
@@ -48,18 +53,29 @@ function normalizePathname(pathname: string) {
   return pathname;
 }
 
-function isDynamicActivityRoute(pathname: string) {
-  return /^\/activity\/[^/]+\/(real|theoretical)$/.test(pathname);
+function isDynamicRealActivityRoute(pathname: string) {
+  return /^\/activities\/[^/]+$/.test(pathname) || /^\/activity\/[^/]+\/real$/.test(pathname);
+}
+
+function isDynamicTraceRoute(pathname: string) {
+  return /^\/traces\/[^/]+$/.test(pathname) || /^\/activity\/[^/]+\/theoretical$/.test(pathname);
 }
 
 export function resolvePageMetadata(pathname: string): PageMetadata {
   const normalizedPathname = normalizePathname(pathname);
 
-  if (isDynamicActivityRoute(normalizedPathname)) {
-    const subtitle = normalizedPathname.endsWith('/real') ? 'Analyse réelle' : 'Analyse théorique';
+  if (isDynamicRealActivityRoute(normalizedPathname)) {
     return {
       title: 'Activité',
-      subtitle,
+      subtitle: 'Analyse réelle',
+      container: 'wide',
+    };
+  }
+
+  if (isDynamicTraceRoute(normalizedPathname)) {
+    return {
+      title: 'Trace',
+      subtitle: 'Analyse théorique',
       container: 'wide',
     };
   }

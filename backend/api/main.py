@@ -13,8 +13,9 @@ from starlette.responses import JSONResponse
 sys.path.append(str(Path(__file__).parent.parent))
 
 from storage.activity_store import InMemoryStorage, LocalTempStorage
+from storage.trace_store import TraceStore
 from registry.series_registry import SeriesRegistry
-from config import get_activities_dir, get_data_dir
+from config import get_activities_dir, get_data_dir, get_traces_dir
 from db.session import init_db, make_engine, make_session_factory
 
 
@@ -72,11 +73,13 @@ async def lifespan(app: FastAPI):
 
     storage = LocalTempStorage(temp_dir=str(get_activities_dir()), db_session_factory=db_session_factory)
     temp_storage = InMemoryStorage()
+    trace_store = TraceStore(traces_dir=get_traces_dir())
     registry = SeriesRegistry()
 
     app.state.storage = storage
     app.state.temp_storage = temp_storage
     app.state.registry = registry
+    app.state.trace_store = trace_store
     app.state.logger = logger
     app.state.db_session_factory = db_session_factory
     app.state.garmin_mfa_states = {}
@@ -147,6 +150,8 @@ from api.routes.series import router as series_router
 from api.routes.maps import router as maps_router
 from api.routes.garmin_integration import router as garmin_router
 from api.routes.progress import router as progress_router
+from api.routes.traces import router as traces_router
+from api.routes.settings import router as settings_router
 
 app.include_router(activities_router)
 app.include_router(analysis_router)
@@ -154,6 +159,8 @@ app.include_router(series_router)
 app.include_router(maps_router)
 app.include_router(garmin_router)
 app.include_router(progress_router)
+app.include_router(traces_router)
+app.include_router(settings_router)
 
 # Dynamic compatibility: also serve the same routes under /api/*
 app.include_router(activities_router, prefix="/api", include_in_schema=False)
@@ -162,6 +169,8 @@ app.include_router(series_router, prefix="/api", include_in_schema=False)
 app.include_router(maps_router, prefix="/api", include_in_schema=False)
 app.include_router(garmin_router, prefix="/api", include_in_schema=False)
 app.include_router(progress_router, prefix="/api", include_in_schema=False)
+app.include_router(traces_router, prefix="/api", include_in_schema=False)
+app.include_router(settings_router, prefix="/api", include_in_schema=False)
 
 
 def get_activity_storage():

@@ -46,6 +46,36 @@ class ActivitySource(Base):
     activity: Mapped[Activity] = relationship(back_populates="sources")
 
 
+class Trace(Base):
+    __tablename__ = "traces"
+    __table_args__ = (
+        Index("ix_traces_route_fingerprint", "route_fingerprint"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+    file_hash_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    route_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    elevation_gain_m: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    elevation_loss_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    elevation_min_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    elevation_max_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    original_filename: Mapped[str | None] = mapped_column(Text, nullable=True)
+    original_path: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class UserSettings(Base):
+    __tablename__ = "user_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vma_kmh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hr_max_manual_bpm: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hr_max_source: Mapped[str] = mapped_column(String(16), nullable=False, default="detected")
+    updated_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class SyncState(Base):
     __tablename__ = "sync_state"
 

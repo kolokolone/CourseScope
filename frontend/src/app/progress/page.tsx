@@ -47,6 +47,14 @@ function isoDateUtc(d: Date) {
   return dt.toISOString().slice(0, 10);
 }
 
+function weekStartUtc(date: Date): Date {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = d.getUTCDay();
+  const diff = (day + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - diff);
+  return d;
+}
+
 function shiftRangeStart(end: Date, range: HistoryRange): Date {
   if (range === 'all') return new Date(0);
   const d = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
@@ -314,6 +322,34 @@ export default function ProgressPage() {
       };
     });
   }, [volumeQuery.data, volumeSpec]);
+
+  const currentWeekBucketStart = React.useMemo(() => isoDateUtc(weekStartUtc(new Date())), []);
+
+  const renderVolumeDot = React.useCallback(
+    (props: any) => {
+      const cx = props?.cx;
+      const cy = props?.cy;
+      const payload = props?.payload;
+      if (typeof cx !== 'number' || typeof cy !== 'number' || !payload) return null;
+
+      const value = payload?.value;
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+
+      const key = String(payload.bucket_start ?? '');
+      const isCurrent = key === currentWeekBucketStart;
+      if (isCurrent) {
+        return (
+          <g>
+            <circle cx={cx} cy={cy} r={10} fill="rgba(147,197,253,0.6)" />
+            <circle cx={cx} cy={cy} r={5} fill="#93c5fd" stroke="#ffffff" strokeWidth={2} />
+          </g>
+        );
+      }
+
+      return <circle cx={cx} cy={cy} r={4} fill="#ffffff" stroke="#93c5fd" strokeWidth={2} />;
+    },
+    [currentWeekBucketStart]
+  );
 
   const trimpData = React.useMemo(() => {
     const items = trimpQuery.data ?? [];
@@ -597,7 +633,7 @@ export default function ProgressPage() {
                     stroke="#93c5fd"
                     strokeWidth={2}
                     fill="rgba(147,197,253,0.4)"
-                    dot={false}
+                    dot={renderVolumeDot}
                     isAnimationActive={false}
                     connectNulls
                   />

@@ -79,6 +79,11 @@ class ActivityStorage(ABC):
         """Supprime toutes les activités"""
         pass
 
+    @abstractmethod
+    def get_activity_payload(self, activity_id: str) -> dict:
+        """Retourne filename/name/raw_bytes/df pour un activity_id."""
+        pass
+
 
 class LocalTempStorage(ActivityStorage):
     """Stockage local dans dossier persistant"""
@@ -416,6 +421,33 @@ class LocalTempStorage(ActivityStorage):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
 
+    def get_activity_payload(self, activity_id: str) -> dict:
+        activity_dir = self._get_activity_dir(activity_id)
+        if not activity_dir.exists():
+            raise FileNotFoundError(f"Activity {activity_id} not found")
+
+        meta_path = activity_dir / "meta.json"
+        if not meta_path.exists():
+            raise FileNotFoundError(f"Metadata for activity {activity_id} not found")
+        with open(meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+
+        original_path = None
+        for p in activity_dir.iterdir():
+            if p.is_file() and p.name.startswith("original"):
+                original_path = p
+                break
+        if original_path is None:
+            raise FileNotFoundError(f"Original file for activity {activity_id} not found")
+
+        df = self.load_dataframe(activity_id)
+        return {
+            "filename": meta.get("filename") or original_path.name,
+            "name": meta.get("name"),
+            "raw_bytes": original_path.read_bytes(),
+            "df": df,
+        }
+
 
 class InMemoryStorage(ActivityStorage):
     """Ephemeral storage (process memory only)."""
@@ -423,9 +455,9 @@ class InMemoryStorage(ActivityStorage):
     def __init__(self):
         self._dataframes: dict[str, pd.DataFrame] = {}
         self._metas: dict[str, dict] = {}
+        self._raw_bytes: dict[str, bytes] = {}
 
     def store(self, activity: ServiceLoadedActivity, filename: str, raw_bytes: bytes, name: str | None = None) -> str:
-        _ = raw_bytes
         df = activity.df
         if df is None:
             raise RuntimeError("Loaded activity is missing DataFrame data")
@@ -438,6 +470,7 @@ class InMemoryStorage(ActivityStorage):
             "name": name,
             "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
         }
+        self._raw_bytes[activity_id] = bytes(raw_bytes)
         return activity_id
 
     def load(self, activity_id: str) -> ServiceLoadedActivity:
@@ -473,3 +506,17 @@ class InMemoryStorage(ActivityStorage):
     def cleanup_all(self) -> None:
         self._dataframes.clear()
         self._metas.clear()
+        self._raw_bytes.clear()
+
+    def get_activity_payload(self, activity_id: str) -> dict:
+        df = self._dataframes.get(activity_id)
+        meta = self._metas.get(activity_id)
+        raw = self._raw_bytes.get(activity_id)
+        if df is None or meta is None or raw is None:
+            raise FileNotFoundError(f"Activity {activity_id} not found")
+        return {
+            "filename": meta.get("filename") or f"{activity_id}.gpx",
+            "name": meta.get("name"),
+            "raw_bytes": bytes(raw),
+            "df": df,
+        }

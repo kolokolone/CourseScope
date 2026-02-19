@@ -58,7 +58,41 @@ export interface RealActivityResponse {
   limits?: ActivityLimitsDetail;
 }
 
-export type TheoreticalActivityResponse = RealActivityResponse;
+export interface TheoreticalPaceElevationPoint {
+  distance_km: number;
+  target_pace_s_per_km: number;
+  elevation_m?: number | null;
+}
+
+export interface GradeTimeBin {
+  grade_bin_center_pct: number;
+  label: string;
+  time_s: number;
+}
+
+export interface PaceTimeBin {
+  pace_bin_floor_s_per_km: number;
+  label: string;
+  time_s: number;
+}
+
+export interface TheoreticalTraceStatus {
+  saved: boolean;
+  trace_id?: string;
+  trace_name?: string;
+}
+
+export interface TheoreticalActivityResponse extends RealActivityResponse {
+  target_mode?: 'pace' | 'time';
+  target_pace_s_per_km?: number;
+  target_time_s?: number;
+  vma_kmh?: number;
+  pace_elevation_series?: TheoreticalPaceElevationPoint[];
+  grade_time_bins?: GradeTimeBin[];
+  pace_time_bins?: PaceTimeBin[];
+  secondary_metrics?: Record<string, unknown>;
+  trace_status?: TheoreticalTraceStatus;
+}
 
 export interface SeriesMeta {
   downsampled?: boolean;
@@ -170,6 +204,48 @@ export interface ProPaceVsGradePoint {
 export interface PaceVsGradeResponse {
   bins: PaceVsGradeBin[];
   pro_ref: ProPaceVsGradePoint[];
+}
+
+export interface TraceItem {
+  id: string;
+  name?: string | null;
+  created_at_utc: string;
+  distance_km: number;
+  elevation_gain_m: number;
+  elevation_loss_m?: number | null;
+  elevation_min_m?: number | null;
+  elevation_max_m?: number | null;
+  original_filename?: string | null;
+}
+
+export interface TracesListResponse {
+  traces: TraceItem[];
+  sync?: {
+    scanned: number;
+    indexed: number;
+    up_to_date: number;
+    deleted: number;
+    errors: number;
+  };
+}
+
+export interface TraceUploadResponse {
+  trace: TraceItem;
+  activity_id: string;
+}
+
+export interface TraceOpenResponse {
+  activity_id: string;
+  trace_id: string;
+}
+
+export interface PersonalSettingsResponse {
+  vma_kmh?: number | null;
+  hr_max_manual_bpm?: number | null;
+  hr_max_source: 'detected' | 'manual';
+  hr_max_detected_bpm?: number | null;
+  hr_max_effective_bpm?: number | null;
+  updated_at_utc: string;
 }
 
 export interface ChartPoint {

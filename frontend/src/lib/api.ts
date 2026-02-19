@@ -11,6 +11,7 @@ import {
   GarminCredentialsStatusResponse,
   GarminStatusResponse,
   GarminSyncResponse,
+  PersonalSettingsResponse,
   ProgressActivitiesResponse,
   ProgressAgg,
   ProgressBestEffortKind,
@@ -26,6 +27,10 @@ import {
   ProgressPaceHrWaterfallResponse,
   ProgressPaceAtHrResponse,
   ProgressVerifyResponse,
+  TraceItem,
+  TraceOpenResponse,
+  TracesListResponse,
+  TraceUploadResponse,
 } from '@/types/api';
 
 // Base URL strategy:
@@ -177,8 +182,69 @@ export const garminApi = {
 
 export const analysisApi = {
   getReal: async (activityId: string) => apiRequest<RealActivityResponse>(`/activity/${activityId}/real`),
-  getTheoretical: async (activityId: string) => apiRequest<TheoreticalActivityResponse>(`/activity/${activityId}/theoretical`),
+  getTheoretical: async (
+    activityId: string,
+    params?: {
+      target_mode?: 'pace' | 'time';
+      target_pace?: string;
+      target_time?: string;
+      vma_kmh?: number;
+      grade_model?: 'pro_ref' | 'grade_table_v1';
+    }
+  ) => {
+    const sp = new URLSearchParams();
+    if (params?.target_mode) sp.append('target_mode', params.target_mode);
+    if (params?.target_pace) sp.append('target_pace', params.target_pace);
+    if (params?.target_time) sp.append('target_time', params.target_time);
+    if (typeof params?.vma_kmh === 'number') sp.append('vma_kmh', String(params.vma_kmh));
+    if (params?.grade_model) sp.append('grade_model', params.grade_model);
+    const suffix = sp.toString();
+    return apiRequest<TheoreticalActivityResponse>(`/activity/${activityId}/theoretical${suffix ? `?${suffix}` : ''}`);
+  },
   getPaceVsGrade: async (activityId: string) => apiRequest<PaceVsGradeResponse>(`/activity/${activityId}/pace-vs-grade`),
+};
+
+export const tracesApi = {
+  list: async () => apiRequest<TracesListResponse>('/traces'),
+
+  upload: async (file: File, name?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (name && name.trim().length > 0) formData.append('name', name.trim());
+    return apiRequest<TraceUploadResponse>('/traces/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  rename: async (traceId: string, name: string | null) =>
+    apiRequest<TraceItem>(`/traces/${traceId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+
+  remove: async (traceId: string) => apiRequest<{ deleted: boolean }>(`/traces/${traceId}`, { method: 'DELETE' }),
+
+  open: async (traceId: string) => apiRequest<TraceOpenResponse>(`/traces/${traceId}/open`, { method: 'POST' }),
+
+  getActivityTraceStatus: async (activityId: string) =>
+    apiRequest<{ saved: boolean; trace_id?: string; trace_name?: string }>(`/activity/${activityId}/trace-status`),
+
+  saveActivityTrace: async (activityId: string, name?: string) =>
+    apiRequest<TraceItem>(`/activity/${activityId}/trace-save`, {
+      method: 'POST',
+      body: JSON.stringify(name ? { name } : {}),
+    }),
+};
+
+export const settingsApi = {
+  getPersonal: async () => apiRequest<PersonalSettingsResponse>('/settings/personal'),
+  patchPersonal: async (payload: Partial<{ vma_kmh: number | null; hr_max_manual_bpm: number | null; hr_max_source: 'detected' | 'manual' }>) =>
+    apiRequest<PersonalSettingsResponse>('/settings/personal', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  getDetectedHrMax: async () => apiRequest<{ hr_max_detected_bpm: number | null }>('/settings/personal/hr-max-detected'),
 };
 
 export const seriesApi = {

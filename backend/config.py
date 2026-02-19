@@ -23,3 +23,7 @@ def get_garmin_tokens_dir() -> Path:
 
 def get_activities_dir() -> Path:
     return get_data_dir() / "activities"
+
+
+def get_traces_dir() -> Path:
+    return get_data_dir() / "traces"

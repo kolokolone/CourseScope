@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
-import { activityApi, analysisApi, seriesApi, mapApi } from '@/lib/api';
+import { activityApi, analysisApi, mapApi, seriesApi, tracesApi } from '@/lib/api';
 import {
   ActivityLoadResponse,
   RealActivityResponse,
@@ -19,6 +19,7 @@ export const activityKeys = {
   series: (id: string) => [...activityKeys.detail(id), 'series'] as const,
   serie: (id: string, name: string, params: string) => [...activityKeys.series(id), name, params] as const,
   map: (id: string, params: string) => [...activityKeys.detail(id), 'map', params] as const,
+  traceStatus: (id: string) => [...activityKeys.detail(id), 'trace-status'] as const,
 };
 
 export function useUploadActivity() {
@@ -59,12 +60,42 @@ export function useRealActivity(id: string) {
   });
 }
 
-export function useTheoreticalActivity(id: string) {
+export function useTheoreticalActivity(
+  id: string,
+  params?: {
+    target_mode?: 'pace' | 'time';
+    target_pace?: string;
+    target_time?: string;
+    vma_kmh?: number;
+    grade_model?: 'pro_ref' | 'grade_table_v1';
+  }
+) {
+  const paramString = JSON.stringify(params ?? {});
   return useQuery({
-    queryKey: activityKeys.theoretical(id),
-    queryFn: (): Promise<TheoreticalActivityResponse> => analysisApi.getTheoretical(id),
+    queryKey: [...activityKeys.theoretical(id), paramString] as const,
+    queryFn: (): Promise<TheoreticalActivityResponse> => analysisApi.getTheoretical(id, params),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useActivityTraceStatus(activityId: string) {
+  return useQuery({
+    queryKey: activityKeys.traceStatus(activityId),
+    queryFn: () => tracesApi.getActivityTraceStatus(activityId),
+    enabled: Boolean(activityId),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useSaveActivityTrace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ activityId, name }: { activityId: string; name?: string }) =>
+      tracesApi.saveActivityTrace(activityId, name),
+    onSuccess: (_row, vars) => {
+      queryClient.invalidateQueries({ queryKey: activityKeys.traceStatus(vars.activityId) });
+    },
   });
 }
 

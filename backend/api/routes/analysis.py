@@ -1,9 +1,13 @@
 import math
+import re
 
 from fastapi import APIRouter, HTTPException, Request
+import numpy as np
+import pandas as pd
 
 from core.real_run_analysis import compute_derived_series, compute_pace_series, compute_pace_vs_grade_data, compute_summary_stats
 from core.ref_data import get_pro_pace_vs_grade_df
+from core.grade_table import grade_factor
 
 from api.schemas import (
     ActivityLimitsDetail,
@@ -15,9 +19,12 @@ from api.schemas import (
     TheoreticalActivityResponse,
 )
 from registry.series_registry import SeriesRegistry
-from services import real_activity_service, theoretical_service
+from services import real_activity_service
 from services.serialization import df_to_records, to_jsonable
 from services.models import RealRunViewParams
+from db.settings_repository import SettingsRepository
+from db.trace_repository import TraceRepository
+from storage.trace_store import compute_route_fingerprint
 
 
 router = APIRouter()
@@ -163,16 +170,407 @@ def prepare_real_response(activity_df, registry: SeriesRegistry) -> RealActivity
     )
 
 
-def prepare_theoretical_response(activity_df, registry: SeriesRegistry) -> TheoreticalActivityResponse:
-    base_pace_s_per_km = 300.0
-    df_theoretical, summary_base = theoretical_service.prepare_base(activity_df, base_pace_s_per_km)
-    _ = df_theoretical
+_PACE_RE = re.compile(r"^\s*(\d{1,2})\s*[:h]\s*(\d{1,2})(?:\s*[:m]\s*(\d{1,2}))?\s*$")
+
+
+def _parse_hms_to_seconds(value: str | None) -> float | None:
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if raw == "":
+        return None
+    if raw.isdigit():
+        out = float(raw)
+        return out if out > 0 else None
+    match = _PACE_RE.match(raw)
+    if not match:
+        if ":" in raw:
+            parts = [p.strip() for p in raw.split(":")]
+            if len(parts) in {2, 3} and all(p.isdigit() for p in parts):
+                nums = [int(p) for p in parts]
+                if len(nums) == 2:
+                    mm, ss = nums
+                    return float(mm * 60 + ss)
+                hh, mm, ss = nums
+                return float(hh * 3600 + mm * 60 + ss)
+        return None
+
+    first = int(match.group(1))
+    second = int(match.group(2))
+    third = match.group(3)
+    if third is None:
+        return float(first * 60 + second)
+    return float(first * 3600 + second * 60 + int(third))
+
+
+def _parse_pace_to_seconds_per_km(value: str | None) -> float | None:
+    seconds = _parse_hms_to_seconds(value)
+    if seconds is None:
+        return None
+    if 120.0 <= seconds <= 600.0:
+        return seconds
+    return None
+
+
+def _format_pace_bucket_label(start_s: float, width_s: float) -> str:
+    a = int(round(start_s))
+    b = int(round(start_s + width_s))
+    return f"{a // 60}:{a % 60:02d}-{b // 60}:{b % 60:02d}/km"
+
+
+def _interp_pro_pace_vectorized(grades: np.ndarray, pro_rows: list[dict[str, float]]) -> np.ndarray:
+    if grades.size == 0:
+        return np.array([], dtype=float)
+    if not pro_rows:
+        return np.full_like(grades, np.nan, dtype=float)
+    x = np.array([float(r["grade_percent"]) for r in pro_rows], dtype=float)
+    y = np.array([float(r["pace_s_per_km_pro"]) for r in pro_rows], dtype=float)
+    return np.interp(grades, x, y, left=y[0], right=y[-1])
+
+
+def _build_theoretical_segments(
+    activity_df: pd.DataFrame,
+    *,
+    target_pace_flat_s_per_km: float,
+    vma_kmh: float,
+    grade_model: str,
+) -> pd.DataFrame:
+    required = {"distance_m", "elevation"}
+    if not required.issubset(set(activity_df.columns)):
+        return pd.DataFrame(
+            columns=[
+                "distance_km",
+                "target_pace_s_per_km",
+                "elevation_m",
+                "segment_time_s",
+                "segment_grade_percent",
+                "segment_distance_km",
+                "cumulative_time_s",
+            ]
+        )
+
+    distance = pd.to_numeric(activity_df["distance_m"], errors="coerce").to_numpy(dtype=float)
+    elevation = pd.to_numeric(activity_df["elevation"], errors="coerce").to_numpy(dtype=float)
+    if distance.size < 2:
+        return pd.DataFrame(
+            columns=[
+                "distance_km",
+                "target_pace_s_per_km",
+                "elevation_m",
+                "segment_time_s",
+                "segment_grade_percent",
+                "segment_distance_km",
+                "cumulative_time_s",
+            ]
+        )
+
+    d0 = distance[:-1]
+    d1 = distance[1:]
+    dist_delta_m = d1 - d0
+    valid = np.isfinite(d0) & np.isfinite(d1) & (dist_delta_m > 0)
+    if not valid.any():
+        return pd.DataFrame(
+            columns=[
+                "distance_km",
+                "target_pace_s_per_km",
+                "elevation_m",
+                "segment_time_s",
+                "segment_grade_percent",
+                "segment_distance_km",
+                "cumulative_time_s",
+            ]
+        )
+
+    seg_distance_m = dist_delta_m[valid]
+    seg_distance_km = seg_distance_m / 1000.0
+
+    e0 = elevation[:-1][valid]
+    e1 = elevation[1:][valid]
+    elev_delta = np.where(np.isfinite(e0) & np.isfinite(e1), e1 - e0, 0.0)
+    grade_pct = (elev_delta / seg_distance_m) * 100.0
+
+    if grade_model == "pro_ref":
+        pro_df = get_pro_pace_vs_grade_df()
+        pro_rows: list[dict[str, float]] = []
+        if pro_df is not None and not pro_df.empty:
+            expected = {"grade_percent", "pace_s_per_km_pro"}
+            if expected.issubset(set(pro_df.columns)):
+                sorted_df = pro_df.sort_values("grade_percent")
+                for _, row in sorted_df.iterrows():
+                    g = float(row["grade_percent"])
+                    p = float(row["pace_s_per_km_pro"])
+                    if math.isfinite(g) and math.isfinite(p):
+                        pro_rows.append({"grade_percent": g, "pace_s_per_km_pro": p})
+        if pro_rows:
+            pro_pace = _interp_pro_pace_vectorized(grade_pct, pro_rows)
+            pace_at_zero = float(_interp_pro_pace_s_per_km(0.0, pro_rows) or np.nan)
+            if math.isfinite(pace_at_zero) and pace_at_zero > 0:
+                grade_factor_arr = pro_pace / pace_at_zero
+            else:
+                grade_factor_arr = grade_factor(grade_pct)
+        else:
+            grade_factor_arr = grade_factor(grade_pct)
+    else:
+        grade_factor_arr = grade_factor(grade_pct)
+
+    vma_safe = float(vma_kmh if math.isfinite(vma_kmh) and vma_kmh > 0 else 16.0)
+    vma_factor = min(max(16.0 / vma_safe, 0.65), 1.5)
+
+    target_pace = np.asarray(target_pace_flat_s_per_km * grade_factor_arr * vma_factor, dtype=float)
+    target_pace = np.clip(target_pace, 120.0, 1200.0)
+    segment_time_s = target_pace * seg_distance_km
+    cumulative_time_s = np.cumsum(segment_time_s)
+
+    return pd.DataFrame(
+        {
+            "distance_km": d1[valid] / 1000.0,
+            "target_pace_s_per_km": target_pace,
+            "elevation_m": e1,
+            "segment_time_s": segment_time_s,
+            "segment_grade_percent": grade_pct,
+            "segment_distance_km": seg_distance_km,
+            "cumulative_time_s": cumulative_time_s,
+        }
+    )
+
+
+def _build_grade_time_bins(df_segments: pd.DataFrame) -> list[dict[str, float | str]]:
+    if df_segments.empty:
+        return []
+    grades = df_segments["segment_grade_percent"].to_numpy(dtype=float)
+    time_s = df_segments["segment_time_s"].to_numpy(dtype=float)
+    centers = np.round(grades * 2.0) / 2.0
+    table: dict[float, float] = {}
+    for center, t in zip(centers, time_s):
+        if not (math.isfinite(center) and math.isfinite(t) and t > 0):
+            continue
+        table[float(center)] = table.get(float(center), 0.0) + float(t)
+    out = []
+    for center in sorted(table.keys()):
+        out.append(
+            {
+                "grade_bin_center_pct": center,
+                "label": f"{center:.1f}%",
+                "time_s": table[center],
+            }
+        )
+    return out
+
+
+def _build_pace_time_bins(df_segments: pd.DataFrame) -> list[dict[str, float | str]]:
+    if df_segments.empty:
+        return []
+    pace = df_segments["target_pace_s_per_km"].to_numpy(dtype=float)
+    time_s = df_segments["segment_time_s"].to_numpy(dtype=float)
+    floors = np.floor(pace / 30.0) * 30.0
+    table: dict[float, float] = {}
+    for floor_s, t in zip(floors, time_s):
+        if not (math.isfinite(floor_s) and math.isfinite(t) and t > 0):
+            continue
+        table[float(floor_s)] = table.get(float(floor_s), 0.0) + float(t)
+    out = []
+    for floor_s in sorted(table.keys()):
+        out.append(
+            {
+                "pace_bin_floor_s_per_km": floor_s,
+                "label": _format_pace_bucket_label(floor_s, 30.0),
+                "time_s": table[floor_s],
+            }
+        )
+    return out
+
+
+def _compute_secondary_metrics(df_segments: pd.DataFrame) -> dict:
+    if df_segments.empty:
+        return {}
+
+    grades = df_segments["segment_grade_percent"].to_numpy(dtype=float)
+    dist = df_segments["segment_distance_km"].to_numpy(dtype=float)
+    time_s = df_segments["segment_time_s"].to_numpy(dtype=float)
+    elev = pd.to_numeric(df_segments["elevation_m"], errors="coerce").to_numpy(dtype=float)
+
+    total_dist = float(np.nansum(dist)) if dist.size else 0.0
+    weighted_grade = float(np.nansum(grades * dist) / total_dist) if total_dist > 0 else math.nan
+
+    finite_grades = grades[np.isfinite(grades)]
+    robust_min = float(np.quantile(finite_grades, 0.01)) if finite_grades.size else math.nan
+    robust_max = float(np.quantile(finite_grades, 0.99)) if finite_grades.size else math.nan
+
+    bins = {
+        "climb": grades > 0.5,
+        "flat": (grades >= -0.5) & (grades <= 0.5),
+        "descent": grades < -0.5,
+    }
+
+    terrain = {}
+    for key, mask in bins.items():
+        d = float(np.nansum(dist[mask]))
+        t = float(np.nansum(time_s[mask]))
+        pace = (t / d) if d > 0 else math.nan
+        terrain[key] = {
+            "distance_km": d,
+            "time_s": t,
+            "avg_pace_s_per_km": pace,
+        }
+
+    grade_bins = _build_grade_time_bins(df_segments)
+    top3 = sorted(grade_bins, key=lambda r: float(r["time_s"]), reverse=True)[:3]
+
+    return {
+        "weighted_avg_grade_pct": weighted_grade,
+        "robust_grade_min_pct": robust_min,
+        "robust_grade_max_pct": robust_max,
+        "terrain_breakdown": terrain,
+        "time_by_grade_top3": top3,
+        "elevation_min_m": float(np.nanmin(elev)) if elev.size else None,
+        "elevation_max_m": float(np.nanmax(elev)) if elev.size else None,
+    }
+
+
+def _resolve_vma_kmh(request: Request, vma_kmh: float | None) -> float:
+    if isinstance(vma_kmh, (int, float)) and math.isfinite(float(vma_kmh)) and float(vma_kmh) > 0:
+        return float(vma_kmh)
+
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        return 16.0
+
+    session = db_session_factory()
+    repo = SettingsRepository()
+    try:
+        row = repo.get_or_create(session)
+        session.commit()
+        if row.vma_kmh is not None and math.isfinite(float(row.vma_kmh)) and float(row.vma_kmh) > 0:
+            return float(row.vma_kmh)
+    except Exception:
+        session.rollback()
+    finally:
+        session.close()
+    return 16.0
+
+
+def _resolve_target_pace_and_time(
+    *,
+    activity_df: pd.DataFrame,
+    target_mode: str,
+    target_pace: str | None,
+    target_time: str | None,
+) -> tuple[str, float, float]:
+    distance_m = pd.to_numeric(activity_df.get("distance_m"), errors="coerce") if "distance_m" in activity_df.columns else pd.Series(dtype=float)
+    distance_clean = distance_m.dropna()
+    total_distance_km = float(distance_clean.iloc[-1] / 1000.0) if not distance_clean.empty else 0.0
+    total_distance_km = total_distance_km if total_distance_km > 0 else 1.0
+
+    mode = "time" if str(target_mode).lower() == "time" else "pace"
+    pace_s = _parse_pace_to_seconds_per_km(target_pace)
+    time_s = _parse_hms_to_seconds(target_time)
+
+    if mode == "time" and time_s is not None and time_s > 0:
+        pace_s = max(120.0, min(1200.0, float(time_s / total_distance_km)))
+    elif mode == "pace" and pace_s is not None and pace_s > 0:
+        time_s = float(pace_s * total_distance_km)
+
+    if pace_s is None or not math.isfinite(pace_s) or pace_s <= 0:
+        pace_s = 300.0
+        time_s = float(pace_s * total_distance_km)
+        mode = "pace"
+
+    if time_s is None or not math.isfinite(time_s) or time_s <= 0:
+        time_s = float(pace_s * total_distance_km)
+
+    return mode, float(pace_s), float(time_s)
+
+
+def _resolve_trace_status(request: Request, activity_df: pd.DataFrame) -> dict:
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        return {"saved": False}
+
+    fingerprint = compute_route_fingerprint(activity_df)
+    if not fingerprint:
+        return {"saved": False}
+
+    session = db_session_factory()
+    repo = TraceRepository()
+    try:
+        row = repo.get_by_route_fingerprint(session, fingerprint)
+        if row is None:
+            return {"saved": False}
+        return {"saved": True, "trace_id": row.id, "trace_name": row.name}
+    finally:
+        session.close()
+
+
+def prepare_theoretical_response(
+    request: Request,
+    activity_df: pd.DataFrame,
+    registry: SeriesRegistry,
+    *,
+    target_mode: str,
+    target_pace: str | None,
+    target_time: str | None,
+    vma_kmh: float | None,
+    grade_model: str,
+) -> TheoreticalActivityResponse:
+    resolved_mode, target_pace_s, target_time_s = _resolve_target_pace_and_time(
+        activity_df=activity_df,
+        target_mode=target_mode,
+        target_pace=target_pace,
+        target_time=target_time,
+    )
+    effective_vma = _resolve_vma_kmh(request, vma_kmh)
+
+    df_segments = _build_theoretical_segments(
+        activity_df,
+        target_pace_flat_s_per_km=target_pace_s,
+        vma_kmh=effective_vma,
+        grade_model=grade_model,
+    )
+
+    distance_km = float(df_segments["distance_km"].iloc[-1]) if not df_segments.empty else 0.0
+    estimated_time_s = float(df_segments["cumulative_time_s"].iloc[-1]) if not df_segments.empty else 0.0
+    average_pace_s_per_km = (estimated_time_s / distance_km) if distance_km > 0 else target_pace_s
+
+    elevation = pd.to_numeric(df_segments["elevation_m"], errors="coerce").dropna().to_numpy(dtype=float)
+    if elevation.size > 1:
+        diffs = np.diff(elevation)
+        elev_gain = float(np.clip(diffs, 0, None).sum())
+        elev_loss = float(np.abs(np.clip(diffs, None, 0).sum()))
+    else:
+        elev_gain = 0.0
+        elev_loss = 0.0
+
+    summary = {
+        "distance_km": distance_km,
+        "elevation_gain_m": elev_gain,
+        "elevation_loss_m": elev_loss,
+        "d_plus_per_km": (elev_gain / distance_km) if distance_km > 0 else None,
+        "target_pace_s_per_km": target_pace_s,
+        "estimated_time_s": estimated_time_s,
+        # Backward-compatible keys used by existing UI blocks.
+        "total_time_s": estimated_time_s,
+        "total_distance_km": distance_km,
+        "average_pace_s_per_km": average_pace_s_per_km,
+    }
+    if elevation.size > 0:
+        summary["elevation_min_m"] = float(np.min(elevation))
+        summary["elevation_max_m"] = float(np.max(elevation))
+
+    pace_series = [
+        {
+            "distance_km": float(row.distance_km),
+            "target_pace_s_per_km": float(row.target_pace_s_per_km),
+            "elevation_m": float(row.elevation_m) if row.elevation_m == row.elevation_m else None,
+        }
+        for row in df_segments.itertuples(index=False)
+    ]
 
     series_index = SeriesIndex(available=registry.get_available_series(activity_df))
+    trace_status = _resolve_trace_status(request, activity_df)
 
     return TheoreticalActivityResponse(
-        summary=to_jsonable(summary_base),
-        highlights={},
+        summary=to_jsonable(summary),
+        highlights={"items": []},
         zones=None,
         best_efforts=None,
         personal_records=None,
@@ -180,9 +578,25 @@ def prepare_theoretical_response(activity_df, registry: SeriesRegistry) -> Theor
         performance_predictions=None,
         pauses=None,
         climbs=None,
-        series_index=series_index,
+        splits=None,
+        garmin_summary=None,
+        cadence=None,
+        power=None,
+        running_dynamics=None,
+        power_advanced=None,
+        pacing=None,
         training_load=None,
+        series_index=series_index,
         limits=_build_limits(activity_df),
+        target_mode=resolved_mode,
+        target_pace_s_per_km=target_pace_s,
+        target_time_s=target_time_s,
+        vma_kmh=effective_vma,
+        pace_elevation_series=pace_series,
+        grade_time_bins=_build_grade_time_bins(df_segments),
+        pace_time_bins=_build_pace_time_bins(df_segments),
+        secondary_metrics=_compute_secondary_metrics(df_segments),
+        trace_status=trace_status,
     )
 
 
@@ -214,7 +628,15 @@ async def get_real_activity(request: Request, activity_id: str):
 
 
 @router.get("/activity/{activity_id}/theoretical", response_model=TheoreticalActivityResponse)
-async def get_theoretical_activity(request: Request, activity_id: str):
+async def get_theoretical_activity(
+    request: Request,
+    activity_id: str,
+    target_mode: str = "pace",
+    target_pace: str | None = None,
+    target_time: str | None = None,
+    vma_kmh: float | None = None,
+    grade_model: str = "grade_table_v1",
+):
     """Retourne les données d'analyse pour une activité théorique"""
     try:
         storage = request.app.state.storage
@@ -230,7 +652,16 @@ async def get_theoretical_activity(request: Request, activity_id: str):
             raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
 
         registry = get_series_registry(request)
-        return prepare_theoretical_response(df, registry)
+        return prepare_theoretical_response(
+            request,
+            df,
+            registry,
+            target_mode=target_mode,
+            target_pace=target_pace,
+            target_time=target_time,
+            vma_kmh=vma_kmh,
+            grade_model=grade_model,
+        )
 
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")

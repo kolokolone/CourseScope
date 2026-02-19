@@ -6,6 +6,7 @@ import { useActivityList } from '@/hooks/useActivity';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
+import { getActivityDetailPath } from '@/lib/routes';
 import type { ActivityMetadata } from '@/types/api';
 import { ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import {
@@ -21,6 +22,17 @@ import {
 type HistoryRange = '3m' | '6m' | '1y' | 'all';
 type SortKey = 'date' | 'distance_km' | 'elevation_gain_m';
 type SortDir = 'asc' | 'desc';
+
+function isoDateUtc(d: Date) {
+  const dt = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  return dt.toISOString().slice(0, 10);
+}
+
+function formatBucketLabel(bucketStart: string) {
+  const d = new Date(`${bucketStart}T00:00:00Z`);
+  if (!Number.isFinite(d.getTime())) return bucketStart;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 
 function weekStartUtc(date: Date): Date {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -76,6 +88,7 @@ function buildWeeklySeries(activities: ActivityMetadata[], range: HistoryRange) 
 
   const weeks: Array<{
     key: string;
+    bucket_start: string;
     weekStartMs: number;
     year: number;
     week: number;
@@ -92,6 +105,7 @@ function buildWeeklySeries(activities: ActivityMetadata[], range: HistoryRange) 
     const km = bucketKm.get(key) ?? 0;
     weeks.push({
       key,
+      bucket_start: isoDateUtc(cur),
       weekStartMs: cur.getTime(),
       year,
       week,
@@ -218,27 +232,18 @@ export default function ActivitiesPage() {
             <AreaChart data={weekly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis
-                dataKey="key"
+                dataKey="bucket_start"
                 tick={{ fontSize: 11 }}
-                tickFormatter={(value: any) => {
-                  const s = String(value);
-                  const idx = s.indexOf('-W');
-                  if (idx === -1) return s;
-                  const w = s.slice(idx + 2);
-                  return `S${Number(w)}`;
-                }}
+                tickFormatter={(v: any) => formatBucketLabel(String(v))}
+                minTickGap={16}
               />
-              <YAxis />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: any) => formatNumber(Number(v), { decimals: 1 })} />
               <Tooltip
                 formatter={(value: any) => {
                   const km = typeof value === 'number' ? value : Number(value);
                   return [`${formatNumber(km, { decimals: 1 })} km`, 'KM'];
                 }}
-                labelFormatter={(_label: any, payload: any) => {
-                  const p = Array.isArray(payload) && payload[0] ? payload[0].payload : null;
-                  if (p && typeof p.year === 'number' && typeof p.week === 'number') return `${p.year} • S${p.week}`;
-                  return String(_label);
-                }}
+                labelFormatter={(label: any) => `Semaine du ${String(label)}`}
               />
               <Area
                 type="monotone"
@@ -316,7 +321,7 @@ export default function ActivitiesPage() {
                       <tr
                         key={a.id}
                         className="hover:bg-accent/30 cursor-pointer"
-                        onClick={() => router.push(`/activity/${a.id}/${a.activity_type}`)}
+                        onClick={() => router.push(getActivityDetailPath(a.id, a.activity_type))}
                       >
                         <td className="px-3 py-2 whitespace-nowrap">{dateLabel}</td>
                         <td className="px-3 py-2 max-w-[32rem] truncate">{a.name || a.filename}</td>

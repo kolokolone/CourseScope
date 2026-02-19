@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useActivityList } from '@/hooks/useActivity';
 import { formatNumber } from '@/lib/metricsFormat';
+import { getActivityDetailPath } from '@/lib/routes';
 import { Activity, TrendingUp } from 'lucide-react';
 
 const PERSIST_UPLOADS_KEY = 'coursescope.persist_uploads_to_disk';
@@ -28,7 +29,7 @@ export default function HomePage() {
   }, []);
 
   const handleUploadSuccess = (activityId: string, activityType: 'real' | 'theoretical') => {
-    router.push(`/activity/${activityId}/${activityType}`);
+    router.push(getActivityDetailPath(activityId, activityType));
   };
 
   const activitySortEpoch = (a: { started_at?: string | null; created_at: string }) => {
@@ -100,7 +101,7 @@ export default function HomePage() {
                       key={activity.id}
                       type="button"
                       className="w-full px-3 py-2 text-left hover:bg-accent/30 transition-colors"
-                      onClick={() => router.push(`/activity/${activity.id}/${activity.activity_type}`)}
+                      onClick={() => router.push(getActivityDetailPath(activity.id, activity.activity_type))}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
