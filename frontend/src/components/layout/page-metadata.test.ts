@@ -17,11 +17,11 @@ describe('resolvePageMetadata', () => {
     expect(meta.container).toBe('wide');
   });
 
-  it('keeps legacy /activity/[id]/theoretical metadata', () => {
-    const meta = resolvePageMetadata('/activity/abc/theoretical');
-    expect(meta.title).toBe('Trace');
-    expect(meta.subtitle).toBe('Analyse théorique');
-    expect(meta.container).toBe('wide');
+  it('falls back to default metadata for unknown routes', () => {
+    const meta = resolvePageMetadata('/legacy/abc/theoretical');
+    expect(meta.title).toBe('CourseScope');
+    expect(meta.subtitle).toBe('Analyse des activités');
+    expect(meta.container).toBe('default');
   });
 
   it('returns static metadata for /goals', () => {

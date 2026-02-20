@@ -30,7 +30,7 @@ export function TopHeader({ title, subtitle, actions, contextInfo, onOpenSidebar
           {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 self-center items-center gap-2">
           {contextInfo ? <span className="hidden text-xs text-muted-foreground sm:inline">{contextInfo}</span> : null}
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
         </div>

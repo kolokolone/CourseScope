@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { ActivitiesHeaderActions } from './HeaderActions';
+import { ActivitiesHeaderActions, SettingsHeaderVersion } from './HeaderActions';
 import type { ContainerVariant } from './PageContainer';
 
 type PageMetadata = {
@@ -15,12 +15,14 @@ const STATIC_PAGE_METADATA: Record<string, PageMetadata> = {
     title: 'Page d’accueil',
     subtitle: 'Upload et exploration des activités',
     container: 'default',
+    showToday: true,
   },
   '/activities': {
     title: 'Activités',
     subtitle: 'Historique, tri et synchronisation',
     container: 'default',
     HeaderActions: ActivitiesHeaderActions,
+    showToday: true,
   },
   '/progress': {
     title: 'Progression',
@@ -32,16 +34,19 @@ const STATIC_PAGE_METADATA: Record<string, PageMetadata> = {
     title: 'Objectifs',
     subtitle: 'Courses et trails à venir',
     container: 'default',
+    showToday: true,
   },
   '/traces': {
     title: 'Traces GPX',
     subtitle: 'Bibliotheque des traces enregistrees',
     container: 'default',
+    showToday: true,
   },
   '/settings': {
     title: 'Paramètres',
     subtitle: 'Configuration de l’application',
     container: 'default',
+    HeaderActions: SettingsHeaderVersion,
   },
 };
 
@@ -59,11 +64,11 @@ function normalizePathname(pathname: string) {
 }
 
 function isDynamicRealActivityRoute(pathname: string) {
-  return /^\/activities\/[^/]+$/.test(pathname) || /^\/activity\/[^/]+\/real$/.test(pathname);
+  return /^\/activities\/[^/]+$/.test(pathname);
 }
 
 function isDynamicTraceRoute(pathname: string) {
-  return /^\/traces\/[^/]+$/.test(pathname) || /^\/activity\/[^/]+\/theoretical$/.test(pathname);
+  return /^\/traces\/[^/]+$/.test(pathname);
 }
 
 export function resolvePageMetadata(pathname: string): PageMetadata {
@@ -74,6 +79,7 @@ export function resolvePageMetadata(pathname: string): PageMetadata {
       title: 'Activité',
       subtitle: 'Analyse réelle',
       container: 'wide',
+      showToday: true,
     };
   }
 
@@ -82,6 +88,7 @@ export function resolvePageMetadata(pathname: string): PageMetadata {
       title: 'Trace',
       subtitle: 'Analyse théorique',
       container: 'wide',
+      showToday: true,
     };
   }
 

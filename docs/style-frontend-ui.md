@@ -104,7 +104,7 @@ Regles de style:
 - focus clavier visible (`focus-visible:ring-2 focus-visible:ring-ring`)
 
 Regle metier importante:
-- les routes `/activity/[id]/real` et `/activity/[id]/theoretical` activent l item `Activites`
+- les routes `/activities/[id]` et `/traces/[id]` activent l item parent correspondant dans la navigation
 
 ### 4.3 TopHeader global
 
@@ -195,8 +195,8 @@ Regles:
 - les routes dynamiques activity affichent un titre generique (`Activite`) + subtitle selon type
 
 Fallback dynamique actuel:
-- `/activity/[id]/real` -> title `Activite`, subtitle `Analyse reelle`, container `wide`
-- `/activity/[id]/theoretical` -> title `Activite`, subtitle `Analyse theorique`, container `wide`
+- `/activities/[id]` -> title `Activite`, subtitle `Analyse reelle`, container `wide`
+- `/traces/[id]` -> title `Trace`, subtitle `Analyse theorique`, container `wide`
 
 ---
 

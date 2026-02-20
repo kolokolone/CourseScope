@@ -17,7 +17,7 @@ Règles à respecter absolument : Ne pas toucher au code, tu peux juste lire le 
 - Garder la même homogeneité graphique et UI (frontend) et logique (backend)
 
 ## Fichier de sortie
-- Corrige les informations deja présentes dans le md "modifications" dans le dossier: `agents/agent-brainstorm/`, comprenant toutes les modifications à apporter
+- Développe les informations dans le md "modifications" dans le dossier: `agents/agent-brainstorm/`, comprenant toutes les modifications/ajouts à apporter
 - Catégoriser les modifications, détailler tout au maximum pour que le développeur puisse savoir ce qu'il faut faire
 - optinnel : créer un prompt pour incorporer toutes ces modifications
 

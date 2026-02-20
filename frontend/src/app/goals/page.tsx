@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { CircleOff, Flag, Plus, Target } from 'lucide-react';
+import { Flag, Plus, Target } from 'lucide-react';
 
 import { useCreateGoal, useDeleteGoal, useGoalsList, useUpdateGoal } from '@/hooks/useGoals';
 import { formatDurationSeconds, formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
@@ -41,8 +41,12 @@ function startOfDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
 }
 
-function addMonths(date: Date, count: number) {
-  return new Date(date.getFullYear(), date.getMonth() + count, date.getDate());
+function addDays(date: Date, count: number) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + count);
+}
+
+function addWeeks(date: Date, count: number) {
+  return addDays(date, count * 7);
 }
 
 function parseFlexibleSeconds(input: string): number | null {
@@ -92,8 +96,18 @@ function formatDateLabel(eventDate: string) {
   return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatMonthLabel(date: Date) {
-  return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+function formatWeekLabel(date: Date) {
+  return `Semaine du ${date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`;
+}
+
+function isoDayKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function mondayStartOfWeek(date: Date) {
+  const start = startOfDay(date);
+  const weekday = (start.getDay() + 6) % 7;
+  return addDays(start, -weekday);
 }
 
 function dateAtStart(eventDate: string) {
@@ -118,6 +132,16 @@ function compareGoals(a: GoalItem, b: GoalItem, key: SortKey) {
   return aObjective - bObjective;
 }
 
+function GoalMiniCard({ goal, className = '' }: { goal: GoalItem; className?: string }) {
+  return (
+    <div className={`rounded-md border bg-white/95 p-2 text-[11px] shadow-sm ${className}`.trim()}>
+      <div className="font-semibold leading-tight">{goal.name}</div>
+      <div className="text-slate-600">{formatDateLabel(goal.event_date)}</div>
+      <div className="text-slate-600">{`${formatNumber(goal.distance_km, { decimals: 1 })} km • ${goal.race_type === 'trail' ? 'Trail' : 'Course'}`}</div>
+    </div>
+  );
+}
+
 function Timeline({ goals }: { goals: GoalItem[] }) {
   const sorted = React.useMemo(
     () => goals.slice().sort((a, b) => dateAtStart(a.event_date).getTime() - dateAtStart(b.event_date).getTime()),
@@ -128,8 +152,11 @@ function Timeline({ goals }: { goals: GoalItem[] }) {
     const today = startOfDay(new Date());
     const dates = sorted.map((goal) => dateAtStart(goal.event_date)).filter((d) => !Number.isNaN(d.getTime()));
     const lastDate = dates.length > 0 ? dates[dates.length - 1] : today;
-    const end = addMonths(lastDate, 1);
+    const endAnchor = lastDate.getTime() < today.getTime() ? today : lastDate;
+    const end = addDays(endAnchor, 7);
     const spanMs = Math.max(1, end.getTime() - today.getTime());
+    const minWidthPx = Math.max(780, 680 + sorted.length * 90);
+    const minPosDelta = Math.max(0.06, 176 / minWidthPx);
 
     const positionedEvents = sorted.map((goal) => {
       const date = dateAtStart(goal.event_date);
@@ -139,33 +166,34 @@ function Timeline({ goals }: { goals: GoalItem[] }) {
       return { goal, pos, stroke };
     });
 
-    let previousPos = -1;
-    let previousLane = 1;
+    const laneLastPos: number[] = [];
     const events = positionedEvents.map((event) => {
-      const isDense = previousPos >= 0 && event.pos - previousPos < 0.08;
-      const lane: 0 | 1 = isDense ? (previousLane === 0 ? 1 : 0) : 0;
-      previousPos = event.pos;
-      previousLane = lane;
+      let lane = laneLastPos.findIndex((lastPos) => event.pos - lastPos >= minPosDelta);
+      if (lane < 0 && laneLastPos.length < 3) {
+        lane = laneLastPos.length;
+        laneLastPos.push(Number.NEGATIVE_INFINITY);
+      }
+      if (lane < 0) {
+        lane = laneLastPos.reduce((bestIdx, cur, idx, arr) => (cur < arr[bestIdx] ? idx : bestIdx), 0);
+      }
+      laneLastPos[lane] = event.pos;
       return {
         ...event,
         lane,
       };
     });
 
-    const monthBoundaries: number[] = [];
-    const cursor = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-    while (cursor.getTime() < end.getTime()) {
-      monthBoundaries.push(Math.max(0, Math.min(1, (cursor.getTime() - today.getTime()) / spanMs)));
-      cursor.setMonth(cursor.getMonth() + 1, 1);
+    const weekTicks: Array<{ pos: number; label: string; date: Date }> = [];
+    const firstMonday = mondayStartOfWeek(today);
+    for (let cursor = firstMonday; cursor.getTime() <= end.getTime(); cursor = addWeeks(cursor, 1)) {
+      if (cursor.getTime() < today.getTime()) continue;
+      weekTicks.push({
+        pos: Math.max(0, Math.min(1, (cursor.getTime() - today.getTime()) / spanMs)),
+        label: formatWeekLabel(cursor),
+        date: cursor,
+      });
+      if (weekTicks.length > 20) break;
     }
-
-    const segmentDates = [today, ...monthBoundaries.map((p) => new Date(today.getTime() + p * spanMs)), end];
-    const segmentCenters = segmentDates.slice(0, -1).map((start, idx) => {
-      const stop = segmentDates[idx + 1];
-      const center = (start.getTime() + stop.getTime()) / 2;
-      const pos = Math.max(0, Math.min(1, (center - today.getTime()) / spanMs));
-      return { pos, label: formatMonthLabel(start) };
-    });
 
     const firstUpcoming = dates.find((d) => d.getTime() >= today.getTime()) ?? null;
     const daysLeft = firstUpcoming ? Math.ceil((firstUpcoming.getTime() - today.getTime()) / (24 * 3600 * 1000)) : null;
@@ -173,14 +201,18 @@ function Timeline({ goals }: { goals: GoalItem[] }) {
 
     return {
       events,
-      monthBoundaries,
-      segmentCenters,
+      weekTicks,
       daysLeft,
       firstPos,
-      hasMonthTicks: monthBoundaries.length > 0,
-      minWidthPx: Math.max(780, 680 + sorted.length * 90),
+      minWidthPx,
     };
   }, [sorted]);
+
+  const laneLayout = [
+    { connectorTop: 66, connectorHeight: 84, cardTop: 2 },
+    { connectorTop: 150, connectorHeight: 44, cardTop: 194 },
+    { connectorTop: 106, connectorHeight: 40, cardTop: 34 },
+  ] as const;
 
   return (
     <Card>
@@ -198,71 +230,119 @@ function Timeline({ goals }: { goals: GoalItem[] }) {
                 </div>
                 <div className="absolute -right-2 top-[141px] text-slate-500">→</div>
 
-                {model.hasMonthTicks
-                  ? model.monthBoundaries.map((pos, idx) => (
-                      <div
-                        key={`month-tick-${idx}`}
-                        className="absolute top-[26px] h-[248px] w-px bg-slate-200/70"
-                        style={{ left: `${pos * 100}%` }}
-                      />
-                    ))
-                  : null}
+                <div className="absolute top-[18px] h-[260px] w-px bg-slate-300/90" style={{ left: '0%' }} />
+                <div className="absolute top-[6px] -translate-x-1/2 text-[11px] font-medium text-slate-600" style={{ left: '0%' }}>
+                  Aujourd&apos;hui
+                </div>
+
+                {model.weekTicks.map((tick, idx) => (
+                  <div key={`week-tick-${idx}`}>
+                    <div className="absolute top-[26px] h-[248px] w-px bg-slate-200/70" style={{ left: `${tick.pos * 100}%` }} />
+                    <div className="absolute top-[286px] -translate-x-1/2 text-xs text-slate-600" style={{ left: `${tick.pos * 100}%` }}>
+                      {tick.label}
+                    </div>
+                  </div>
+                ))}
 
                 {model.daysLeft !== null && model.firstPos !== null && model.daysLeft >= 0 && model.firstPos > 0 ? (
                   <>
-                    <div
-                      className="absolute top-[150px] h-0 border-t-2 border-dashed border-slate-500/65"
-                      style={{ left: 0, width: `${model.firstPos * 100}%` }}
-                    />
-                    <div
-                      className="absolute top-[132px] -translate-x-1/2 rounded-full border bg-white px-2 py-0.5 text-xs font-semibold text-slate-700"
-                      style={{ left: `${(model.firstPos / 2) * 100}%` }}
-                    >
+                    <div className="absolute top-[150px] h-0 border-t-2 border-dashed border-slate-500/65" style={{ left: 0, width: `${model.firstPos * 100}%` }} />
+                    <div className="absolute top-[132px] -translate-x-1/2 rounded-full border bg-white px-2 py-0.5 text-xs font-semibold text-slate-700" style={{ left: `${(model.firstPos / 2) * 100}%` }}>
                       {`J-${model.daysLeft}`}
                     </div>
                   </>
                 ) : null}
 
                 {model.events.map(({ goal, pos, stroke, lane }) => {
-                  const isTop = lane === 0;
+                  const layout = laneLayout[Math.min(lane, laneLayout.length - 1)];
                   return (
                     <div key={goal.id} className="absolute -translate-x-1/2" style={{ left: `${pos * 100}%` }}>
-                      {isTop ? (
-                        <>
-                          <div className="absolute left-1/2 top-[66px] h-[84px] -translate-x-1/2 border-l-2 border-dashed" style={{ borderColor: stroke }} />
-                          <div className="absolute left-1/2 top-2 w-44 -translate-x-1/2 rounded-md border bg-white/95 p-2 text-[11px] shadow-sm">
-                            <div className="font-semibold leading-tight">{goal.name}</div>
-                            <div className="text-slate-600">{formatDateLabel(goal.event_date)}</div>
-                            <div className="text-slate-600">{`${formatNumber(goal.distance_km, { decimals: 1 })} km • ${goal.race_type === 'trail' ? 'Trail' : 'Course'}`}</div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="absolute left-1/2 top-[150px] h-[44px] -translate-x-1/2 border-l-2 border-dashed" style={{ borderColor: stroke }} />
-                          <div className="absolute left-1/2 top-[194px] w-44 -translate-x-1/2 rounded-md border bg-white/95 p-2 text-[11px] shadow-sm">
-                            <div className="font-semibold leading-tight">{goal.name}</div>
-                            <div className="text-slate-600">{formatDateLabel(goal.event_date)}</div>
-                            <div className="text-slate-600">{`${formatNumber(goal.distance_km, { decimals: 1 })} km • ${goal.race_type === 'trail' ? 'Trail' : 'Course'}`}</div>
-                          </div>
-                        </>
-                      )}
+                      <div
+                        className="absolute left-1/2 -translate-x-1/2 border-l-2 border-dashed"
+                        style={{ top: `${layout.connectorTop}px`, height: `${layout.connectorHeight}px`, borderColor: stroke }}
+                      />
+                      <div className="absolute left-1/2 -translate-x-1/2" style={{ top: `${layout.cardTop}px` }}>
+                        <GoalMiniCard goal={goal} className="w-44" />
+                      </div>
                       <div className="absolute left-1/2 top-[146px] h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 bg-white" style={{ borderColor: stroke }} />
                     </div>
                   );
                 })}
-
-                {model.segmentCenters.map(({ pos, label }, idx) => (
-                  <div
-                    key={`month-label-${idx}`}
-                    className="absolute top-[286px] -translate-x-1/2 text-xs text-slate-600"
-                    style={{ left: `${pos * 100}%` }}
-                  >
-                    {label}
-                  </div>
-                ))}
               </div>
             </div>
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function GoalsCalendar({ goals }: { goals: GoalItem[] }) {
+  const model = React.useMemo(() => {
+    const today = startOfDay(new Date());
+    const sortedDates = goals
+      .map((goal) => dateAtStart(goal.event_date))
+      .filter((d) => !Number.isNaN(d.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime());
+    const lastDate = sortedDates.length > 0 ? sortedDates[sortedDates.length - 1] : today;
+    const endAnchor = lastDate.getTime() < today.getTime() ? today : lastDate;
+    const end = addDays(endAnchor, 7);
+
+    const days: Date[] = [];
+    for (let cursor = today; cursor.getTime() <= end.getTime(); cursor = addDays(cursor, 1)) {
+      days.push(cursor);
+      if (days.length >= 84) break;
+    }
+
+    const byDay = new Map<string, GoalItem[]>();
+    for (const goal of goals) {
+      const key = String(goal.event_date).slice(0, 10);
+      const bucket = byDay.get(key) ?? [];
+      bucket.push(goal);
+      byDay.set(key, bucket);
+    }
+
+    const firstWeekdayOffset = (today.getDay() + 6) % 7;
+    const cells: Array<{ day: Date | null; goals: GoalItem[] }> = [];
+    for (let i = 0; i < firstWeekdayOffset; i += 1) {
+      cells.push({ day: null, goals: [] });
+    }
+    for (const day of days) {
+      cells.push({ day, goals: byDay.get(isoDayKey(day)) ?? [] });
+    }
+
+    return {
+      cells,
+      weekLabels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+    };
+  }, [goals]);
+
+  return (
+    <Card>
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="text-base">Calendrier des objectifs</CardTitle>
+      </CardHeader>
+      <CardContent className="px-4 pb-4">
+        <div className="grid grid-cols-7 border border-slate-200/80 text-xs text-muted-foreground">
+          {model.weekLabels.map((label) => (
+            <div key={label} className="border-b border-r border-slate-200/80 bg-slate-50/70 px-2 py-1 font-medium last:border-r-0">
+              {label}
+            </div>
+          ))}
+          {model.cells.map((cell, idx) => (
+            <div key={`day-cell-${idx}`} className="min-h-28 border-r border-b border-slate-200/80 p-2 last:border-r-0">
+              {cell.day ? (
+                <>
+                  <div className="mb-2 text-xs text-muted-foreground tabular-nums">{cell.day.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</div>
+                  <div className="space-y-1">
+                    {cell.goals.map((goal) => (
+                      <GoalMiniCard key={goal.id} goal={goal} className="w-full" />
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>
@@ -424,7 +504,7 @@ export default function GoalsPage() {
             <div className="mx-auto flex max-w-lg flex-col items-center gap-3 text-center">
               <div className="relative h-14 w-14 text-slate-400">
                 <Target className="h-14 w-14" />
-                <CircleOff className="absolute -right-1 -top-1 h-7 w-7" />
+                <div className="absolute left-1/2 top-1/2 h-[3px] w-14 -translate-x-1/2 -translate-y-1/2 rotate-[-35deg] rounded-full bg-slate-500/70" />
               </div>
               <div className="text-lg font-semibold">Pas d&apos;objectifs enregistré encore</div>
               <div className="text-sm text-muted-foreground">Ajoute ton premier objectif de course ou trail pour démarrer ton suivi.</div>
@@ -442,6 +522,7 @@ export default function GoalsPage() {
       ) : (
         <>
           <Timeline goals={goals} />
+          <GoalsCalendar goals={goals} />
           <Card>
             <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between gap-3">

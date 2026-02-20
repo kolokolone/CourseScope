@@ -8,7 +8,6 @@ type SidebarProps = {
 
 function isItemActive(pathname: string, item: NavItemConfig) {
   if (item.href === '/') return pathname === '/';
-  if (item.href === '/activities' && pathname.startsWith('/activity/')) return true;
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 

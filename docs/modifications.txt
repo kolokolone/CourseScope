@@ -1,322 +1,78 @@
 Ce document sert de feuille de route pour les modifications a faire.
 
-Contrainte: ne pas casser les fonctions actuelles. Toute modification de comportement doit etre optionnelle via variables d'environnement, avec des valeurs par defaut identiques a aujourd'hui.
+Contrainte: ne pas casser les fonctions actuelles. 
 
-Hypotheses (a verifier si besoin):
-- Deploiement cible: Proxmox -> Debian LXC -> Docker + Dockge (gestion des compose).
-- Objectif LAN: acces depuis d'autres machines du reseau (ex: http://192.168.1.50:3000).
+## 1) Sur la page "Objectifs" (/goals) :
+
+- Concernant la Ligne temporelle des objectifs : 
+  - Je souhaite trouver une idée plus performante pour gérer l'affichage automatique et la gestion automatique
+  - actuellement je t'ai dit d'implémenter cette fonction en mode bricolage, 
+  - est-ce qu'il n'y aurait pas une librairie compatible avec mon code deja existant pour créer des graphiques dynamiques pour servir le but de cette Ligne temporelle des objectifs ?
+  - Trouver des idées les plus adaptées
+  - Ce que j'aime dans ce qu'il y a en ce moment : 
+    - les cartes des évenements (par exemple : Semi de paris
+09 mars 2026
+21.0 km • Course)
+    - la ligne pointillé de chaque évènement (en bleu, en pointillé, avec un point blanc à la connexion)
+  - Au lieu de 1 mois, garder seulement 1 semaine après la dernière date d'évènement 
+- Autre possibilité que je veux tester : afficher un calendrier très simple : 
+  - afficher un calendrier très simple, 
+  - cadrillage avec traits fin et en gris, 
+  - réutiliser le format des cartes des evnènements de la ligne temporelle des objectifs à insérer dans une case du calendrier
+  - le calendrier commence à la date d'aujourd'hui et se fini 1 semaine après le dernier évnèement en date
+  - je veux que l'affichage du calendrier soit dynamique et adapté à chaque jour/évènement en fonction des dates etc 
+  - le placer pour l'instant en dessous de la Ligne temporelle des objectifs
+- Concernant le moment ou il n'y a pas encore d'objectifs enregistrés : 
+  - il y a un logo qui apparait et qui doit être barré
+  - il y a un bug où le logo apparait correctement mais il y a un deuxieme objet pas du tout centré (qui permet d'ajouter cet effet barré) qui apparait a cote du logo, a corriger 
 
 ---
 
-## 1) Deploiement Docker + reseau local (Dockge) - IMAGE UNIQUE (API + WEB dans 1 conteneur)
-
-Objectif: une seule image Docker a pull, ex: `ghcr.io/kolokolone/coursescope:main`, qui lance automatiquement:
-- backend FastAPI (uvicorn) sur `127.0.0.1:8000` (interne au conteneur)
-- frontend Next.js sur `0.0.0.0:3000` (expose au LAN)
-
-Le navigateur des clients LAN parle UNIQUEMENT au frontend (port 3000). Les appels API passent par le proxy Next `/api/*` -> `http://127.0.0.1:8000/*` dans le meme conteneur.
-
-### 1.1 Contexte (Windows local vs Docker)
-
-Local Windows (actuel):
-- tu lances `start_backend.bat` puis `start_frontend.bat`.
-- le frontend en dev utilise `/api` (proxy Next) et le backend est sur 127.0.0.1:8000.
-
-Docker (cible):
-- tu lances 1 seul conteneur.
-- le conteneur lance backend + frontend automatiquement, comme une stack "immich-like" mais dans un conteneur unique.
-
-### 1.2 Pourquoi ce choix (et les compromis)
-
-Avantages:
-- 1 seule image a publier/pull.
-- 1 seul service compose dans Dockge.
-- Pas de CORS en production (proxy Next, meme origin cote navigateur).
-
-Compromis:
-- Image plus lourde (Node + Python + deps).
-- Deux processus dans un conteneur => il faut un lanceur robuste (gestion SIGTERM, arret propre, restart, multi-thread s'il le faut).
-
-### 1.3 Ce qui bloque le LAN/Docker aujourd'hui (a corriger)
-
-1) `frontend/.env.local` force des appels directs vers localhost
-- Fichier: `frontend/.env.local`
-- Constat: `NEXT_PUBLIC_API_URL=http://localhost:8000`
-- Probleme en prod/LAN: le navigateur d'un client LAN va appeler SON `localhost:8000` (KO) et ca contourne le proxy `/api`.
-- Fix requis: retirer `frontend/.env.local` du repo (remplacer par un exemple) et ne pas definir `NEXT_PUBLIC_API_URL` en production Docker.
-
-2) Script Linux existant `run_linux.sh` est "dev only"
-- Fichier: `run_linux.sh`
-- Constat:
-  - cree une venv
-  - fait `pip install -r requirements.txt`
-  - lance `uvicorn --reload --host 0.0.0.0`
-  - lance `npm run dev`
-- Pour Docker (prod), il faut:
-  - ne pas installer au runtime (tout doit etre baked dans l'image)
-  - lancer uvicorn sans reload
-  - lancer `next start` (pas `next dev`)
-  - binder l'API sur 127.0.0.1 (non expose)
-  - binder le web sur 0.0.0.0 (expose)
-
-3) CORS backend (non bloquant en prod avec proxy)
-- Fichier: `backend/api/main.py`
-- Etat actuel: CORS limite a localhost/127.0.0.1.
-- En prod avec image unique (API non exposee), c'est OK.
-- Option: ajouter `COURSESCOPE_CORS_ORIGINS` (CSV) uniquement si tu decides d'exposer l'API (port 8000) au LAN.
-
-### 1.4 Strategie recommandee: reutiliser `run_linux.sh` comme lanceur (avec un mode "docker/prod")
-
-But: garder 1 seul point d'entree cross-platform:
-- Windows local: `start_backend.bat` + `start_frontend.bat` (inchanges)
-- Linux dev: `./run_linux.sh` (inchanges)
-- Docker prod: `./run_linux.sh --docker` (nouveau mode)
-
-Changement a implementer dans `run_linux.sh`:
-
-1) Ajouter un mode "docker/prod" (flag ou env)
-- Exemple: `./run_linux.sh --docker`
-- Ou: `COURSESCOPE_MODE=docker ./run_linux.sh`
-
-2) En mode docker:
-- Ne pas creer de venv
-- Ne pas faire `pip install`
-- Ne pas faire `npm install`/`npm ci`
-- Lancer backend en background:
-  - `python3 -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000`
-- Optionnel: attendre que `http://127.0.0.1:8000/health` reponde 200 (poll via python)
-- Lancer frontend en foreground:
-  - `cd frontend && npm run start -- -H 0.0.0.0 -p 3000`
-- Garder un `trap` pour tuer le backend quand le script se termine.
-
-3) Gestion signaux (important en conteneur)
-- Le script doit terminer proprement sur SIGTERM (Dockge/Compose stop).
-- Recommandation: installer `tini` et l'utiliser comme entrypoint pour une gestion propre des signaux.
-
-### 1.5 Variables d'environnement (contrats)
-
-Backend:
-- `COURSESCOPE_DATA_DIR` (deja supporte)
-  - Exemple Docker: `/data`
-  - Contient: `activities/`, `traces/`, `integrations/garmin/tokens/`, `logs/`, `coursescope.sqlite`.
-- `COURSESCOPE_DATABASE_URL` (deja supporte)
-  - Option si tu veux un Postgres externe.
-
-Frontend:
-- `NEXT_PUBLIC_API_URL` (deja supporte)
-  - Regle a conserver: en prod Docker avec proxy, NE PAS le definir.
-
-Optionnel:
-- `COURSESCOPE_CORS_ORIGINS` (si exposition API au LAN)
-- `COURSESCOPE_BIND_HOST` (scripts Windows uniquement, si expose backend en LAN)
-
-### 1.6 Modifs de code/config necessaires (sans perte de fonctionnalites)
-
-1) Retirer `frontend/.env.local` du repo
-- Ajouter a la place `frontend/.env.example` (commite).
-- Garder `frontend/.env.local` en fichier local non commite si besoin.
-
-2) Modifier `run_linux.sh` pour supporter le mode docker
-- Ajouter un chemin "dev" (actuel) et un chemin "docker".
-
-3) (Option) Backend CORS configurable
-- Dans `backend/api/main.py`, lire `COURSESCOPE_CORS_ORIGINS` (CSV) pour construire `allow_origins` dynamiquement.
-- Defaut: garder les origins actuelles (localhost).
-
-### 1.7 Nouveaux fichiers a creer (Docker)
-
-1) `.dockerignore` (racine)
-- Exclure: `.venv/`, `frontend/node_modules/`, `frontend/.next/`, `data/`, `reports/`, `__pycache__/`, `frontend/.env.local`.
-
-2) `Dockerfile` (racine) - IMAGE UNIQUE
-- Multi-stage:
-  - stage build frontend (npm ci + npm run build)
-  - stage runtime (Node + Python + deps pip + tini)
-- `ENTRYPOINT` doit lancer `run_linux.sh --docker`.
-
-### 1.8 Exemples de contenus (a adapter)
-
-#### 1.8.1 `.dockerignore`
-```
-.git
-.github
-.venv
-.mypy_cache
-.pytest_cache
-.coverage
-data
-reports
-frontend/node_modules
-frontend/.next
-frontend/.env.local
-**/__pycache__
-*.pyc
-```
-
-#### 1.8.2 `Dockerfile` (racine)
-
-Remarques:
-- Ce Dockerfile suppose que `run_linux.sh` supporte `--docker`.
-- Attention Windows/CRLF: `run_linux.sh` doit etre executable ET en LF. Sinon, le shebang peut casser en Linux. Recommandation: corriger au build via `sed`.
-
-```dockerfile
-# syntax=docker/dockerfile:1
-
-FROM node:20-bookworm-slim AS web-build
-WORKDIR /app/frontend
-
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
-
-COPY frontend ./
-RUN npm run build
-
-
-FROM node:20-bookworm-slim
-
-WORKDIR /app
-
-ENV NODE_ENV=production \
-    COURSESCOPE_DATA_DIR=/data
-
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    python3 python3-pip \
-    tini \
-  && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt
-
-COPY backend ./backend
-
-# Frontend runtime (includes node_modules + .next)
-COPY --from=web-build /app/frontend /app/frontend
-
-COPY run_linux.sh /app/run_linux.sh
-
-# Remove CRLF if the repo was edited on Windows
-RUN sed -i 's/\r$//' /app/run_linux.sh \
-  && chmod +x /app/run_linux.sh
-
-EXPOSE 3000
-
-ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["/app/run_linux.sh", "--docker"]
-```
-
-#### 1.8.3 `compose.yaml` (Dockge)
-
-Version pull GHCR (cible finale):
-```yaml
-services:
-  coursescope:
-    image: ghcr.io/kolokolone/coursescope:main
-    environment:
-      COURSESCOPE_DATA_DIR: /data
-    volumes:
-      - coursescope_data:/data
-    ports:
-      - "3000:3000"
-    restart: unless-stopped
-
-volumes:
-  coursescope_data:
-```
-
-### 1.9 Workflow GitHub Actions (GHCR) - une seule image
-
-Fichier: `.github/workflows/docker-image.yml`
-
-But:
-- construire et publier `ghcr.io/kolokolone/coursescope:main`.
-- sur PR: build only (pas de push).
-
-Workflow minimal:
-```yaml
-name: Docker Image (GHCR)
-
-on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: coursescope
-
-jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:main
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-```
-
-### 1.10 Deploiement Dockge (marche a suivre)
-
-GHCR + pull
-1) Ajouter `Dockerfile`, `.dockerignore`, modifier `run_linux.sh`, retirer `frontend/.env.local`.
-2) Ajouter `.github/workflows/docker-image.yml`.
-3) Push sur `main` => GitHub Actions publie l'image.
-4) Sur le serveur: `docker login ghcr.io -u <ton_user>` (PAT scope `read:packages` si package prive).
-5) Dans Dockge: stack `coursescope` avec `compose.yaml` (image:) -> `Pull` -> `Up`.
-6) Acces: `http://<ip_du_serveur>:3000`
+## 2) Sur la page d'accueil
+
+- Lorsqu'il n'y pas pas d'objectifs enregistrés dans la page "Objectifs" :
+  - ne rien faire
+- Lorsqu'il y a un ou plusieurs objectifs enregistrés dans la page "Objectifs" :
+  - Afficher une carte automatiquement :
+    - positionnement libre de la carte,
+    - format carré de la carte, pas trop grand, 
+    - Affichage du prochain objectif le plus proche en date
+    - Affichage des détails de cet objectif : Nom, date, distance, Type (exemple : Semi de paris
+09 mars 2026
+21.0 km • Course)
+    - Juste au desssu des détails :
+      - afficher en gros comme un titre et centré : le decompte en jour J-X (x étant le nombre de jours restants jusqu'à l'évènement)
+      - Juste au dessus du décompte un petit message en gris "Prochain objectif dans :"
 
 ---
 
-## 2) Sur la page des reglages
+## 3) Sur la page des paramètres (/settings)
 
-(aucune demande precise dans ce fichier pour l'instant)
-
----
-
-## 3) Sur la page d'une trace gpx (/traces/[ID])
-
-- Au niveau de la saisie de l'allure cible:
-  - La saisie d'une allure doit accepter des temps comme par exemple: `6` (interpreter `6:00`).
-
-- Au niveau de l'onglet "Graphiques":
-  - Pour le graphique "Temps par % de pente":
-    - Se limiter a un intervalle de pente entre -20% a 20% pour l'abscisse.
-  - Pour le graphique "Temps par allure":
-    - Faire des bins de `00:15` (15s) au lieu de 30s.
-  - Mettre les graphiques "Temps par allure" et "Temps par % de pente" sur la meme ligne et dans cet ordre.
-  - Tout en bas, ajouter un graphique "Denivele" seul avec le meme type de courbe que la courbe dans le graphique "Allure vs distance" en haut.
+- Ajouter une mention de la version de l'application : 
+  - Positionnement : je pensais à le positionner tout en haut de la page, de l'autre coté à droite du titre principal de la page "Paramètres", de la meme police que le texte "Configuration de l’application" 
+  - numéro de version contenu dans la backend j'imagine ?
 
 ---
 
-## 4) Sur la page "Traces GPX" (/traces)
+## 4) Sur la page "Progression" (/progress)
 
-(aucune demande precise dans ce fichier pour l'instant)
+- Concernant la date qui s'affiche tout en haut à droite : ne pas toucher la fonction, est-ce qu'il est possible de centrer la hauteur ? 
+- Cette date n'est présente que sur cette page "Progression", je veux mettre cette mention de date sur toutes les autres pages (sauf les Paramètres)
 
 ---
 
-## 5) Sur la page d'une activite (/activities/[ID])
+## 5) Sur la page d'une trace (/traces/[ID]) :
 
-(aucune demande precise dans ce fichier pour l'instant)
+- Concernant la valeur de l'allure cible à renseigner en haut de la page :
+  - Prédéfinir une valeur correspondant à 75% de la VMA renseignée dans les paramètres (cette valeur correspond à une allure de zone 2 par rapport à une VMA)
+  - si pas de VMA, alors utiliser simplement la valeur de 05:00 min/km comme allure cible
+- Concernant le graphique de "Allure vs distance" :   
+  - trouver une meilleure facon d'estimer l'allure théorique à partir de :
+    - allure cible (insérée par l'utilisateur en haut)
+    - la VMA 
+    - la pente du tracé (par section roulante ou autre)
+  - est-ce qu'on utilise le modèle strava gap mais à l'inverse ?
+  - j'ai une idée pour rendre l'axe des ordonnées un peu plus lisible 
+    - ajouter un slider vertical à gauche du graphique
+    - ce slider est défini au début par les valeurs max du zoom de l'axe
+    - on peut ensuite raccourcir ce slider (du haut vers le bas, ou du bas vers le haut) pour redéfinir l'interval affiché de l'axe (et donc adapté la courbe en concordance)

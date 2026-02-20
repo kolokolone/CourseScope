@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+import numpy as np
 import pandas as pd
 
 from tests.unit._bootstrap import ensure_project_on_path
@@ -63,6 +64,22 @@ class TestTheoreticalAnalysisHelpers(unittest.TestCase):
         self.assertEqual(mode, 'time')
         self.assertAlmostEqual(time_s, 3000.0, places=6)
         self.assertAlmostEqual(pace_s, 300.0, places=6)
+
+    def test_constant_effort_target_pace_behaviour(self) -> None:
+        from api.routes.analysis import _constant_effort_target_pace
+
+        grades = np.array([-8.0, 0.0, 8.0], dtype=float)
+        paces = _constant_effort_target_pace(
+            target_pace_flat_s_per_km=300.0,
+            vma_kmh=16.0,
+            grade_pct=grades,
+        )
+
+        self.assertEqual(len(paces), 3)
+        self.assertLess(float(paces[0]), 300.0)
+        self.assertAlmostEqual(float(paces[1]), 300.0, delta=25.0)
+        self.assertGreater(float(paces[2]), 300.0)
+        self.assertGreater(float(paces[0]), 120.0)
 
 
 if __name__ == '__main__':

@@ -334,6 +334,10 @@ export const healthApi = {
   check: async () => apiRequest<{ status: string; storage: string; registry: string }>('/health'),
 };
 
+export const metaApi = {
+  root: async () => apiRequest<{ message: string; version: string; docs: string; status: string }>('/'),
+};
+
 export const progressApi = {
   verify: async () => apiRequest<ProgressVerifyResponse>('/progress/verify', { method: 'POST' }),
 

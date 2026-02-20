@@ -277,6 +277,47 @@ def _interp_pro_pace_vectorized(grades: np.ndarray, pro_rows: list[dict[str, flo
     return np.interp(grades, x, y, left=y[0], right=y[-1])
 
 
+def _minetti_cost_ratio_from_grade(grade_pct: np.ndarray) -> np.ndarray:
+    grade_decimal = np.asarray(grade_pct, dtype=float) / 100.0
+    grade_decimal = np.clip(grade_decimal, -0.30, 0.30)
+
+    cost = (
+        155.4 * np.power(grade_decimal, 5)
+        - 30.4 * np.power(grade_decimal, 4)
+        - 43.3 * np.power(grade_decimal, 3)
+        + 46.3 * np.power(grade_decimal, 2)
+        + 19.5 * grade_decimal
+        + 3.6
+    )
+    flat_cost = 3.6
+    ratio = cost / flat_cost
+
+    ratio = np.clip(ratio, 0.84, 2.4)
+    return ratio
+
+
+def _constant_effort_target_pace(
+    *,
+    target_pace_flat_s_per_km: float,
+    vma_kmh: float,
+    grade_pct: np.ndarray,
+) -> np.ndarray:
+    vma_safe = float(vma_kmh if math.isfinite(vma_kmh) and vma_kmh > 0 else 16.0)
+    base_pace = float(target_pace_flat_s_per_km if math.isfinite(target_pace_flat_s_per_km) and target_pace_flat_s_per_km > 0 else 300.0)
+
+    base_speed_kmh = 3600.0 / base_pace
+    raw_effort_ratio = base_speed_kmh / vma_safe
+    effort_ratio = min(max(raw_effort_ratio, 0.45), 0.98)
+    effort_speed_kmh = vma_safe * effort_ratio
+
+    cost_ratio = _minetti_cost_ratio_from_grade(grade_pct)
+    slope_speed_kmh = effort_speed_kmh / cost_ratio
+    slope_speed_kmh = np.clip(slope_speed_kmh, 3.0, 30.0)
+
+    target_pace = 3600.0 / slope_speed_kmh
+    return np.clip(target_pace, 120.0, 1200.0)
+
+
 def _build_theoretical_segments(
     activity_df: pd.DataFrame,
     *,
@@ -339,34 +380,15 @@ def _build_theoretical_segments(
     grade_pct = (elev_delta / seg_distance_m) * 100.0
 
     if grade_model == "pro_ref":
-        pro_df = get_pro_pace_vs_grade_df()
-        pro_rows: list[dict[str, float]] = []
-        if pro_df is not None and not pro_df.empty:
-            expected = {"grade_percent", "pace_s_per_km_pro"}
-            if expected.issubset(set(pro_df.columns)):
-                sorted_df = pro_df.sort_values("grade_percent")
-                for _, row in sorted_df.iterrows():
-                    g = float(row["grade_percent"])
-                    p = float(row["pace_s_per_km_pro"])
-                    if math.isfinite(g) and math.isfinite(p):
-                        pro_rows.append({"grade_percent": g, "pace_s_per_km_pro": p})
-        if pro_rows:
-            pro_pace = _interp_pro_pace_vectorized(grade_pct, pro_rows)
-            pace_at_zero = float(_interp_pro_pace_s_per_km(0.0, pro_rows) or np.nan)
-            if math.isfinite(pace_at_zero) and pace_at_zero > 0:
-                grade_factor_arr = pro_pace / pace_at_zero
-            else:
-                grade_factor_arr = grade_factor(grade_pct)
-        else:
-            grade_factor_arr = grade_factor(grade_pct)
+        target_pace = _constant_effort_target_pace(
+            target_pace_flat_s_per_km=target_pace_flat_s_per_km,
+            vma_kmh=vma_kmh,
+            grade_pct=grade_pct,
+        )
     else:
         grade_factor_arr = grade_factor(grade_pct)
-
-    vma_safe = float(vma_kmh if math.isfinite(vma_kmh) and vma_kmh > 0 else 16.0)
-    vma_factor = min(max(16.0 / vma_safe, 0.65), 1.5)
-
-    target_pace = np.asarray(target_pace_flat_s_per_km * grade_factor_arr * vma_factor, dtype=float)
-    target_pace = np.clip(target_pace, 120.0, 1200.0)
+        target_pace = np.asarray(target_pace_flat_s_per_km * grade_factor_arr, dtype=float)
+        target_pace = np.clip(target_pace, 120.0, 1200.0)
     segment_time_s = target_pace * seg_distance_km
     cumulative_time_s = np.cumsum(segment_time_s)
 

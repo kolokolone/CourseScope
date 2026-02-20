@@ -494,7 +494,11 @@ export default function SettingsPage() {
           </div>
 
           <div className="text-muted-foreground">
-            Vous pourrez bientot m&apos;offrir un cafe pour soutenir le developpement du projet. Fait avec amour ❤️
+            Vous pourrez bientot m&apos;offrir un cafe pour soutenir le developpement du projet.
+          </div>
+
+          <div className="text-muted-foreground">
+            Fait avec amour ❤️
           </div>
         </CardContent>
       </Card>
