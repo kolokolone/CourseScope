@@ -67,7 +67,7 @@ export function TheoreticalPaceElevationChart({ data }: { data: TheoreticalPaceE
     }));
     const smooth = smoothMovingAverage(
       base.map((p) => (typeof p.pace_s_per_km === 'number' && Number.isFinite(p.pace_s_per_km) ? p.pace_s_per_km : null)),
-      10
+      15
     );
     return base.map((p, idx) => ({
       ...p,
