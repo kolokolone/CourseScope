@@ -5,7 +5,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 
-from api.schemas import GoalCreateRequest, GoalItem, GoalsListResponse
+from api.schemas import GoalCreateRequest, GoalItem, GoalsListResponse, GoalUpdateRequest
 from db.goals_repository import GoalsRepository
 from db.models import utc_now_iso
 
@@ -28,25 +28,30 @@ def _normalize_event_date(raw_value: str) -> str:
     return parsed.isoformat()
 
 
-def _validate_goal_payload(payload: GoalCreateRequest) -> tuple[float | None, float | None]:
-    if payload.distance_km <= 0:
+def _validate_goal_values(
+    *,
+    distance_km: float,
+    target_time_s: float | None,
+    target_pace_s_per_km: float | None,
+) -> tuple[float | None, float | None]:
+    if distance_km <= 0:
         raise HTTPException(status_code=400, detail="distance_km must be > 0")
 
-    has_time = payload.target_time_s is not None
-    has_pace = payload.target_pace_s_per_km is not None
+    has_time = target_time_s is not None
+    has_pace = target_pace_s_per_km is not None
     if has_time == has_pace:
         raise HTTPException(status_code=400, detail="Provide exactly one target: target_time_s or target_pace_s_per_km")
 
-    target_time_s = float(payload.target_time_s) if payload.target_time_s is not None else None
-    target_pace_s_per_km = float(payload.target_pace_s_per_km) if payload.target_pace_s_per_km is not None else None
+    target_time = float(target_time_s) if target_time_s is not None else None
+    target_pace = float(target_pace_s_per_km) if target_pace_s_per_km is not None else None
 
-    if target_time_s is not None and target_time_s <= 0:
+    if target_time is not None and target_time <= 0:
         raise HTTPException(status_code=400, detail="target_time_s must be > 0")
 
-    if target_pace_s_per_km is not None and not (120.0 <= target_pace_s_per_km <= 1200.0):
+    if target_pace is not None and not (120.0 <= target_pace <= 1200.0):
         raise HTTPException(status_code=400, detail="target_pace_s_per_km must be between 120 and 1200")
 
-    return target_time_s, target_pace_s_per_km
+    return target_time, target_pace
 
 
 def _to_goal_item(row) -> GoalItem:
@@ -83,7 +88,11 @@ async def create_goal(request: Request, payload: GoalCreateRequest):
     repo = GoalsRepository()
     session = factory()
 
-    target_time_s, target_pace_s_per_km = _validate_goal_payload(payload)
+    target_time_s, target_pace_s_per_km = _validate_goal_values(
+        distance_km=float(payload.distance_km),
+        target_time_s=payload.target_time_s,
+        target_pace_s_per_km=payload.target_pace_s_per_km,
+    )
     event_date = _normalize_event_date(payload.event_date)
     name = payload.name.strip()
     if not name:
@@ -115,6 +124,83 @@ async def create_goal(request: Request, payload: GoalCreateRequest):
     except Exception as exc:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create goal: {str(exc)}")
+    finally:
+        session.close()
+
+
+@router.patch("/goals/{goal_id}", response_model=GoalItem)
+async def update_goal(request: Request, goal_id: str, payload: GoalUpdateRequest):
+    factory = _session_factory(request)
+    repo = GoalsRepository()
+    session = factory()
+
+    try:
+        current = repo.get_goal(session, goal_id)
+        if current is None:
+            raise HTTPException(status_code=404, detail=f"Goal {goal_id} not found")
+
+        patch = payload.model_dump(exclude_unset=True)
+
+        name_raw = patch.get("name", current.name)
+        name = str(name_raw).strip() if isinstance(name_raw, str) else ""
+        if not name:
+            raise HTTPException(status_code=400, detail="name is required")
+
+        event_date_raw = patch.get("event_date", current.event_date)
+        event_date = _normalize_event_date(str(event_date_raw))
+
+        distance_km = float(patch.get("distance_km", current.distance_km))
+
+        target_time_s_raw = patch.get("target_time_s", current.target_time_s)
+        target_pace_raw = patch.get("target_pace_s_per_km", current.target_pace_s_per_km)
+
+        target_time_s, target_pace_s_per_km = _validate_goal_values(
+            distance_km=distance_km,
+            target_time_s=float(target_time_s_raw) if target_time_s_raw is not None else None,
+            target_pace_s_per_km=float(target_pace_raw) if target_pace_raw is not None else None,
+        )
+
+        race_type = patch.get("race_type", current.race_type)
+
+        location_raw = patch.get("location", current.location)
+        if location_raw is None:
+            location = None
+        else:
+            location_clean = str(location_raw).strip()
+            location = location_clean if location_clean else None
+
+        notes_raw = patch.get("notes", current.notes)
+        if notes_raw is None:
+            notes = None
+        else:
+            notes_clean = str(notes_raw).strip()
+            notes = notes_clean if notes_clean else None
+
+        now_utc = utc_now_iso()
+        updated = repo.update_goal(
+            session,
+            goal_id=goal_id,
+            name=name,
+            event_date=event_date,
+            distance_km=distance_km,
+            location=location,
+            target_time_s=target_time_s,
+            target_pace_s_per_km=target_pace_s_per_km,
+            race_type=str(race_type),
+            notes=notes,
+            now_utc=now_utc,
+        )
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"Goal {goal_id} not found")
+
+        session.commit()
+        session.refresh(updated)
+        return _to_goal_item(updated)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update goal: {str(exc)}")
     finally:
         session.close()
 

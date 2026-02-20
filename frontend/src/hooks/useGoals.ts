@@ -34,3 +34,28 @@ export function useDeleteGoal() {
     },
   });
 }
+
+export function useUpdateGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      goalId,
+      payload,
+    }: {
+      goalId: string;
+      payload: {
+        name?: string;
+        event_date?: string;
+        distance_km?: number;
+        location?: string | null;
+        target_time_s?: number | null;
+        target_pace_s_per_km?: number | null;
+        race_type?: 'road' | 'trail';
+        notes?: string | null;
+      };
+    }) => goalsApi.update(goalId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: goalsKeys.list() });
+    },
+  });
+}

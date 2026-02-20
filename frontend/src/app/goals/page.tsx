@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { CircleOff, Flag, Plus, Target } from 'lucide-react';
 
-import { useCreateGoal, useDeleteGoal, useGoalsList } from '@/hooks/useGoals';
+import { useCreateGoal, useDeleteGoal, useGoalsList, useUpdateGoal } from '@/hooks/useGoals';
 import { formatDurationSeconds, formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
 import type { GoalItem } from '@/types/api';
 import { Button } from '@/components/ui/button';
@@ -71,6 +71,21 @@ function parseFlexibleSeconds(input: string): number | null {
   return null;
 }
 
+function formatPaceInputFromSeconds(value: number): string {
+  const total = Math.max(0, Math.round(value));
+  const mm = Math.floor(total / 60);
+  const ss = total % 60;
+  return `${mm}:${String(ss).padStart(2, '0')}`;
+}
+
+function formatTimeInputFromSeconds(value: number): string {
+  const total = Math.max(0, Math.round(value));
+  const hh = Math.floor(total / 3600);
+  const mm = Math.floor((total % 3600) / 60);
+  const ss = total % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+}
+
 function formatDateLabel(eventDate: string) {
   const date = new Date(`${eventDate}T00:00:00`);
   if (Number.isNaN(date.getTime())) return eventDate;
@@ -116,16 +131,24 @@ function Timeline({ goals }: { goals: GoalItem[] }) {
     const end = addMonths(lastDate, 1);
     const spanMs = Math.max(1, end.getTime() - today.getTime());
 
-    const events = sorted.map((goal, idx) => {
+    const positionedEvents = sorted.map((goal) => {
       const date = dateAtStart(goal.event_date);
       const pos = Math.max(0, Math.min(1, (date.getTime() - today.getTime()) / spanMs));
       const shade = Math.round(78 - pos * 38);
       const stroke = `hsl(213 94% ${Math.max(30, Math.min(78, shade))}%)`;
+      return { goal, pos, stroke };
+    });
+
+    let previousPos = -1;
+    let previousLane = 1;
+    const events = positionedEvents.map((event) => {
+      const isDense = previousPos >= 0 && event.pos - previousPos < 0.08;
+      const lane: 0 | 1 = isDense ? (previousLane === 0 ? 1 : 0) : 0;
+      previousPos = event.pos;
+      previousLane = lane;
       return {
-        goal,
-        pos,
-        stroke,
-        lane: idx % 2,
+        ...event,
+        lane,
       };
     });
 
@@ -167,31 +190,37 @@ function Timeline({ goals }: { goals: GoalItem[] }) {
       <CardContent className="px-2 pb-4">
         <div className="overflow-x-auto">
           <div className="mx-2" style={{ minWidth: `${model.minWidthPx}px` }}>
-            <div className="relative h-[280px]">
-              <div className="absolute inset-x-4 top-0 h-[280px]">
-                <div className="absolute left-0 right-0 top-24 border-t border-slate-300" />
-                <div className="absolute left-0 top-24 -translate-x-1/2 -translate-y-1/2">
-                  <div className="h-3 w-3 rounded-full border-2 border-slate-500 bg-white" />
+            <div className="relative h-[320px]">
+              <div className="absolute inset-x-4 top-0 h-[320px]">
+                <div className="absolute left-0 right-0 top-[150px] h-1 rounded-full bg-slate-300" />
+                <div className="absolute left-0 top-[150px] -translate-x-1/2 -translate-y-1/2">
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-slate-500 bg-white" />
                 </div>
-                <div className="absolute -right-2 top-[84px] text-slate-500">→</div>
+                <div className="absolute -right-2 top-[141px] text-slate-500">→</div>
 
                 {model.hasMonthTicks
                   ? model.monthBoundaries.map((pos, idx) => (
                       <div
                         key={`month-tick-${idx}`}
-                        className="absolute top-[16px] h-[216px] w-px bg-slate-200/70"
+                        className="absolute top-[26px] h-[248px] w-px bg-slate-200/70"
                         style={{ left: `${pos * 100}%` }}
                       />
                     ))
                   : null}
 
-                {model.daysLeft !== null && model.firstPos !== null && model.daysLeft >= 0 ? (
-                  <div
-                    className="absolute top-[104px] -translate-x-1/2 text-xs font-medium text-slate-600"
-                    style={{ left: `${(model.firstPos / 2) * 100}%` }}
-                  >
-                    {`<--- J-${model.daysLeft} --->`}
-                  </div>
+                {model.daysLeft !== null && model.firstPos !== null && model.daysLeft >= 0 && model.firstPos > 0 ? (
+                  <>
+                    <div
+                      className="absolute top-[150px] h-0 border-t-2 border-dashed border-slate-500/65"
+                      style={{ left: 0, width: `${model.firstPos * 100}%` }}
+                    />
+                    <div
+                      className="absolute top-[132px] -translate-x-1/2 rounded-full border bg-white px-2 py-0.5 text-xs font-semibold text-slate-700"
+                      style={{ left: `${(model.firstPos / 2) * 100}%` }}
+                    >
+                      {`J-${model.daysLeft}`}
+                    </div>
+                  </>
                 ) : null}
 
                 {model.events.map(({ goal, pos, stroke, lane }) => {
@@ -200,8 +229,8 @@ function Timeline({ goals }: { goals: GoalItem[] }) {
                     <div key={goal.id} className="absolute -translate-x-1/2" style={{ left: `${pos * 100}%` }}>
                       {isTop ? (
                         <>
-                          <div className="absolute left-1/2 top-0 h-16 w-px -translate-x-1/2" style={{ backgroundColor: stroke }} />
-                          <div className="absolute left-1/2 top-0 w-40 -translate-x-1/2 rounded-md border bg-white/95 p-2 text-[11px] shadow-sm">
+                          <div className="absolute left-1/2 top-[66px] h-[84px] -translate-x-1/2 border-l-2 border-dashed" style={{ borderColor: stroke }} />
+                          <div className="absolute left-1/2 top-2 w-44 -translate-x-1/2 rounded-md border bg-white/95 p-2 text-[11px] shadow-sm">
                             <div className="font-semibold leading-tight">{goal.name}</div>
                             <div className="text-slate-600">{formatDateLabel(goal.event_date)}</div>
                             <div className="text-slate-600">{`${formatNumber(goal.distance_km, { decimals: 1 })} km • ${goal.race_type === 'trail' ? 'Trail' : 'Course'}`}</div>
@@ -209,15 +238,15 @@ function Timeline({ goals }: { goals: GoalItem[] }) {
                         </>
                       ) : (
                         <>
-                          <div className="absolute left-1/2 top-[96px] h-10 w-px -translate-x-1/2" style={{ backgroundColor: stroke }} />
-                          <div className="absolute left-1/2 top-[136px] w-40 -translate-x-1/2 rounded-md border bg-white/95 p-2 text-[11px] shadow-sm">
+                          <div className="absolute left-1/2 top-[150px] h-[44px] -translate-x-1/2 border-l-2 border-dashed" style={{ borderColor: stroke }} />
+                          <div className="absolute left-1/2 top-[194px] w-44 -translate-x-1/2 rounded-md border bg-white/95 p-2 text-[11px] shadow-sm">
                             <div className="font-semibold leading-tight">{goal.name}</div>
                             <div className="text-slate-600">{formatDateLabel(goal.event_date)}</div>
                             <div className="text-slate-600">{`${formatNumber(goal.distance_km, { decimals: 1 })} km • ${goal.race_type === 'trail' ? 'Trail' : 'Course'}`}</div>
                           </div>
                         </>
                       )}
-                      <div className="absolute left-1/2 top-[88px] h-8 w-px -translate-x-1/2" style={{ backgroundColor: stroke }} />
+                      <div className="absolute left-1/2 top-[146px] h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 bg-white" style={{ borderColor: stroke }} />
                     </div>
                   );
                 })}
@@ -225,7 +254,7 @@ function Timeline({ goals }: { goals: GoalItem[] }) {
                 {model.segmentCenters.map(({ pos, label }, idx) => (
                   <div
                     key={`month-label-${idx}`}
-                    className="absolute top-[252px] -translate-x-1/2 text-xs text-slate-600"
+                    className="absolute top-[286px] -translate-x-1/2 text-xs text-slate-600"
                     style={{ left: `${pos * 100}%` }}
                   >
                     {label}
@@ -244,8 +273,10 @@ export default function GoalsPage() {
   const goalsQuery = useGoalsList();
   const createGoal = useCreateGoal();
   const deleteGoal = useDeleteGoal();
+  const updateGoal = useUpdateGoal();
 
   const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const [editingGoalId, setEditingGoalId] = React.useState<string | null>(null);
   const [form, setForm] = React.useState<GoalFormState>(INITIAL_FORM);
   const [formError, setFormError] = React.useState<string | null>(null);
 
@@ -254,6 +285,13 @@ export default function GoalsPage() {
 
   const goals = goalsQuery.data?.goals ?? [];
   const hasGoals = goals.length > 0;
+  const isSubmitting = createGoal.isPending || updateGoal.isPending;
+
+  const resetFormState = React.useCallback(() => {
+    setEditingGoalId(null);
+    setForm(INITIAL_FORM);
+    setFormError(null);
+  }, []);
 
   const sortedGoals = React.useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
@@ -270,6 +308,27 @@ export default function GoalsPage() {
       return prev;
     });
   };
+
+  const startEditingGoal = React.useCallback((goal: GoalItem) => {
+    const isTimeGoal = typeof goal.target_time_s === 'number' && Number.isFinite(goal.target_time_s);
+    const targetTime = isTimeGoal ? formatTimeInputFromSeconds(goal.target_time_s as number) : '01:00:00';
+    const paceSeconds = typeof goal.target_pace_s_per_km === 'number' && Number.isFinite(goal.target_pace_s_per_km) ? goal.target_pace_s_per_km : 300;
+
+    setForm({
+      name: goal.name,
+      eventDate: String(goal.event_date).slice(0, 10),
+      distanceKm: String(goal.distance_km),
+      location: goal.location ?? '',
+      mode: isTimeGoal ? 'time' : 'pace',
+      targetPace: formatPaceInputFromSeconds(paceSeconds),
+      targetTime,
+      raceType: goal.race_type,
+      notes: goal.notes ?? '',
+    });
+    setEditingGoalId(goal.id);
+    setFormError(null);
+    setIsFormOpen(true);
+  }, []);
 
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -328,8 +387,32 @@ export default function GoalsPage() {
       payload.target_pace_s_per_km = seconds;
     }
 
-    await createGoal.mutateAsync(payload);
-    setForm(INITIAL_FORM);
+    if (editingGoalId) {
+      const updatePayload: {
+        name: string;
+        event_date: string;
+        distance_km: number;
+        location: string | null;
+        target_time_s: number | null;
+        target_pace_s_per_km: number | null;
+        race_type: 'road' | 'trail';
+        notes: string | null;
+      } = {
+        name,
+        event_date: eventDate,
+        distance_km: distanceKm,
+        location: location || null,
+        target_time_s: form.mode === 'time' ? payload.target_time_s ?? null : null,
+        target_pace_s_per_km: form.mode === 'pace' ? payload.target_pace_s_per_km ?? null : null,
+        race_type: form.raceType,
+        notes: notes || null,
+      };
+      await updateGoal.mutateAsync({ goalId: editingGoalId, payload: updatePayload });
+    } else {
+      await createGoal.mutateAsync(payload);
+    }
+
+    resetFormState();
     setIsFormOpen(false);
   };
 
@@ -345,7 +428,14 @@ export default function GoalsPage() {
               </div>
               <div className="text-lg font-semibold">Pas d&apos;objectifs enregistré encore</div>
               <div className="text-sm text-muted-foreground">Ajoute ton premier objectif de course ou trail pour démarrer ton suivi.</div>
-              <Button onClick={() => setIsFormOpen(true)}>Enregistrer son premier objectif</Button>
+              <Button
+                onClick={() => {
+                  resetFormState();
+                  setIsFormOpen(true);
+                }}
+              >
+                Enregistrer son premier objectif
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -356,7 +446,17 @@ export default function GoalsPage() {
             <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base">Liste des objectifs</CardTitle>
-                <Button size="sm" onClick={() => setIsFormOpen((v) => !v)}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (isFormOpen && editingGoalId === null) {
+                      setIsFormOpen(false);
+                      return;
+                    }
+                    resetFormState();
+                    setIsFormOpen(true);
+                  }}
+                >
                   <Plus className="mr-1 h-4 w-4" />
                   Ajouter un nouvel objectif
                 </Button>
@@ -413,16 +513,21 @@ export default function GoalsPage() {
                           <td className="px-3 py-2 tabular-nums">{goalObjectiveLabel(goal)}</td>
                           <td className="px-3 py-2">{goal.race_type === 'trail' ? 'Trail' : 'Course à pied'}</td>
                           <td className="px-3 py-2 text-right">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={async () => {
-                                await deleteGoal.mutateAsync(goal.id);
-                              }}
-                              disabled={deleteGoal.isPending}
-                            >
-                              Supprimer
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button size="sm" variant="outline" onClick={() => startEditingGoal(goal)}>
+                                Modifier
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  await deleteGoal.mutateAsync(goal.id);
+                                }}
+                                disabled={deleteGoal.isPending}
+                              >
+                                Supprimer
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -440,7 +545,7 @@ export default function GoalsPage() {
           <CardHeader className="py-3 px-4">
             <CardTitle className="text-base flex items-center gap-2">
               <Flag className="h-4 w-4" />
-              Nouvel objectif
+              {editingGoalId ? 'Modifier un objectif' : 'Nouvel objectif'}
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
@@ -550,11 +655,18 @@ export default function GoalsPage() {
               {formError ? <div className="text-sm text-red-600">{formError}</div> : null}
 
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsFormOpen(false);
+                    resetFormState();
+                  }}
+                >
                   Annuler
                 </Button>
-                <Button type="submit" disabled={createGoal.isPending}>
-                  {createGoal.isPending ? 'Enregistrement...' : 'Enregistrer l’objectif'}
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Enregistrement...' : editingGoalId ? 'Enregistrer les modifications' : 'Enregistrer l’objectif'}
                 </Button>
               </div>
             </form>

@@ -50,6 +50,27 @@ def test_goals_create_list_delete(tmp_path, monkeypatch):
         goals = listed.json()["goals"]
         assert [g["name"] for g in goals] == [payload_b["name"], payload_a["name"]]
 
+        update_resp = client.patch(
+            f"/goals/{goal_b['id']}",
+            json={
+                "name": "Semi de Paris - objectif chrono",
+                "event_date": "2026-05-12",
+                "distance_km": 21.1,
+                "location": "Paris",
+                "target_time_s": 5400,
+                "target_pace_s_per_km": None,
+                "race_type": "road",
+                "notes": "Depart prudent puis acceleration",
+            },
+        )
+        assert update_resp.status_code == 200
+        updated_goal = update_resp.json()
+        assert updated_goal["name"] == "Semi de Paris - objectif chrono"
+        assert updated_goal["event_date"] == "2026-05-12"
+        assert int(round(float(updated_goal["target_time_s"]))) == 5400
+        assert updated_goal["target_pace_s_per_km"] is None
+        assert updated_goal["location"] == "Paris"
+
         delete_resp = client.delete(f"/goals/{goal_a['id']}")
         assert delete_resp.status_code == 200
         assert delete_resp.json()["deleted"] is True

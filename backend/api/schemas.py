@@ -233,5 +233,16 @@ class GoalCreateRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class GoalUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    event_date: Optional[str] = None
+    distance_km: Optional[float] = None
+    location: Optional[str] = None
+    target_time_s: Optional[float] = None
+    target_pace_s_per_km: Optional[float] = None
+    race_type: Optional[Literal["road", "trail"]] = None
+    notes: Optional[str] = None
+
+
 class GoalsListResponse(BaseModel):
     goals: List[GoalItem]

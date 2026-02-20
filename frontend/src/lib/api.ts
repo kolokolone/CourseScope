@@ -185,6 +185,23 @@ export const goalsApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  update: async (
+    goalId: string,
+    payload: {
+      name?: string;
+      event_date?: string;
+      distance_km?: number;
+      location?: string | null;
+      target_time_s?: number | null;
+      target_pace_s_per_km?: number | null;
+      race_type?: 'road' | 'trail';
+      notes?: string | null;
+    }
+  ) =>
+    apiRequest<GoalItem>(`/goals/${goalId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
   remove: async (goalId: string) => apiRequest<{ deleted: boolean }>(`/goals/${goalId}`, { method: 'DELETE' }),
 };
 
