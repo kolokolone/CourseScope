@@ -25,6 +25,8 @@ type GoalFormState = {
   notes: string;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 const INITIAL_FORM: GoalFormState = {
   name: '',
   eventDate: '',
@@ -112,6 +114,34 @@ function mondayStartOfWeek(date: Date) {
 
 function dateAtStart(eventDate: string) {
   return startOfDay(new Date(`${eventDate}T00:00:00`));
+}
+
+function goalDaysDeltaFromToday(eventDate: string, today: Date) {
+  const event = dateAtStart(eventDate);
+  if (Number.isNaN(event.getTime())) return null;
+  return Math.round((event.getTime() - today.getTime()) / DAY_MS);
+}
+
+function goalCountdownLabel(goal: GoalItem, today: Date) {
+  const delta = goalDaysDeltaFromToday(goal.event_date, today);
+  if (delta === null) return '—';
+  if (delta >= 0) return `J-${delta}`;
+  return `J+${Math.abs(delta)}`;
+}
+
+function monthWarmth(monthIndex: number) {
+  const profile = [0.0, 0.05, 0.16, 0.32, 0.5, 0.75, 1.0, 0.96, 0.75, 0.48, 0.22, 0.08];
+  return profile[monthIndex] ?? 0.5;
+}
+
+function monthBackgroundStyle(date: Date): React.CSSProperties {
+  const warmth = monthWarmth(date.getMonth());
+  const cold = { r: 219, g: 234, b: 254 };
+  const warm = { r: 255, g: 237, b: 213 };
+  const mix = (a: number, b: number) => Math.round(a + (b - a) * warmth);
+  return {
+    backgroundColor: `rgba(${mix(cold.r, warm.r)}, ${mix(cold.g, warm.g)}, ${mix(cold.b, warm.b)}, 0.32)`,
+  };
 }
 
 function goalObjectiveLabel(goal: GoalItem) {
@@ -286,13 +316,8 @@ function GoalsCalendar({ goals }: { goals: GoalItem[] }) {
       .sort((a, b) => a.getTime() - b.getTime());
     const lastDate = sortedDates.length > 0 ? sortedDates[sortedDates.length - 1] : today;
     const endAnchor = lastDate.getTime() < today.getTime() ? today : lastDate;
-    const end = addDays(endAnchor, 7);
-
-    const days: Date[] = [];
-    for (let cursor = today; cursor.getTime() <= end.getTime(); cursor = addDays(cursor, 1)) {
-      days.push(cursor);
-      if (days.length >= 84) break;
-    }
+    const startWeek = mondayStartOfWeek(today);
+    const endWeek = addDays(mondayStartOfWeek(endAnchor), 6);
 
     const byDay = new Map<string, GoalItem[]>();
     for (const goal of goals) {
@@ -302,17 +327,36 @@ function GoalsCalendar({ goals }: { goals: GoalItem[] }) {
       byDay.set(key, bucket);
     }
 
-    const firstWeekdayOffset = (today.getDay() + 6) % 7;
-    const cells: Array<{ day: Date | null; goals: GoalItem[] }> = [];
-    for (let i = 0; i < firstWeekdayOffset; i += 1) {
-      cells.push({ day: null, goals: [] });
-    }
-    for (const day of days) {
-      cells.push({ day, goals: byDay.get(isoDayKey(day)) ?? [] });
+    const weeks: Array<{
+      key: string;
+      days: Array<{ day: Date; goals: GoalItem[]; isPast: boolean; isToday: boolean }>;
+      maxGoalsInDay: number;
+    }> = [];
+
+    for (let weekStart = startWeek; weekStart.getTime() <= endWeek.getTime(); weekStart = addWeeks(weekStart, 1)) {
+      const days = Array.from({ length: 7 }, (_, offset) => {
+        const day = addDays(weekStart, offset);
+        const dayKey = isoDayKey(day);
+        const dayGoals = byDay.get(dayKey) ?? [];
+        return {
+          day,
+          goals: dayGoals,
+          isPast: day.getTime() < today.getTime(),
+          isToday: day.getTime() === today.getTime(),
+        };
+      });
+
+      const maxGoalsInDay = Math.max(0, ...days.map((day) => day.goals.length));
+      weeks.push({
+        key: isoDayKey(weekStart),
+        days,
+        maxGoalsInDay,
+      });
+      if (weeks.length > 52) break;
     }
 
     return {
-      cells,
+      weeks,
       weekLabels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
     };
   }, [goals]);
@@ -323,26 +367,43 @@ function GoalsCalendar({ goals }: { goals: GoalItem[] }) {
         <CardTitle className="text-base">Calendrier des objectifs</CardTitle>
       </CardHeader>
       <CardContent className="px-4 pb-4">
-        <div className="grid grid-cols-7 border border-slate-200/80 text-xs text-muted-foreground">
-          {model.weekLabels.map((label) => (
-            <div key={label} className="border-b border-r border-slate-200/80 bg-slate-50/70 px-2 py-1 font-medium last:border-r-0">
-              {label}
-            </div>
-          ))}
-          {model.cells.map((cell, idx) => (
-            <div key={`day-cell-${idx}`} className="min-h-28 border-r border-b border-slate-200/80 p-2 last:border-r-0">
-              {cell.day ? (
-                <>
-                  <div className="mb-2 text-xs text-muted-foreground tabular-nums">{cell.day.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</div>
-                  <div className="space-y-1">
-                    {cell.goals.map((goal) => (
-                      <GoalMiniCard key={goal.id} goal={goal} className="w-full" />
-                    ))}
-                  </div>
-                </>
-              ) : null}
-            </div>
-          ))}
+        <div className="overflow-auto rounded-md border border-slate-200/80 text-xs text-muted-foreground">
+          <div className="grid grid-cols-7">
+            {model.weekLabels.map((label) => (
+              <div key={label} className="border-b border-r border-slate-200/80 bg-slate-50/70 px-2 py-1 font-medium last:border-r-0">
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {model.weeks.map((week) => {
+            const rowHeightClass = week.maxGoalsInDay === 0 ? 'min-h-[3.25rem]' : week.maxGoalsInDay === 1 ? 'min-h-[8.25rem]' : 'min-h-[10.75rem]';
+            return (
+              <div key={week.key} className={`grid grid-cols-7 ${rowHeightClass}`}>
+                {week.days.map((cell, idx) => {
+                  const hasGoals = cell.goals.length > 0;
+                  const bgClass = hasGoals ? 'bg-blue-100/70' : cell.isPast ? 'bg-slate-100/85' : '';
+                  const style = hasGoals || cell.isPast ? undefined : monthBackgroundStyle(cell.day);
+                  return (
+                    <div
+                      key={`${week.key}-${idx}`}
+                      className={`h-full border-r border-b border-slate-200/80 p-2 ${idx === 6 ? 'border-r-0' : ''} ${bgClass} ${cell.isToday ? 'ring-1 ring-inset ring-blue-300/70' : ''}`}
+                      style={style}
+                    >
+                      <div className="mb-1 text-[11px] text-slate-600 tabular-nums">{cell.day.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</div>
+                      {hasGoals ? (
+                        <div className="space-y-1">
+                          {cell.goals.map((goal) => (
+                            <GoalMiniCard key={goal.id} goal={goal} className="w-full border-blue-200/80 bg-blue-50/90" />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
@@ -377,6 +438,8 @@ export default function GoalsPage() {
     const dir = sortDir === 'asc' ? 1 : -1;
     return goals.slice().sort((a, b) => compareGoals(a, b, sortKey) * dir);
   }, [goals, sortDir, sortKey]);
+
+  const today = React.useMemo(() => startOfDay(new Date()), []);
 
   const toggleSort = (key: SortKey) => {
     setSortKey((prev) => {
@@ -566,6 +629,7 @@ export default function GoalsPage() {
                             Distance (km)
                           </button>
                         </th>
+                        <th className="px-3 py-2 text-left font-medium">Dans :</th>
                         <th className="px-3 py-2 text-left font-medium">
                           <button type="button" className="hover:underline" onClick={() => toggleSort('location')}>
                             Localisation
@@ -590,6 +654,7 @@ export default function GoalsPage() {
                           <td className="px-3 py-2 font-medium">{goal.name}</td>
                           <td className="px-3 py-2">{formatDateLabel(goal.event_date)}</td>
                           <td className="px-3 py-2 text-right tabular-nums">{formatNumber(goal.distance_km, { decimals: 1 })}</td>
+                          <td className="px-3 py-2 tabular-nums">{goalCountdownLabel(goal, today)}</td>
                           <td className="px-3 py-2">{goal.location || '—'}</td>
                           <td className="px-3 py-2 tabular-nums">{goalObjectiveLabel(goal)}</td>
                           <td className="px-3 py-2">{goal.race_type === 'trail' ? 'Trail' : 'Course à pied'}</td>
