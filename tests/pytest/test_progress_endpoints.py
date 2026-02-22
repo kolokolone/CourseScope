@@ -333,7 +333,7 @@ def test_progress_verify_status_endpoint(tmp_path, monkeypatch):
         assert "last_result" in body
 
 
-def test_progress_activities_auto_triggers_verify(tmp_path, monkeypatch):
+def test_progress_activities_does_not_auto_trigger_verify(tmp_path, monkeypatch):
     monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
 
     called = {"count": 0}
@@ -366,10 +366,10 @@ def test_progress_activities_auto_triggers_verify(tmp_path, monkeypatch):
         )
 
         assert res.status_code == 200
-        assert called["count"] == 1
+        assert called["count"] == 0
 
 
-def test_progress_series_auto_triggers_verify(tmp_path, monkeypatch):
+def test_progress_series_does_not_auto_trigger_verify(tmp_path, monkeypatch):
     monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
 
     called = {"count": 0}
@@ -404,4 +404,4 @@ def test_progress_series_auto_triggers_verify(tmp_path, monkeypatch):
         )
 
         assert res.status_code == 200
-        assert called["count"] == 1
+        assert called["count"] == 0

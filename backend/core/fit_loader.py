@@ -220,32 +220,168 @@ def _extract_fit_vo2max(fitfile: FitFile) -> float:
         "enhanced_vo2max",
     }
 
-    candidates: list[float] = []
-    try:
-        for message_name in ("session", "sport", "record"):
-            for message in fitfile.get_messages(message_name):
-                fields = getattr(message, "fields", None)
-                if not fields:
+    def _parse_plain_vo2(raw: Any) -> float | None:
+        if raw is None:
+            return None
+        try:
+            value = float(str(raw))
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(value):
+            return None
+        if 10.0 <= value <= 95.0:
+            return value
+        return None
+
+    def _parse_metmax_or_vo2(raw: Any) -> float | None:
+        if raw is None:
+            return None
+        try:
+            value = float(str(raw))
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(value):
+            return None
+
+        # Some files store VO2max directly.
+        if 10.0 <= value <= 95.0:
+            return value
+
+        # Garmin active_session message (mesg 140, field 7) stores METmax with
+        # scale 65536. Convert METmax to VO2max with 1 MET = 3.5 ml/kg/min.
+        metmax_to_vo2 = (value / 65536.0) * 3.5
+        if math.isfinite(metmax_to_vo2) and 10.0 <= metmax_to_vo2 <= 95.0:
+            return metmax_to_vo2
+        return None
+
+    def _collect_from_messages(message_name: str) -> list[float]:
+        candidates: list[float] = []
+        for message in fitfile.get_messages(message_name):
+            fields = getattr(message, "fields", None)
+            if not fields:
+                continue
+            for field in fields:
+                name = str(getattr(field, "name", "") or "").lower().strip()
+                if not name:
                     continue
-                for field in fields:
-                    name = str(getattr(field, "name", "") or "").lower()
-                    if not name:
-                        continue
-                    if name not in candidate_names and "vo2" not in name:
-                        continue
-                    raw = getattr(field, "value", None)
-                    try:
-                        value = float(raw)
-                    except (TypeError, ValueError):
-                        continue
-                    if math.isfinite(value) and 10.0 <= value <= 95.0:
-                        candidates.append(value)
+                if name not in candidate_names and "vo2" not in name:
+                    continue
+                value = _parse_plain_vo2(getattr(field, "value", None))
+                if value is not None:
+                    candidates.append(value)
+        return candidates
+
+    def _collect_from_active_session_unknown() -> list[float]:
+        candidates: list[float] = []
+        for message in fitfile.get_messages():
+            message_name = str(getattr(message, "name", "") or "").lower().strip()
+            mesg_num_raw = getattr(message, "mesg_num", None)
+            try:
+                mesg_num = int(mesg_num_raw) if mesg_num_raw is not None else None
+            except Exception:
+                mesg_num = None
+
+            if message_name not in {"unknown_140", "active_session"} and mesg_num != 140:
+                continue
+
+            fields = getattr(message, "fields", None)
+            if not fields:
+                continue
+
+            for field in fields:
+                field_name = str(getattr(field, "name", "") or "").lower().strip()
+                def_num = getattr(field, "def_num", None)
+                is_metmax_field = bool(
+                    def_num == 7 or field_name in {"unknown_7", "met_max", "metmax", "vo2_max", "vo2max"}
+                )
+
+                if not is_metmax_field and field_name not in candidate_names and "vo2" not in field_name:
+                    continue
+
+                raw = getattr(field, "value", None)
+                if is_metmax_field:
+                    value = _parse_metmax_or_vo2(raw)
+                else:
+                    value = _parse_plain_vo2(raw)
+
+                if value is not None:
+                    candidates.append(value)
+
+        return candidates
+
+    def _collect_from_user_metrics_unknown79() -> list[float]:
+        candidates: list[float] = []
+        for message in fitfile.get_messages():
+            message_name = str(getattr(message, "name", "") or "").lower().strip()
+            mesg_num_raw = getattr(message, "mesg_num", None)
+            try:
+                mesg_num = int(mesg_num_raw) if mesg_num_raw is not None else None
+            except Exception:
+                mesg_num = None
+
+            if message_name not in {"user_metrics", "unknown_79"} and mesg_num != 79:
+                continue
+
+            fields = getattr(message, "fields", None)
+            if not fields:
+                continue
+
+            preferred: list[float] = []
+            fallback: list[float] = []
+            for field in fields:
+                field_name = str(getattr(field, "name", "") or "").lower().strip()
+                def_num = getattr(field, "def_num", None)
+                raw = getattr(field, "value", None)
+
+                value_plain = _parse_plain_vo2(raw)
+                if value_plain is not None and (
+                    field_name in candidate_names or "vo2" in field_name or field_name == "met_max"
+                ):
+                    preferred.append(value_plain)
+                    continue
+
+                # Garmin user metrics often appear as unknown_79 with METmax-like
+                # encoded fields (notably 17/18/19) in some FIT profiles.
+                if def_num in {17, 18, 19} or field_name in {"unknown_17", "unknown_18", "unknown_19"}:
+                    value_met = _parse_metmax_or_vo2(raw)
+                    if value_met is not None:
+                        fallback.append(value_met)
+
+            if preferred:
+                candidates.extend(preferred)
+            elif fallback:
+                candidates.extend(fallback)
+
+        return candidates
+
+    try:
+        # Priority order: explicit user metrics/profile first, then activity summary,
+        # then broad fallbacks.
+        for message_name in (
+            "user_metrics",
+            "user_profile",
+            "session",
+            "activity",
+            "sport",
+            "record",
+        ):
+            candidates = _collect_from_messages(message_name)
+            if candidates:
+                return float(candidates[-1])
+
+        candidates = _collect_from_user_metrics_unknown79()
+        if candidates:
+            return float(candidates[-1])
+
+        # Fallback for Garmin developer/unknown message naming used by some
+        # FIT parsers for active_session (mesg 140, field 7 METmax).
+        candidates = _collect_from_active_session_unknown()
+        if candidates:
+            return float(candidates[-1])
     except Exception:
         return math.nan
 
-    if not candidates:
-        return math.nan
-    return float(candidates[-1])
+    return math.nan
 
 
 def load_fit(file: IO[bytes]) -> FitFile:

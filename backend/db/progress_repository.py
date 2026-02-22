@@ -46,7 +46,13 @@ class ProgressRepository:
             return
 
         # Fast path: avoid rewriting rows that are up-to-date.
-        if existing.fingerprint == row.fingerprint and existing.metrics_version == row.metrics_version:
+        # Keep a dedicated backfill path for VO2max so historical rows can be
+        # completed when fingerprint/version did not change.
+        if (
+            existing.fingerprint == row.fingerprint
+            and existing.metrics_version == row.metrics_version
+            and not (existing.vo2max is None and row.vo2max is not None)
+        ):
             return
 
         for key, value in row.__dict__.items():

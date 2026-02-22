@@ -8,11 +8,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from config import get_activities_dir
 from core.fit_loader import fit_to_dataframe, load_fit
-from db.models import Activity, ProgressActivityIndex, utc_now_iso
+from db.models import (
+    Activity,
+    ActivitySource,
+    ProgressActivityIndex,
+    ProgressActivityTag,
+    ProgressBestEffortPoint,
+    ProgressPaceHrBin,
+    UserSettings,
+    utc_now_iso,
+)
 from progress.indexer import METRICS_VERSION, build_fingerprint, index_activity
 
 
@@ -90,6 +100,91 @@ def _write_rollup(activity_dir: Path, payload: dict) -> str:
     return str(rollup_path.resolve())
 
 
+def _maybe_backfill_vo2max_from_fit(activity_dir: Path, parquet_path: Path, df: pd.DataFrame) -> pd.DataFrame:
+    fit_path = _find_original_fit_path(activity_dir)
+    if fit_path is None or not fit_path.exists():
+        return df
+
+    try:
+        with fit_path.open("rb") as fh:
+            fit_df = fit_to_dataframe(load_fit(fh))
+        fit_vo2 = _extract_vo2max_from_df(fit_df)
+        if fit_vo2 is None:
+            return df
+        try:
+            fit_df.to_parquet(parquet_path, engine="pyarrow")
+        except Exception:
+            pass
+        return fit_df
+    except Exception:
+        return df
+
+
+def _sync_vo2max_latest_from_index(session: Session) -> None:
+    latest_stmt = (
+        select(ProgressActivityIndex.vo2max)
+        .where(ProgressActivityIndex.vo2max.is_not(None))
+        .order_by(ProgressActivityIndex.start_ts_utc.desc())
+        .limit(1)
+    )
+    latest_vo2 = session.execute(latest_stmt).scalar_one_or_none()
+    latest_value = float(latest_vo2) if latest_vo2 is not None else None
+
+    settings = session.get(UserSettings, 1)
+    if settings is None:
+        settings = UserSettings(
+            id=1,
+            vma_kmh=None,
+            vo2max_lastest=latest_value,
+            hr_max_manual_bpm=None,
+            hr_max_source="detected",
+            updated_at_utc=utc_now_iso(),
+        )
+        session.add(settings)
+        return
+
+    if settings.vo2max_lastest != latest_value:
+        settings.vo2max_lastest = latest_value
+        settings.updated_at_utc = utc_now_iso()
+
+
+def _purge_missing_activities(session: Session, *, keep_activity_ids: set[str]) -> int:
+    candidates: set[str] = set()
+
+    id_queries = (
+        select(Activity.id),
+        select(ActivitySource.activity_id),
+        select(ProgressActivityIndex.activity_id),
+        select(ProgressActivityTag.activity_id),
+        select(ProgressBestEffortPoint.activity_id),
+        select(ProgressPaceHrBin.activity_id),
+    )
+    for stmt in id_queries:
+        for value in session.execute(stmt).scalars().all():
+            if value is None:
+                continue
+            candidates.add(str(value))
+
+    stale_ids = sorted(candidates - keep_activity_ids)
+    if not stale_ids:
+        return 0
+
+    deleted = 0
+    delete_statements = (
+        delete(ProgressBestEffortPoint).where(ProgressBestEffortPoint.activity_id.in_(stale_ids)),
+        delete(ProgressPaceHrBin).where(ProgressPaceHrBin.activity_id.in_(stale_ids)),
+        delete(ProgressActivityTag).where(ProgressActivityTag.activity_id.in_(stale_ids)),
+        delete(ProgressActivityIndex).where(ProgressActivityIndex.activity_id.in_(stale_ids)),
+        delete(ActivitySource).where(ActivitySource.activity_id.in_(stale_ids)),
+        delete(Activity).where(Activity.id.in_(stale_ids)),
+    )
+    for stmt in delete_statements:
+        res = session.execute(stmt)
+        deleted += int(getattr(res, "rowcount", 0) or 0)
+
+    return deleted
+
+
 def verify_progress_index(
     session: Session,
     *,
@@ -104,6 +199,7 @@ def verify_progress_index(
     indexed = 0
     up_to_date = 0
     errors = 0
+    existing_activity_ids: set[str] = set()
 
     for activity_dir in base_dir.iterdir():
         if not activity_dir.is_dir():
@@ -114,6 +210,8 @@ def verify_progress_index(
         parquet_path = activity_dir / "df.parquet"
         if not meta_path.exists() or not parquet_path.exists():
             continue
+
+        existing_activity_ids.add(activity_id)
 
         scanned += 1
         try:
@@ -127,27 +225,11 @@ def verify_progress_index(
                 and int(row.metrics_version) == int(METRICS_VERSION)
             )
 
-            needs_vo2_backfill = bool(is_current and row is not None and row.vo2max is None)
+            needs_reindex = bool(not is_current or (row is not None and row.vo2max is None))
 
-            if (not is_current) or needs_vo2_backfill:
+            if needs_reindex:
                 df = pd.read_parquet(parquet_path)
-
-                if needs_vo2_backfill and _extract_vo2max_from_df(df) is None:
-                    fit_path = _find_original_fit_path(activity_dir)
-                    if fit_path is not None and fit_path.exists():
-                        try:
-                            with fit_path.open("rb") as fh:
-                                fit = load_fit(fh)
-                            fit_df = fit_to_dataframe(fit)
-                            fit_vo2 = _extract_vo2max_from_df(fit_df)
-                            if fit_vo2 is not None:
-                                df = fit_df
-                                try:
-                                    df.to_parquet(parquet_path, engine="pyarrow")
-                                except Exception:
-                                    pass
-                        except Exception:
-                            pass
+                df = _maybe_backfill_vo2max_from_fit(activity_dir, parquet_path, df)
 
                 index_activity(
                     session,
@@ -220,5 +302,13 @@ def verify_progress_index(
             except Exception:
                 pass
 
+    deleted = _purge_missing_activities(session, keep_activity_ids=existing_activity_ids)
+    if deleted > 0:
+        logger.info(
+            "progress_verify_deleted_orphans",
+            extra={"request_id": "-", "deleted_rows": int(deleted)},
+        )
+
+    _sync_vo2max_latest_from_index(session)
     session.commit()
     return VerifyProgressResult(scanned=scanned, indexed=indexed, up_to_date=up_to_date, errors=errors)
