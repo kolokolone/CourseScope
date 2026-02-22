@@ -7,7 +7,6 @@ import { useCreateGoal, useDeleteGoal, useGoalsList, useUpdateGoal } from '@/hoo
 import { GoalsTimelineFlow } from '@/components/goals/GoalsTimelineFlow';
 import { GoalMiniCard } from '@/components/goals/GoalMiniCard';
 import { GoalsObjectivesMap } from '@/components/goals/GoalsObjectivesMap';
-import { GoalsGlobe3D } from '@/components/goals/GoalsGlobe3D';
 import { CityAutocomplete } from '@/components/inputs/CityAutocomplete';
 import { formatDurationSeconds, formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
 import type { GeoCityItem, GoalItem } from '@/types/api';
@@ -755,14 +754,6 @@ export default function GoalsPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-base">Globe 3D des objectifs</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <GoalsGlobe3D goals={goals} />
-            </CardContent>
-          </Card>
         </>
       )}
 
