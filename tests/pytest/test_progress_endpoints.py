@@ -331,3 +331,77 @@ def test_progress_verify_status_endpoint(tmp_path, monkeypatch):
         assert "last_finished_at_utc" in body
         assert "last_error" in body
         assert "last_result" in body
+
+
+def test_progress_activities_auto_triggers_verify(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    called = {"count": 0}
+
+    def _fake_start_verify(*, db_session_factory):
+        _ = db_session_factory
+        called["count"] += 1
+
+        class _State:
+            running = True
+            last_started_at_utc = None
+            last_finished_at_utc = None
+            last_error = None
+            last_result = None
+
+        return _State()
+
+    monkeypatch.setattr("backend.api.routes.progress.start_verify_in_background", _fake_start_verify, raising=False)
+    monkeypatch.setattr("api.routes.progress.start_verify_in_background", _fake_start_verify, raising=False)
+
+    with TestClient(app) as client:
+        res = client.get(
+            "/progress/activities",
+            params={
+                "from": "2026-02-01",
+                "to": "2026-02-28",
+                "type": "real",
+                "limit": 10,
+            },
+        )
+
+        assert res.status_code == 200
+        assert called["count"] == 1
+
+
+def test_progress_series_auto_triggers_verify(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    called = {"count": 0}
+
+    def _fake_start_verify(*, db_session_factory):
+        _ = db_session_factory
+        called["count"] += 1
+
+        class _State:
+            running = True
+            last_started_at_utc = None
+            last_finished_at_utc = None
+            last_error = None
+            last_result = None
+
+        return _State()
+
+    monkeypatch.setattr("backend.api.routes.progress.start_verify_in_background", _fake_start_verify, raising=False)
+    monkeypatch.setattr("api.routes.progress.start_verify_in_background", _fake_start_verify, raising=False)
+
+    with TestClient(app) as client:
+        res = client.get(
+            "/progress/series",
+            params={
+                "metric": "distance_m",
+                "group_by": "week",
+                "agg": "sum",
+                "from": "2026-02-01",
+                "to": "2026-02-28",
+                "type": "real",
+            },
+        )
+
+        assert res.status_code == 200
+        assert called["count"] == 1

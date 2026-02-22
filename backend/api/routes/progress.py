@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from datetime import datetime, timezone, timedelta
 
@@ -14,6 +15,23 @@ router = APIRouter()
 
 SESSION_TAGS = {"easy", "tempo", "interval", "long_run", "unknown"}
 TERRAIN_TAGS = {"flat", "rolling", "hilly", "unknown"}
+logger = logging.getLogger("coursescope")
+
+
+def _auto_trigger_progress_verify(request: Request) -> None:
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        return
+    try:
+        start_verify_in_background(db_session_factory=db_session_factory)
+    except Exception as exc:
+        logger.warning(
+            "progress_auto_verify_trigger_failed",
+            extra={
+                "request_id": getattr(getattr(request, "state", object()), "request_id", "-"),
+                "error": str(exc),
+            },
+        )
 
 
 @router.post("/progress/verify")
@@ -192,6 +210,8 @@ async def list_progress_activities(
     if db_session_factory is None:
         raise HTTPException(status_code=500, detail="DB not initialized")
 
+    _auto_trigger_progress_verify(request)
+
     repo = ProgressRepository()
     session = db_session_factory()
     try:
@@ -282,6 +302,8 @@ async def get_progress_series(
     if db_session_factory is None:
         raise HTTPException(status_code=500, detail="DB not initialized")
 
+    _auto_trigger_progress_verify(request)
+
     allowed_metrics = {
         "distance_m",
         "moving_time_s",
@@ -364,6 +386,8 @@ async def get_progress_best_efforts(
     if db_session_factory is None:
         raise HTTPException(status_code=500, detail="DB not initialized")
 
+    _auto_trigger_progress_verify(request)
+
     if kind != "pace_s_per_km":
         raise HTTPException(status_code=400, detail="Unsupported kind")
 
@@ -417,6 +441,8 @@ async def get_progress_hr_at_pace(
     db_session_factory = getattr(request.app.state, "db_session_factory", None)
     if db_session_factory is None:
         raise HTTPException(status_code=500, detail="DB not initialized")
+
+    _auto_trigger_progress_verify(request)
     if activity_type is not None and activity_type not in {"real", "theoretical"}:
         raise HTTPException(status_code=400, detail="Invalid type")
     if session_tag is not None and session_tag not in SESSION_TAGS:
@@ -493,6 +519,8 @@ async def get_progress_pace_at_hr(
     db_session_factory = getattr(request.app.state, "db_session_factory", None)
     if db_session_factory is None:
         raise HTTPException(status_code=500, detail="DB not initialized")
+
+    _auto_trigger_progress_verify(request)
     if activity_type is not None and activity_type not in {"real", "theoretical"}:
         raise HTTPException(status_code=400, detail="Invalid type")
     if session_tag is not None and session_tag not in SESSION_TAGS:
@@ -563,6 +591,8 @@ async def get_progress_session_taxonomy(
     db_session_factory = getattr(request.app.state, "db_session_factory", None)
     if db_session_factory is None:
         raise HTTPException(status_code=500, detail="DB not initialized")
+
+    _auto_trigger_progress_verify(request)
     if activity_type is not None and activity_type not in {"real", "theoretical"}:
         raise HTTPException(status_code=400, detail="Invalid type")
 
@@ -665,6 +695,8 @@ async def get_progress_pace_hr_waterfall(
     db_session_factory = getattr(request.app.state, "db_session_factory", None)
     if db_session_factory is None:
         raise HTTPException(status_code=500, detail="DB not initialized")
+
+    _auto_trigger_progress_verify(request)
     if activity_type is not None and activity_type not in {"real", "theoretical"}:
         raise HTTPException(status_code=400, detail="Invalid type")
     if session_tag is not None and session_tag not in SESSION_TAGS:
