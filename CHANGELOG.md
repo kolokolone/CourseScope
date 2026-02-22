@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.75] - 2026-02-22
+
+### Changed
+- Goals (`/goals`): timeline arrows are now dynamic (distance varies by gap between objective dates), J-X badges align with countdown values from today, mini-cards are auto-sized/centered, the objective form appears above the objectives list while editing/creating, and the objectives list is placed directly under the timeline.
+- Goals globe (`/goals`): globe now uses a visible world-map texture layer, blue markers are slightly smaller and keep a stable apparent size while zooming, rotation is disabled, focus remains on the next three objectives, canvas uses full card width, and star background depth effect is enhanced.
+- Activity detail (`/activities/[id]`): removed duplicate race date chip in top KPI row, moved secondary KPI tiles into the main "Apercu" card (same representation), expanded KPI help texts, and improved "Distributions" card text consistency + chart height behavior.
+- Pace bins (`/traces/[id]` and `/activities/[id]`): pace-time histogram cap changed from 200% to 175% of reference pace, bins under 60s are filtered out, and x-axis ticks are synchronized to 30s cadence.
+
 ## [1.1.74] - 2026-02-22
 
 ### Changed
