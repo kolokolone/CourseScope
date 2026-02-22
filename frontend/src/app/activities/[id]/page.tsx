@@ -411,13 +411,13 @@ export default function RealActivityPage() {
 
   const filteredPaceBins = React.useMemo(() => {
     const bins = realBinsQuery.data?.pace_time_bins ?? [];
-    if (paceReference === null) return bins.filter((bin) => typeof bin.time_s === 'number' && bin.time_s >= 60);
+    if (paceReference === null) return bins.filter((bin) => typeof bin.time_s === 'number' && bin.time_s >= 90);
     return bins.filter(
       (bin) =>
         typeof bin.pace_bin_floor_s_per_km === 'number' &&
         typeof bin.time_s === 'number' &&
         bin.pace_bin_floor_s_per_km <= paceReference * 1.75 &&
-        bin.time_s >= 60
+        bin.time_s >= 90
     );
   }, [paceReference, realBinsQuery.data?.pace_time_bins]);
 

@@ -276,9 +276,9 @@ export default function TheoreticalActivityPage() {
       typeof bin.pace_bin_floor_s_per_km === 'number' &&
       typeof bin.time_s === 'number' &&
       bin.pace_bin_floor_s_per_km <= targetPace * 1.75 &&
-      bin.time_s >= 60
+      bin.time_s >= 90
   );
-  const filteredGradeBins = (activity.grade_time_bins ?? []).filter((bin) => typeof bin.time_s === 'number' && bin.time_s >= 60);
+  const filteredGradeBins = (activity.grade_time_bins ?? []).filter((bin) => typeof bin.time_s === 'number' && bin.time_s >= 90);
 
   const elevationMin = typeof summary.elevation_min_m === 'number' ? summary.elevation_min_m : null;
   const elevationMax = typeof summary.elevation_max_m === 'number' ? summary.elevation_max_m : null;
