@@ -68,6 +68,20 @@ def init_db(engine: Engine) -> None:
                     conn.execute(text("ALTER TABLE goals ADD COLUMN location_lat REAL"))
                 if "location_lon" not in goal_cols:
                     conn.execute(text("ALTER TABLE goals ADD COLUMN location_lon REAL"))
+
+                settings_cols = [
+                    str(row[1])
+                    for row in conn.execute(text("PRAGMA table_info(user_settings)"))
+                ]
+                if "vo2max_lastest" not in settings_cols:
+                    conn.execute(text("ALTER TABLE user_settings ADD COLUMN vo2max_lastest REAL"))
+
+                progress_cols = [
+                    str(row[1])
+                    for row in conn.execute(text("PRAGMA table_info(progress_activity_index)"))
+                ]
+                if "vo2max" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN vo2max REAL"))
     except Exception:
         # Best-effort: app should stay usable even if migrations fail.
         pass

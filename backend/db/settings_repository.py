@@ -13,6 +13,7 @@ class SettingsRepository:
             row = UserSettings(
                 id=1,
                 vma_kmh=None,
+                vo2max_lastest=None,
                 hr_max_manual_bpm=None,
                 hr_max_source="detected",
                 updated_at_utc=utc_now_iso(),

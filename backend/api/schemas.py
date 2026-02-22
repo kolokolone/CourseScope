@@ -196,6 +196,7 @@ class TraceStatusResponse(BaseModel):
 
 class PersonalSettingsResponse(BaseModel):
     vma_kmh: Optional[float] = None
+    vo2max_lastest: Optional[float] = None
     hr_max_manual_bpm: Optional[int] = None
     hr_max_source: Literal["detected", "manual"] = "detected"
     hr_max_detected_bpm: Optional[int] = None

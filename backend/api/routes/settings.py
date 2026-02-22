@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal, cast
+
 from fastapi import APIRouter, HTTPException, Request
 
 from api.schemas import PersonalSettingsPatchRequest, PersonalSettingsResponse
@@ -10,14 +12,13 @@ from db.models import utc_now_iso
 router = APIRouter()
 
 
-def _to_response(vma_kmh: float | None, hr_manual: int | None, hr_source: str, hr_detected: int | None, updated_at: str) -> PersonalSettingsResponse:
+def _to_response(vma_kmh: float | None, vo2max_lastest: float | None, hr_manual: int | None, hr_source: Literal["detected", "manual"], hr_detected: int | None, updated_at: str) -> PersonalSettingsResponse:
     effective = hr_detected if hr_source == "detected" and hr_detected is not None else hr_manual
-    if hr_source not in {"detected", "manual"}:
-        hr_source = "detected"
     return PersonalSettingsResponse(
         vma_kmh=vma_kmh,
+        vo2max_lastest=vo2max_lastest,
         hr_max_manual_bpm=hr_manual,
-        hr_max_source=hr_source,
+        hr_max_source=cast(Literal["detected", "manual"], hr_source),
         hr_max_detected_bpm=hr_detected,
         hr_max_effective_bpm=effective,
         updated_at_utc=updated_at,
@@ -35,8 +36,9 @@ async def get_personal_settings(request: Request):
     try:
         row = repo.get_or_create(session)
         detected = repo.get_detected_hr_max(session)
+        source: Literal["detected", "manual"] = "manual" if row.hr_max_source == "manual" else "detected"
         session.commit()
-        return _to_response(row.vma_kmh, row.hr_max_manual_bpm, row.hr_max_source, detected, row.updated_at_utc)
+        return _to_response(row.vma_kmh, row.vo2max_lastest, row.hr_max_manual_bpm, source, detected, row.updated_at_utc)
     finally:
         session.close()
 
@@ -74,8 +76,9 @@ async def patch_personal_settings(request: Request, payload: PersonalSettingsPat
         row.updated_at_utc = utc_now_iso()
 
         detected = repo.get_detected_hr_max(session)
+        source: Literal["detected", "manual"] = "manual" if row.hr_max_source == "manual" else "detected"
         session.commit()
-        return _to_response(row.vma_kmh, row.hr_max_manual_bpm, row.hr_max_source, detected, row.updated_at_utc)
+        return _to_response(row.vma_kmh, row.vo2max_lastest, row.hr_max_manual_bpm, source, detected, row.updated_at_utc)
     finally:
         session.close()
 

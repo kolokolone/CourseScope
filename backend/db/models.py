@@ -95,6 +95,7 @@ class UserSettings(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     vma_kmh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    vo2max_lastest: Mapped[float | None] = mapped_column(Float, nullable=True)
     hr_max_manual_bpm: Mapped[int | None] = mapped_column(Integer, nullable=True)
     hr_max_source: Mapped[str] = mapped_column(String(16), nullable=False, default="detected")
     updated_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
@@ -160,6 +161,7 @@ class ProgressActivityIndex(Base):
     stability_iqr_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     aerobic_efficiency_m_s_per_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    vo2max: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     has_hr: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     has_power: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
