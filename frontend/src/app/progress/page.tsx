@@ -239,17 +239,41 @@ export default function ProgressPage() {
       }
     };
 
+    const startPolling = () => {
+      if (timer !== null) return;
+      timer = window.setInterval(() => {
+        void pollStatus();
+      }, 2000);
+    };
+
     const startVerify = async () => {
       try {
         const state = await progressApi.verify();
         applyState(state);
         if (state.running) {
-          timer = window.setInterval(() => {
-            void pollStatus();
-          }, 2000);
+          startPolling();
         }
-      } catch {
-        // Keep silent: endpoint can fail while app stays usable.
+      } catch (error) {
+        setVerifyState((prev) =>
+          prev ?? {
+            running: false,
+            last_started_at_utc: null,
+            last_finished_at_utc: null,
+            last_error: error instanceof Error ? error.message : 'Impossible de lancer la verification automatique.',
+            last_result: null,
+          }
+        );
+
+        // Fallback: still poll status for a short grace window in case
+        // backend auto-trigger starts from another /progress endpoint call.
+        startPolling();
+        void pollStatus();
+        window.setTimeout(() => {
+          if (timer !== null) {
+            window.clearInterval(timer);
+            timer = null;
+          }
+        }, 20000);
       }
     };
 
