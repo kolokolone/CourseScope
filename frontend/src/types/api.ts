@@ -242,6 +242,7 @@ export interface TraceOpenResponse {
 
 export interface PersonalSettingsResponse {
   vma_kmh?: number | null;
+  vo2max_lastest?: number | null;
   hr_max_manual_bpm?: number | null;
   hr_max_source: 'detected' | 'manual';
   hr_max_detected_bpm?: number | null;
@@ -324,6 +325,7 @@ export type ProgressSeriesMetric =
   | 'elevation_gain_m'
   | 'trimp'
   | 'aerobic_efficiency_m_s_per_bpm'
+  | 'vo2max'
   | 'decoupling_pct'
   | (string & {});
 
@@ -361,6 +363,7 @@ export interface ProgressActivity {
   avg_hr_bpm: number | null;
   max_hr_bpm: number | null;
   trimp: number | null;
+  vo2max?: number | null;
   training_load_method: string | null;
   aerobic_efficiency_m_s_per_bpm: number | null;
   decoupling_pct: number | null;

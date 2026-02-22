@@ -25,7 +25,6 @@ import {
   useProgressHrAtPace,
   useProgressPaceAtHr,
   useProgressPaceHrWaterfall,
-  useProgressSessionTaxonomy,
   useProgressSeries,
 } from '@/hooks/useProgress';
 import { progressApi } from '@/lib/api';
@@ -298,7 +297,6 @@ export default function ProgressPage() {
   const activitiesQuery = useProgressActivities({ from, to, type: 'real', limit: activitiesLimit });
   const hrAtPaceQuery = useProgressHrAtPace({ from, to, type: 'real', paces_s_per_km: [...HR_AT_PACE_REFS] });
   const paceAtHrQuery = useProgressPaceAtHr({ from, to, type: 'real', hrs_bpm: [...PACE_AT_HR_REFS] });
-  const taxonomyQuery = useProgressSessionTaxonomy({ from, to, type: 'real' });
   const waterfallQuery = useProgressPaceHrWaterfall({
     from,
     to,
@@ -522,15 +520,30 @@ export default function ProgressPage() {
     [decouplingPoints]
   );
 
-  const sessionTaxonomy = React.useMemo(() => {
-    const rows = taxonomyQuery.data?.session_counts ?? [];
-    return [...rows].sort((a, b) => b.count - a.count);
-  }, [taxonomyQuery.data?.session_counts]);
+  const vo2maxData = React.useMemo(() => {
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const minMs = threeMonthsAgo.getTime();
 
-  const terrainTaxonomy = React.useMemo(() => {
-    const rows = taxonomyQuery.data?.terrain_counts ?? [];
-    return [...rows].sort((a, b) => b.count - a.count);
-  }, [taxonomyQuery.data?.terrain_counts]);
+    const points = (activitiesQuery.data?.activities ?? [])
+      .map((activity) => {
+        const dateMs = new Date(activity.start_ts_utc).getTime();
+        const vo2 = finiteNumber(activity.vo2max);
+        if (!Number.isFinite(dateMs) || dateMs < minMs || vo2 === null) return null;
+        return { dateMs, vo2max: vo2 };
+      })
+      .filter((p): p is { dateMs: number; vo2max: number } => p !== null)
+      .sort((a, b) => a.dateMs - b.dateMs);
+
+    return points;
+  }, [activitiesQuery.data?.activities]);
+
+  const vo2maxDomain = React.useMemo<[number, number]>(() => {
+    if (vo2maxData.length === 0) return [0, 1];
+    const maxValue = Math.max(...vo2maxData.map((p) => p.vo2max));
+    const top = maxValue > 0 ? maxValue * 1.15 : 1;
+    return [0, top];
+  }, [vo2maxData]);
 
   const bestDot = React.useCallback((props: any) => {
     const cx = props?.cx;
@@ -1025,53 +1038,46 @@ export default function ProgressPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-base">Taxonomie des seances</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              {taxonomyQuery.isLoading ? (
-                <div className="text-muted-foreground">Chargement...</div>
-              ) : taxonomyQuery.error ? (
-                <div className="text-sm text-red-600">Erreur de chargement.</div>
-              ) : (
-                <div className="space-y-3 text-sm">
-                  <div className="text-muted-foreground">
-                    Activites taggees: {taxonomyQuery.data?.total_tagged ?? 0} - race markers: {taxonomyQuery.data?.race_markers ?? 0}
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    {sessionTaxonomy.map((row) => (
-                      <div key={`session-${row.tag}`} className="flex items-center justify-between rounded border bg-background/70 px-2 py-1">
-                        <span>{row.tag}</span>
-                        <span className="font-medium tabular-nums">{row.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    {terrainTaxonomy.map((row) => (
-                      <div key={`terrain-${row.tag}`} className="flex items-center justify-between rounded border bg-background/70 px-2 py-1">
-                        <span>{row.tag}</span>
-                        <span className="font-medium tabular-nums">{row.count}</span>
-                      </div>
-                    ))}
-                  </div>
+          {vo2maxData.length > 0 ? (
+            <Card>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-base">VO2max (3 derniers mois)</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={vo2maxData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                      <XAxis
+                        dataKey="dateMs"
+                        type="number"
+                        domain={['dataMin', 'dataMax']}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v: any) => {
+                          const ms = Number(v);
+                          return Number.isFinite(ms) ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
+                        }}
+                        minTickGap={16}
+                      />
+                      <YAxis
+                        domain={vo2maxDomain}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v: any) => formatNumber(Number(v), { decimals: 1 })}
+                      />
+                      <Tooltip
+                        formatter={(value: any) => {
+                          const n = finiteNumber(value);
+                          return [n === null ? '—' : `${formatNumber(n, { decimals: 1 })} ml/min/kg`, 'VO2max'];
+                        }}
+                        labelFormatter={(label: any) => formatDateLabel(Number(label))}
+                      />
+                      <Line type="monotone" dataKey="vo2max" stroke="#93c5fd" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-base">Comparaisons like-for-like</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="text-sm text-muted-foreground space-y-1">
-                <div>- Filtre par type de seance (easy/tempo/interval/long_run).</div>
-                <div>- Filtre par terrain (flat/rolling/hilly).</div>
-                <div>- Option endurance-only pour exclure les intervalles.</div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
 
       <Card>
