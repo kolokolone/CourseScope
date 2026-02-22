@@ -41,6 +41,7 @@ CANONICAL_COLUMNS: tuple[str, ...] = (
     "vertical_ratio_pct",
     "ground_contact_time_ms",
     "gct_balance_pct",
+    "vo2max",
 )
 
 

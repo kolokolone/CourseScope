@@ -11,6 +11,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from config import get_activities_dir
+from core.fit_loader import fit_to_dataframe, load_fit
 from db.models import Activity, ProgressActivityIndex, utc_now_iso
 from progress.indexer import METRICS_VERSION, build_fingerprint, index_activity
 
@@ -56,6 +57,33 @@ def _find_original_path(activity_dir: Path) -> str | None:
     return None
 
 
+def _find_original_fit_path(activity_dir: Path) -> Path | None:
+    try:
+        for p in activity_dir.iterdir():
+            if not p.is_file():
+                continue
+            name = p.name.lower()
+            if name.startswith("original.") and name.endswith(".fit"):
+                return p
+    except Exception:
+        return None
+    return None
+
+
+def _extract_vo2max_from_df(df: pd.DataFrame) -> float | None:
+    if "vo2max" not in df.columns:
+        return None
+    values = pd.to_numeric(df["vo2max"], errors="coerce").dropna()
+    if values.empty:
+        return None
+    value = float(values.iloc[-1])
+    if not math.isfinite(value):
+        return None
+    if value < 10.0 or value > 95.0:
+        return None
+    return value
+
+
 def _write_rollup(activity_dir: Path, payload: dict) -> str:
     rollup_path = activity_dir / "progress_rollup.json"
     rollup_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
@@ -99,8 +127,28 @@ def verify_progress_index(
                 and int(row.metrics_version) == int(METRICS_VERSION)
             )
 
-            if not is_current:
+            needs_vo2_backfill = bool(is_current and row is not None and row.vo2max is None)
+
+            if (not is_current) or needs_vo2_backfill:
                 df = pd.read_parquet(parquet_path)
+
+                if needs_vo2_backfill and _extract_vo2max_from_df(df) is None:
+                    fit_path = _find_original_fit_path(activity_dir)
+                    if fit_path is not None and fit_path.exists():
+                        try:
+                            with fit_path.open("rb") as fh:
+                                fit = load_fit(fh)
+                            fit_df = fit_to_dataframe(fit)
+                            fit_vo2 = _extract_vo2max_from_df(fit_df)
+                            if fit_vo2 is not None:
+                                df = fit_df
+                                try:
+                                    df.to_parquet(parquet_path, engine="pyarrow")
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+
                 index_activity(
                     session,
                     activity_id=activity_id,

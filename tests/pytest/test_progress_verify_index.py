@@ -98,3 +98,71 @@ def test_verify_progress_index_creates_rollup_and_traces_activity(tmp_path, monk
         assert act.progress_indexed_at_utc is not None
     finally:
         session.close()
+
+
+def test_verify_progress_index_backfills_vo2max_from_fit_when_row_is_current(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    from backend.config import get_activities_dir
+    from backend.db.models import ProgressActivityIndex
+    from backend.db.session import init_db, make_engine, make_session_factory
+    from backend.progress.verify_index import METRICS_VERSION, build_fingerprint, verify_progress_index
+    import backend.progress.verify_index as verify_mod
+
+    engine = make_engine()
+    init_db(engine)
+    factory = make_session_factory(engine)
+
+    activities_dir = get_activities_dir().resolve()
+    activity_id = "00000000-0000-0000-0000-0000000000aa"
+    activity_dir = activities_dir / activity_id
+    activity_dir.mkdir(parents=True, exist_ok=True)
+
+    df = _make_df(20)
+    parquet_path = activity_dir / "df.parquet"
+    df.to_parquet(parquet_path, engine="pyarrow")
+
+    meta = {
+        "id": activity_id,
+        "filename": "original.fit",
+        "name": "Verify VO2 Backfill",
+        "activity_type": "real",
+        "created_at": "2026-02-03T10:00:00Z",
+        "started_at": "2026-02-03T10:00:00Z",
+        "file_hash": "beadfeed" * 8,
+    }
+    (activity_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=True, indent=2), encoding="utf-8")
+    (activity_dir / "original.fit").write_bytes(b"fit")
+
+    session = factory()
+    try:
+        session.add(ProgressActivityIndex(
+            activity_id=activity_id, activity_type="real", start_ts_utc="2026-02-03T10:00:00Z", local_date="2026-02-03",
+            tz=None, fingerprint=build_fingerprint(meta, parquet_path), metrics_version=int(METRICS_VERSION), indexed_at_ts="2026-02-03T10:00:00Z",
+            distance_m=5000.0, moving_time_s=1500.0, elapsed_time_s=1600.0, elevation_gain_m=50.0, avg_pace_s_per_km=300.0,
+            best_pace_s_per_km=250.0, pace_threshold_s_per_km=310.0, avg_hr_bpm=140.0, max_hr_bpm=175.0, trimp=40.0,
+            training_load_method="edwards", decoupling_pct=4.0, cardiac_drift_pct=4.0, stability_cv=0.08, stability_iqr_ratio=0.12,
+            aerobic_efficiency_m_s_per_bpm=0.09, vo2max=None, has_hr=1, has_power=0, has_cadence=0, data_points=1234
+        ))
+        session.commit()
+    finally:
+        session.close()
+
+    monkeypatch.setattr(verify_mod, "load_fit", lambda _fh: object())
+    monkeypatch.setattr(verify_mod, "fit_to_dataframe", lambda _fit: _make_df(20).assign(vo2max=54.2))
+
+    session = factory()
+    try:
+        res = verify_progress_index(session, activities_dir=activities_dir, commit_every=1)
+    finally:
+        session.close()
+
+    assert res.indexed == 1
+
+    session = factory()
+    try:
+        row = session.get(ProgressActivityIndex, activity_id)
+        assert row is not None
+        assert float(row.vo2max) == 54.2
+    finally:
+        session.close()
