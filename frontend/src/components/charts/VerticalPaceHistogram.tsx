@@ -2,7 +2,6 @@ import * as React from 'react';
 
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
 import { formatPace, paceToBlue } from '@/lib/paceUtils';
 import { cn } from '@/lib/utils';
 
@@ -129,7 +128,7 @@ export default function VerticalPaceHistogram({
 
   return (
     <div className={cn('w-full', className)}>
-      <div className="relative h-72 w-full pl-9">
+      <div className="relative h-full min-h-[16rem] w-full pl-9">
         <div className="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 origin-left text-xs text-muted-foreground">
           Allure (min/km)
         </div>
