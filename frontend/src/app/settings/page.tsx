@@ -4,12 +4,13 @@ import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { garminApi } from '@/lib/api';
+import { garminApi, progressApi } from '@/lib/api';
 import type {
   GarminConnectResponse,
   GarminCredentialsStatusResponse,
   GarminStatusResponse,
   GarminSyncResponse,
+  ProgressVerifyResponse,
 } from '@/types/api';
 import { Save, Settings, Trash2 } from 'lucide-react';
 import { useCleanupActivities } from '@/hooks/useActivity';
@@ -121,6 +122,19 @@ export default function SettingsPage() {
   const cleanupMutation = useCleanupActivities();
   const cleanupTracesMutation = useCleanupTraces();
   const cleanupGoalsMutation = useCleanupGoals();
+  const progressVerifyStatus = useQuery<ProgressVerifyResponse>({
+    queryKey: ['progress', 'verify-status'],
+    queryFn: () => progressApi.verifyStatus(),
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+  });
+  const reindexProgressMutation = useMutation<ProgressVerifyResponse, Error, void>({
+    mutationFn: () => progressApi.verify(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['progress', 'verify-status'] });
+      queryClient.invalidateQueries({ queryKey: ['progress'] });
+    },
+  });
 
   const handleCleanup = async () => {
     if (window.confirm('Supprimer toutes les activites sur disque ?')) {
@@ -152,6 +166,16 @@ export default function SettingsPage() {
       } catch {
         alert('Echec du nettoyage des objectifs');
       }
+    }
+  };
+
+  const handleReindexProgress = async () => {
+    if (!window.confirm('Lancer une reindexation complete de toutes les metriques de progression ?')) return;
+    try {
+      await reindexProgressMutation.mutateAsync();
+      await progressVerifyStatus.refetch();
+    } catch {
+      alert('Echec du lancement de la reindexation des metriques');
     }
   };
 
@@ -470,6 +494,34 @@ export default function SettingsPage() {
               <Trash2 className="h-4 w-4 mr-2" />
               Nettoyer objectifs
             </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleReindexProgress}
+              disabled={reindexProgressMutation.isPending || progressVerifyStatus.data?.running === true}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Reindexer metriques progression
+            </Button>
+          </div>
+
+          <div className="mt-3 text-sm text-muted-foreground">
+            {progressVerifyStatus.isLoading ? (
+              <span>Etat indexation: chargement...</span>
+            ) : progressVerifyStatus.isError ? (
+              <span>Etat indexation: indisponible</span>
+            ) : progressVerifyStatus.data ? (
+              <span>
+                Etat indexation: {progressVerifyStatus.data.running ? 'en cours' : 'au repos'}
+                {progressVerifyStatus.data.last_result
+                  ? ` • scan=${progressVerifyStatus.data.last_result.scanned}, indexees=${progressVerifyStatus.data.last_result.indexed}, a jour=${progressVerifyStatus.data.last_result.up_to_date}, erreurs=${progressVerifyStatus.data.last_result.errors}`
+                  : ''}
+                {progressVerifyStatus.data.last_error ? ` • erreur: ${progressVerifyStatus.data.last_error}` : ''}
+              </span>
+            ) : (
+              <span>Etat indexation: inconnu</span>
+            )}
           </div>
         </CardContent>
       </Card>
