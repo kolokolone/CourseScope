@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.80] - 2026-02-22
+
+### Changed
+- Goals (`/goals`): removed the `Globe 3D des objectifs` card entirely and keep a single map-based objective visualization.
+- Goals frontend cleanup: deleted `GoalsGlobe3D` component and removed all active references/imports tied to the globe feature.
+
 ## [1.1.79] - 2026-02-22
 
 ### Changed
