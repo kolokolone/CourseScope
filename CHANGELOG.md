@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.78] - 2026-02-22
+
+### Changed
+- Activity details (`/activities/[id]`): power duration curve is no longer capped to the fixed 1h window set; backend now expands duration windows up to the actual available activity duration.
+- Activity charts (`/activities/[id]`): unsupported zone series (`hr_zones`, `power_zones`) are no longer requested by the frontend chart panel, preventing repeated `400 Bad Request` logs.
+- Power duration chart (`/activities/[id]` details): frontend trims the displayed curve at the first point where computed power reaches `0W`.
+
 ## [1.1.77] - 2026-02-22
 
 ### Changed
