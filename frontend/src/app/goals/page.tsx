@@ -6,6 +6,7 @@ import { Flag, Plus, Target } from 'lucide-react';
 import { useCreateGoal, useDeleteGoal, useGoalsList, useUpdateGoal } from '@/hooks/useGoals';
 import { GoalsTimelineFlow } from '@/components/goals/GoalsTimelineFlow';
 import { GoalMiniCard } from '@/components/goals/GoalMiniCard';
+import { GoalsObjectivesMap } from '@/components/goals/GoalsObjectivesMap';
 import { GoalsGlobe3D } from '@/components/goals/GoalsGlobe3D';
 import { CityAutocomplete } from '@/components/inputs/CityAutocomplete';
 import { formatDurationSeconds, formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
@@ -744,6 +745,15 @@ export default function GoalsPage() {
           </Card>
 
           <GoalsCalendar goals={goals} />
+
+          <Card>
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-base">Map des objectifs</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <GoalsObjectivesMap goals={goals} />
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader className="py-3 px-4">
