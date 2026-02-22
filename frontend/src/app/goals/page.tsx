@@ -4,8 +4,12 @@ import * as React from 'react';
 import { Flag, Plus, Target } from 'lucide-react';
 
 import { useCreateGoal, useDeleteGoal, useGoalsList, useUpdateGoal } from '@/hooks/useGoals';
+import { GoalsTimelineFlow } from '@/components/goals/GoalsTimelineFlow';
+import { GoalMiniCard } from '@/components/goals/GoalMiniCard';
+import { GoalsGlobe3D } from '@/components/goals/GoalsGlobe3D';
+import { CityAutocomplete } from '@/components/inputs/CityAutocomplete';
 import { formatDurationSeconds, formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
-import type { GoalItem } from '@/types/api';
+import type { GeoCityItem, GoalItem } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -98,10 +102,6 @@ function formatDateLabel(eventDate: string) {
   return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatWeekLabel(date: Date) {
-  return `Semaine du ${date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`;
-}
-
 function isoDayKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
@@ -162,146 +162,14 @@ function compareGoals(a: GoalItem, b: GoalItem, key: SortKey) {
   return aObjective - bObjective;
 }
 
-function GoalMiniCard({ goal, className = '' }: { goal: GoalItem; className?: string }) {
-  return (
-    <div className={`rounded-md border bg-white/95 p-2 text-[11px] shadow-sm ${className}`.trim()}>
-      <div className="font-semibold leading-tight">{goal.name}</div>
-      <div className="text-slate-600">{formatDateLabel(goal.event_date)}</div>
-      <div className="text-slate-600">{`${formatNumber(goal.distance_km, { decimals: 1 })} km • ${goal.race_type === 'trail' ? 'Trail' : 'Course'}`}</div>
-    </div>
-  );
-}
-
 function Timeline({ goals }: { goals: GoalItem[] }) {
-  const sorted = React.useMemo(
-    () => goals.slice().sort((a, b) => dateAtStart(a.event_date).getTime() - dateAtStart(b.event_date).getTime()),
-    [goals]
-  );
-
-  const model = React.useMemo(() => {
-    const today = startOfDay(new Date());
-    const dates = sorted.map((goal) => dateAtStart(goal.event_date)).filter((d) => !Number.isNaN(d.getTime()));
-    const lastDate = dates.length > 0 ? dates[dates.length - 1] : today;
-    const endAnchor = lastDate.getTime() < today.getTime() ? today : lastDate;
-    const end = addDays(endAnchor, 7);
-    const spanMs = Math.max(1, end.getTime() - today.getTime());
-    const minWidthPx = Math.max(780, 680 + sorted.length * 90);
-    const minPosDelta = Math.max(0.06, 176 / minWidthPx);
-
-    const positionedEvents = sorted.map((goal) => {
-      const date = dateAtStart(goal.event_date);
-      const pos = Math.max(0, Math.min(1, (date.getTime() - today.getTime()) / spanMs));
-      const shade = Math.round(78 - pos * 38);
-      const stroke = `hsl(213 94% ${Math.max(30, Math.min(78, shade))}%)`;
-      return { goal, pos, stroke };
-    });
-
-    const laneLastPos: number[] = [];
-    const events = positionedEvents.map((event) => {
-      let lane = laneLastPos.findIndex((lastPos) => event.pos - lastPos >= minPosDelta);
-      if (lane < 0 && laneLastPos.length < 3) {
-        lane = laneLastPos.length;
-        laneLastPos.push(Number.NEGATIVE_INFINITY);
-      }
-      if (lane < 0) {
-        lane = laneLastPos.reduce((bestIdx, cur, idx, arr) => (cur < arr[bestIdx] ? idx : bestIdx), 0);
-      }
-      laneLastPos[lane] = event.pos;
-      return {
-        ...event,
-        lane,
-      };
-    });
-
-    const weekTicks: Array<{ pos: number; label: string; date: Date }> = [];
-    const firstMonday = mondayStartOfWeek(today);
-    for (let cursor = firstMonday; cursor.getTime() <= end.getTime(); cursor = addWeeks(cursor, 1)) {
-      if (cursor.getTime() < today.getTime()) continue;
-      weekTicks.push({
-        pos: Math.max(0, Math.min(1, (cursor.getTime() - today.getTime()) / spanMs)),
-        label: formatWeekLabel(cursor),
-        date: cursor,
-      });
-      if (weekTicks.length > 20) break;
-    }
-
-    const firstUpcoming = dates.find((d) => d.getTime() >= today.getTime()) ?? null;
-    const daysLeft = firstUpcoming ? Math.ceil((firstUpcoming.getTime() - today.getTime()) / (24 * 3600 * 1000)) : null;
-    const firstPos = firstUpcoming ? Math.max(0, Math.min(1, (firstUpcoming.getTime() - today.getTime()) / spanMs)) : null;
-
-    return {
-      events,
-      weekTicks,
-      daysLeft,
-      firstPos,
-      minWidthPx,
-    };
-  }, [sorted]);
-
-  const laneLayout = [
-    { connectorTop: 66, connectorHeight: 84, cardTop: 2 },
-    { connectorTop: 150, connectorHeight: 44, cardTop: 194 },
-    { connectorTop: 106, connectorHeight: 40, cardTop: 34 },
-  ] as const;
-
   return (
     <Card>
       <CardHeader className="py-3 px-4">
         <CardTitle className="text-base">Ligne temporelle des objectifs</CardTitle>
       </CardHeader>
-      <CardContent className="px-2 pb-4">
-        <div className="overflow-x-auto">
-          <div className="mx-2" style={{ minWidth: `${model.minWidthPx}px` }}>
-            <div className="relative h-[320px]">
-              <div className="absolute inset-x-4 top-0 h-[320px]">
-                <div className="absolute left-0 right-0 top-[150px] h-1 rounded-full bg-slate-300" />
-                <div className="absolute left-0 top-[150px] -translate-x-1/2 -translate-y-1/2">
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-slate-500 bg-white" />
-                </div>
-                <div className="absolute -right-2 top-[141px] text-slate-500">→</div>
-
-                <div className="absolute top-[18px] h-[260px] w-px bg-slate-300/90" style={{ left: '0%' }} />
-                <div className="absolute top-[6px] -translate-x-1/2 text-[11px] font-medium text-slate-600" style={{ left: '0%' }}>
-                  Aujourd&apos;hui
-                </div>
-
-                {model.weekTicks.map((tick, idx) => (
-                  <div key={`week-tick-${idx}`}>
-                    <div className="absolute top-[26px] h-[248px] w-px bg-slate-200/70" style={{ left: `${tick.pos * 100}%` }} />
-                    <div className="absolute top-[286px] -translate-x-1/2 text-xs text-slate-600" style={{ left: `${tick.pos * 100}%` }}>
-                      {tick.label}
-                    </div>
-                  </div>
-                ))}
-
-                {model.daysLeft !== null && model.firstPos !== null && model.daysLeft >= 0 && model.firstPos > 0 ? (
-                  <>
-                    <div className="absolute top-[150px] h-0 border-t-2 border-dashed border-slate-500/65" style={{ left: 0, width: `${model.firstPos * 100}%` }} />
-                    <div className="absolute top-[132px] -translate-x-1/2 rounded-full border bg-white px-2 py-0.5 text-xs font-semibold text-slate-700" style={{ left: `${(model.firstPos / 2) * 100}%` }}>
-                      {`J-${model.daysLeft}`}
-                    </div>
-                  </>
-                ) : null}
-
-                {model.events.map(({ goal, pos, stroke, lane }) => {
-                  const layout = laneLayout[Math.min(lane, laneLayout.length - 1)];
-                  return (
-                    <div key={goal.id} className="absolute -translate-x-1/2" style={{ left: `${pos * 100}%` }}>
-                      <div
-                        className="absolute left-1/2 -translate-x-1/2 border-l-2 border-dashed"
-                        style={{ top: `${layout.connectorTop}px`, height: `${layout.connectorHeight}px`, borderColor: stroke }}
-                      />
-                      <div className="absolute left-1/2 -translate-x-1/2" style={{ top: `${layout.cardTop}px` }}>
-                        <GoalMiniCard goal={goal} className="w-44" />
-                      </div>
-                      <div className="absolute left-1/2 top-[146px] h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 bg-white" style={{ borderColor: stroke }} />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+      <CardContent className="px-4 pb-4">
+        <GoalsTimelineFlow goals={goals} />
       </CardContent>
     </Card>
   );
@@ -377,24 +245,24 @@ function GoalsCalendar({ goals }: { goals: GoalItem[] }) {
           </div>
 
           {model.weeks.map((week) => {
-            const rowHeightClass = week.maxGoalsInDay === 0 ? 'min-h-[3.25rem]' : week.maxGoalsInDay === 1 ? 'min-h-[8.25rem]' : 'min-h-[10.75rem]';
+            const rowHeightClass = week.maxGoalsInDay === 0 ? 'min-h-[2.5rem]' : week.maxGoalsInDay === 1 ? 'min-h-[7rem]' : 'min-h-[9.75rem]';
             return (
               <div key={week.key} className={`grid grid-cols-7 ${rowHeightClass}`}>
                 {week.days.map((cell, idx) => {
                   const hasGoals = cell.goals.length > 0;
-                  const bgClass = hasGoals ? 'bg-blue-100/70' : cell.isPast ? 'bg-slate-100/85' : '';
+                  const bgClass = hasGoals ? 'bg-primary/10' : cell.isPast ? 'bg-muted/60' : '';
                   const style = hasGoals || cell.isPast ? undefined : monthBackgroundStyle(cell.day);
                   return (
                     <div
                       key={`${week.key}-${idx}`}
-                      className={`h-full border-r border-b border-slate-200/80 p-2 ${idx === 6 ? 'border-r-0' : ''} ${bgClass} ${cell.isToday ? 'ring-1 ring-inset ring-blue-300/70' : ''}`}
+                      className={`flex h-full flex-col border-r border-b border-slate-200/80 p-1.5 ${idx === 6 ? 'border-r-0' : ''} ${bgClass} ${cell.isToday ? 'ring-1 ring-inset ring-primary/40' : ''}`}
                       style={style}
                     >
                       <div className="mb-1 text-[11px] text-slate-600 tabular-nums">{cell.day.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</div>
                       {hasGoals ? (
                         <div className="space-y-1">
                           {cell.goals.map((goal) => (
-                            <GoalMiniCard key={goal.id} goal={goal} className="w-full border-blue-200/80 bg-blue-50/90" />
+                            <GoalMiniCard key={goal.id} goal={goal} className="w-full" />
                           ))}
                         </div>
                       ) : null}
@@ -420,6 +288,8 @@ export default function GoalsPage() {
   const [editingGoalId, setEditingGoalId] = React.useState<string | null>(null);
   const [form, setForm] = React.useState<GoalFormState>(INITIAL_FORM);
   const [formError, setFormError] = React.useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = React.useState<GeoCityItem | null>(null);
+  const [locationNeedsSelection, setLocationNeedsSelection] = React.useState(false);
 
   const [sortKey, setSortKey] = React.useState<SortKey>('date');
   const [sortDir, setSortDir] = React.useState<SortDir>('asc');
@@ -432,6 +302,8 @@ export default function GoalsPage() {
     setEditingGoalId(null);
     setForm(INITIAL_FORM);
     setFormError(null);
+    setSelectedCity(null);
+    setLocationNeedsSelection(false);
   }, []);
 
   const sortedGoals = React.useMemo(() => {
@@ -470,6 +342,19 @@ export default function GoalsPage() {
     });
     setEditingGoalId(goal.id);
     setFormError(null);
+    setSelectedCity(
+      goal.location_city && goal.location_country && typeof goal.location_lat === 'number' && typeof goal.location_lon === 'number'
+        ? {
+            label: goal.location ?? `${goal.location_city}, ${goal.location_country}`,
+            city: goal.location_city,
+            country: goal.location_country,
+            country_code: goal.location_country_code ?? null,
+            lat: goal.location_lat,
+            lon: goal.location_lon,
+          }
+        : null
+    );
+    setLocationNeedsSelection(false);
     setIsFormOpen(true);
   }, []);
 
@@ -498,6 +383,11 @@ export default function GoalsPage() {
       event_date: string;
       distance_km: number;
       location?: string;
+      location_city?: string;
+      location_country?: string;
+      location_country_code?: string;
+      location_lat?: number;
+      location_lon?: number;
       target_time_s?: number;
       target_pace_s_per_km?: number;
       race_type: 'road' | 'trail';
@@ -510,7 +400,18 @@ export default function GoalsPage() {
     };
 
     const location = form.location.trim();
+    if (location && locationNeedsSelection && selectedCity === null) {
+      setFormError('Selectionne une ville dans la liste de suggestions.');
+      return;
+    }
     if (location) payload.location = location;
+    if (selectedCity) {
+      payload.location_city = selectedCity.city;
+      payload.location_country = selectedCity.country;
+      payload.location_country_code = selectedCity.country_code ?? undefined;
+      payload.location_lat = selectedCity.lat;
+      payload.location_lon = selectedCity.lon;
+    }
     const notes = form.notes.trim();
     if (notes) payload.notes = notes;
 
@@ -536,6 +437,11 @@ export default function GoalsPage() {
         event_date: string;
         distance_km: number;
         location: string | null;
+        location_city: string | null;
+        location_country: string | null;
+        location_country_code: string | null;
+        location_lat: number | null;
+        location_lon: number | null;
         target_time_s: number | null;
         target_pace_s_per_km: number | null;
         race_type: 'road' | 'trail';
@@ -545,6 +451,11 @@ export default function GoalsPage() {
         event_date: eventDate,
         distance_km: distanceKm,
         location: location || null,
+        location_city: selectedCity?.city ?? null,
+        location_country: selectedCity?.country ?? null,
+        location_country_code: selectedCity?.country_code ?? null,
+        location_lat: selectedCity?.lat ?? null,
+        location_lon: selectedCity?.lon ?? null,
         target_time_s: form.mode === 'time' ? payload.target_time_s ?? null : null,
         target_pace_s_per_km: form.mode === 'pace' ? payload.target_pace_s_per_km ?? null : null,
         race_type: form.raceType,
@@ -683,6 +594,15 @@ export default function GoalsPage() {
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-base">Globe 3D des objectifs</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <GoalsGlobe3D goals={goals} />
+            </CardContent>
+          </Card>
         </>
       )}
 
@@ -731,11 +651,18 @@ export default function GoalsPage() {
 
                 <label className="text-sm">
                   <div className="text-muted-foreground">Localisation</div>
-                  <input
-                    className="mt-1 h-9 w-full rounded-md border px-3"
+                  <CityAutocomplete
+                    className="h-9 w-full rounded-md border px-3"
                     value={form.location}
-                    onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
-                    placeholder="Paris"
+                    onChange={(next) => {
+                      setForm((prev) => ({ ...prev, location: next }));
+                      setLocationNeedsSelection(next.trim().length > 0);
+                    }}
+                    onSelectionChange={(item) => {
+                      setSelectedCity(item);
+                      setLocationNeedsSelection(item === null && form.location.trim().length > 0);
+                    }}
+                    placeholder="Ville, Pays"
                   />
                 </label>
               </div>

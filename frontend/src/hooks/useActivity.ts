@@ -7,6 +7,7 @@ import {
   SeriesResponse,
   ActivityMapResponse,
   PaceVsGradeResponse,
+  RealActivityBinsResponse,
 } from '@/types/api';
 
 export const activityKeys = {
@@ -20,6 +21,7 @@ export const activityKeys = {
   serie: (id: string, name: string, params: string) => [...activityKeys.series(id), name, params] as const,
   map: (id: string, params: string) => [...activityKeys.detail(id), 'map', params] as const,
   traceStatus: (id: string) => [...activityKeys.detail(id), 'trace-status'] as const,
+  realBins: (id: string) => [...activityKeys.detail(id), 'real-bins'] as const,
 };
 
 export function useUploadActivity() {
@@ -101,6 +103,15 @@ export function usePaceVsGrade(activityId: string) {
   return useQuery({
     queryKey: [...activityKeys.detail(activityId), 'pace-vs-grade'] as const,
     queryFn: (): Promise<PaceVsGradeResponse> => analysisApi.getPaceVsGrade(activityId),
+    enabled: !!activityId,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useRealActivityBins(activityId: string) {
+  return useQuery({
+    queryKey: activityKeys.realBins(activityId),
+    queryFn: (): Promise<RealActivityBinsResponse> => analysisApi.getRealBins(activityId),
     enabled: !!activityId,
     staleTime: 10 * 60 * 1000,
   });

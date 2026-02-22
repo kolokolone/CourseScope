@@ -24,6 +24,11 @@ def test_goals_create_list_delete(tmp_path, monkeypatch):
             "event_date": "2026-06-15",
             "distance_km": 46.2,
             "location": "Bedoin",
+            "location_city": "Bedoin",
+            "location_country": "France",
+            "location_country_code": "FR",
+            "location_lat": 44.125,
+            "location_lon": 5.183,
             "target_time_s": 18240,
             "race_type": "trail",
         }
@@ -39,6 +44,9 @@ def test_goals_create_list_delete(tmp_path, monkeypatch):
         assert created_a.status_code == 200
         goal_a = created_a.json()
         assert goal_a["name"] == payload_a["name"]
+        assert goal_a["location_city"] == "Bedoin"
+        assert goal_a["location_country"] == "France"
+        assert goal_a["location_country_code"] == "FR"
 
         created_b = client.post("/goals", json=payload_b)
         assert created_b.status_code == 200
@@ -79,6 +87,14 @@ def test_goals_create_list_delete(tmp_path, monkeypatch):
         assert listed_after.status_code == 200
         assert [g["id"] for g in listed_after.json()["goals"]] == [goal_b["id"]]
 
+        cleanup_resp = client.delete("/goals")
+        assert cleanup_resp.status_code == 200
+        assert cleanup_resp.json()["deleted"] >= 1
+
+        listed_final = client.get("/goals")
+        assert listed_final.status_code == 200
+        assert listed_final.json()["goals"] == []
+
 
 def test_activity_rename_and_real_endpoint_title(tmp_path, monkeypatch):
     monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
@@ -106,6 +122,14 @@ def test_activity_rename_and_real_endpoint_title(tmp_path, monkeypatch):
         real_resp = client.get(f"/activity/{activity_id}/real")
         assert real_resp.status_code == 200
         assert real_resp.json()["activity_name"] == "Sortie tempo du mardi"
+        assert isinstance(real_resp.json().get("started_at_utc"), str)
+
+        bins_resp = client.get(f"/activity/{activity_id}/real-bins")
+        assert bins_resp.status_code == 200
+        bins = bins_resp.json()
+        assert isinstance(bins.get("pace_elevation_series"), list)
+        assert isinstance(bins.get("pace_time_bins"), list)
+        assert isinstance(bins.get("grade_time_bins"), list)
 
 
 def test_theoretical_target_pace_single_integer_is_accepted(tmp_path, monkeypatch):
@@ -128,3 +152,11 @@ def test_theoretical_target_pace_single_integer_is_accepted(tmp_path, monkeypatc
         assert resp.status_code == 200
         body = resp.json()
         assert int(round(float(body["target_pace_s_per_km"]))) == 360
+
+
+def test_geo_cities_short_query_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        resp = client.get("/geo/cities", params={"query": "a"})
+        assert resp.status_code == 422

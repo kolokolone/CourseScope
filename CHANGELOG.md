@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.74] - 2026-02-22
+
+### Changed
+- Goals: replaced timeline with a horizontal card flow (today card + arrows + J-X labels), compacted calendar rows/cells, and added city autocomplete (`Ville, Pays`) backed by a new backend geocoding proxy.
+- Activities: header now shows inline activity ID and race date, merged Splits + Temps intermédiaires into one tab, cleaned Distributions card, moved predictions/power/training-load cards into Détails, and added new Charts cards (`Allure vs distance`, `Temps par allure`, `Temps par % de pente`) computed from backend real-activity bins.
+- Traces: pace/elevation smoothing moved to 20 points, pace-time bins are capped at 200% of target pace, and grade-time bins now filter segments under 60s with centered numeric slope axis.
+- Settings/Goals backend: added `DELETE /goals` cleanup endpoint and maintenance action `Nettoyer objectifs`; maintenance actions are now fully in French and maintenance card is placed below Garmin.
+
 ## [1.1.67] - 2026-02-19
 
 ### Changed

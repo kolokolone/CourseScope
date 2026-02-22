@@ -20,6 +20,11 @@ class GoalsRepository:
         event_date: str,
         distance_km: float,
         location: str | None,
+        location_city: str | None,
+        location_country: str | None,
+        location_country_code: str | None,
+        location_lat: float | None,
+        location_lon: float | None,
         target_time_s: float | None,
         target_pace_s_per_km: float | None,
         race_type: str,
@@ -32,6 +37,11 @@ class GoalsRepository:
             event_date=event_date,
             distance_km=float(distance_km),
             location=location,
+            location_city=location_city,
+            location_country=location_country,
+            location_country_code=location_country_code,
+            location_lat=location_lat,
+            location_lon=location_lon,
             target_time_s=target_time_s,
             target_pace_s_per_km=target_pace_s_per_km,
             race_type=race_type,
@@ -54,6 +64,11 @@ class GoalsRepository:
         event_date: str,
         distance_km: float,
         location: str | None,
+        location_city: str | None,
+        location_country: str | None,
+        location_country_code: str | None,
+        location_lat: float | None,
+        location_lon: float | None,
         target_time_s: float | None,
         target_pace_s_per_km: float | None,
         race_type: str,
@@ -68,6 +83,11 @@ class GoalsRepository:
         row.event_date = event_date
         row.distance_km = float(distance_km)
         row.location = location
+        row.location_city = location_city
+        row.location_country = location_country
+        row.location_country_code = location_country_code
+        row.location_lat = location_lat
+        row.location_lon = location_lon
         row.target_time_s = target_time_s
         row.target_pace_s_per_km = target_pace_s_per_km
         row.race_type = race_type
@@ -78,3 +98,7 @@ class GoalsRepository:
     def delete_goal(self, session: Session, goal_id: str) -> bool:
         res = session.execute(delete(Goal).where(Goal.id == goal_id))
         return bool(getattr(res, "rowcount", 0) or 0)
+
+    def delete_all_goals(self, session: Session) -> int:
+        res = session.execute(delete(Goal))
+        return int(getattr(res, "rowcount", 0) or 0)

@@ -13,6 +13,7 @@ import type {
 } from '@/types/api';
 import { Save, Settings, Trash2 } from 'lucide-react';
 import { useCleanupActivities } from '@/hooks/useActivity';
+import { useCleanupGoals } from '@/hooks/useGoals';
 import { useDetectedHrMax, usePatchPersonalSettings, usePersonalSettings } from '@/hooks/useSettings';
 import { useCleanupTraces } from '@/hooks/useTraces';
 
@@ -119,6 +120,7 @@ export default function SettingsPage() {
 
   const cleanupMutation = useCleanupActivities();
   const cleanupTracesMutation = useCleanupTraces();
+  const cleanupGoalsMutation = useCleanupGoals();
 
   const handleCleanup = async () => {
     if (window.confirm('Supprimer toutes les activites sur disque ?')) {
@@ -126,7 +128,7 @@ export default function SettingsPage() {
         await cleanupMutation.mutateAsync();
         queryClient.invalidateQueries({ queryKey: ['activities'] });
       } catch {
-        alert('Failed to cleanup activities');
+        alert('Echec du nettoyage des activites');
       }
     }
   };
@@ -137,7 +139,18 @@ export default function SettingsPage() {
         await cleanupTracesMutation.mutateAsync();
         queryClient.invalidateQueries({ queryKey: ['traces'] });
       } catch {
-        alert('Failed to cleanup traces');
+        alert('Echec du nettoyage des traces');
+      }
+    }
+  };
+
+  const handleCleanupGoals = async () => {
+    if (window.confirm('Supprimer tous les objectifs enregistres ?')) {
+      try {
+        await cleanupGoalsMutation.mutateAsync();
+        queryClient.invalidateQueries({ queryKey: ['goals'] });
+      } catch {
+        alert('Echec du nettoyage des objectifs');
       }
     }
   };
@@ -289,38 +302,6 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Maintenance
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCleanup}
-              disabled={cleanupMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Cleanup activites
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCleanupTraces}
-              disabled={cleanupTracesMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Cleanup traces GPX
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base">Garmin</CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4 space-y-4">
@@ -463,6 +444,33 @@ export default function SettingsPage() {
               Sync: {sync.data.status} • {formatSyncDelta(sync.data.imported_count, sync.data.skipped_count)}
             </div>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Maintenance
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={handleCleanup} disabled={cleanupMutation.isPending}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Nettoyer activites
+            </Button>
+
+            <Button size="sm" variant="outline" onClick={handleCleanupTraces} disabled={cleanupTracesMutation.isPending}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Nettoyer traces GPX
+            </Button>
+
+            <Button size="sm" variant="outline" onClick={handleCleanupGoals} disabled={cleanupGoalsMutation.isPending}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Nettoyer objectifs
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

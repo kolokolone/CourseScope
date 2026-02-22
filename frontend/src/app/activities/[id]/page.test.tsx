@@ -9,6 +9,7 @@ const useRealActivityMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/hooks/useActivity', () => ({
   useRealActivity: useRealActivityMock,
+  useRealActivityBins: () => ({ data: { pace_elevation_series: [], pace_time_bins: [], grade_time_bins: [] } }),
   useMapData: () => ({ data: null }),
   useMultipleSeries: () => [],
   usePaceVsGrade: () => ({ data: { bins: [], pro_ref: [] }, isLoading: false, error: null }),
@@ -66,11 +67,11 @@ describe('RealActivityPage', () => {
 
     render(<RealActivityPage />);
 
-    expect(screen.getByText('ID: activity-1')).toBeInTheDocument();
+    expect(screen.getByText('activity-1')).toBeInTheDocument();
 
     // Tabs
     expect(screen.getByRole('button', { name: 'Aperçu' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Splits' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Splits & temps intermédiaires' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Climbs' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Détails' })).toBeInTheDocument();
 

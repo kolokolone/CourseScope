@@ -4,6 +4,9 @@ import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 import { ActivityCharts } from '@/components/charts/ActivityCharts';
+import { GradeTimeBarChart } from '@/components/charts/GradeTimeBarChart';
+import { PaceTimeBarChart } from '@/components/charts/PaceTimeBarChart';
+import { TheoreticalPaceElevationChart } from '@/components/charts/TheoreticalPaceElevationChart';
 import VerticalPaceHistogram from '@/components/charts/VerticalPaceHistogram';
 import { KpiHeader, type KpiItem } from '@/components/metrics/KpiHeader';
 import { MetricsRegistryRenderer } from '@/components/metrics/MetricsRegistryRenderer';
@@ -13,7 +16,7 @@ import { ActivityMap } from '@/components/maps/ActivityMap';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatMetricValue, formatNumber } from '@/lib/metricsFormat';
-import { useMapData, useRealActivity, useRenameActivity } from '@/hooks/useActivity';
+import { useMapData, useRealActivity, useRealActivityBins, useRenameActivity } from '@/hooks/useActivity';
 import { CATEGORY_COLORS, CHART_SERIES, KPI_METRICS, REAL_METRIC_SECTIONS, type MetricItem, type MetricSection } from '@/lib/metricsRegistry';
 import type { SeriesInfo } from '@/types/api';
 
@@ -35,12 +38,30 @@ function hasAnyChartSeries(available: SeriesInfo[]) {
   return CHART_SERIES.some((series) => availableNames.has(series.name));
 }
 
+function formatRaceDate(iso: string | undefined) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return null;
+  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+const KPI_HELP: Record<string, string> = {
+  moving_time: 'Temps total en mouvement sur la sortie.',
+  avg_speed: 'Vitesse moyenne courue sur tout le parcours.',
+  pause_time: "Temps passe a l'arret (pauses detectees).",
+  drift: "Evolution de la frequence cardiaque a effort comparable.",
+  drift_slope: 'Variation progressive de la derive cardio au fil de la sortie.',
+  cadence_avg: 'Nombre moyen de pas par minute pendant la course.',
+  power_avg: 'Puissance moyenne en watts sur la sortie.',
+};
+
 export default function RealActivityPage() {
   const params = useParams();
   const router = useRouter();
   const activityId = params.id as string;
 
   const { data: activity, isLoading, error, refetch } = useRealActivity(activityId);
+  const realBinsQuery = useRealActivityBins(activityId);
   const { data: mapData } = useMapData(activityId);
   const renameActivityMutation = useRenameActivity();
 
@@ -96,7 +117,7 @@ export default function RealActivityPage() {
   const climbsSections = React.useMemo(() => pickSections(['climbs']), [pickSections]);
   const pausesSections = React.useMemo(() => pickSections(['pauses']), [pickSections]);
 
-  const chartsExtraSections = React.useMemo(
+  const movedToDetailsSections = React.useMemo(
     () =>
       pickSections([
         'performance-predictions',
@@ -115,21 +136,16 @@ export default function RealActivityPage() {
       'climbs',
       'pauses',
       'limits',
-      'performance-predictions',
-      'power',
-      'power-duration-curve',
-      'training-load',
     ]);
-    return REAL_METRIC_SECTIONS.filter((s) => !used.has(s.id));
-  }, []);
+    return [...movedToDetailsSections, ...REAL_METRIC_SECTIONS.filter((s) => !used.has(s.id) && !movedToDetailsSections.some((m) => m.id === s.id))];
+  }, [movedToDetailsSections]);
 
-  type TabId = 'overview' | 'splits' | 'pacing' | 'climbs' | 'charts' | 'map' | 'details';
+  type TabId = 'overview' | 'splits' | 'climbs' | 'charts' | 'map' | 'details';
   const tabs = React.useMemo(
     () =>
       [
         { id: 'overview' as const, label: 'Aperçu' },
-        { id: 'splits' as const, label: 'Splits' },
-        { id: 'pacing' as const, label: 'Temps intermédiaires' },
+        { id: 'splits' as const, label: 'Splits & temps intermédiaires' },
         { id: 'climbs' as const, label: 'Climbs' },
         { id: 'charts' as const, label: 'Charts' },
         { id: 'map' as const, label: 'Map' },
@@ -261,6 +277,7 @@ export default function RealActivityPage() {
   const titleBaseline = baselineNameRef.current;
   const isTitleDirty = activityNameDraft.trim() !== titleBaseline.trim();
   const titleDisplay = activityNameDraft.trim() || titleBaseline;
+  const raceDateLabel = formatRaceDate(activity.started_at_utc);
 
 
   return (
@@ -269,13 +286,18 @@ export default function RealActivityPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             {!isEditingTitle ? (
-              <button
-                type="button"
-                className="text-base font-semibold text-left hover:underline underline-offset-2"
-                onClick={() => setIsEditingTitle(true)}
-              >
-                {titleDisplay}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="text-base font-semibold text-left hover:underline underline-offset-2"
+                  onClick={() => setIsEditingTitle(true)}
+                >
+                  {titleDisplay}
+                </button>
+                <span className="inline-flex items-center rounded-full border bg-background/70 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  {activityId}
+                </span>
+              </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
                 <input
@@ -306,11 +328,17 @@ export default function RealActivityPage() {
                 ) : null}
               </div>
             )}
-            <div className="text-xs text-muted-foreground">ID: {activityId}</div>
+            {raceDateLabel ? <div className="text-xs text-muted-foreground">Date de course: {raceDateLabel}</div> : null}
           </div>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
+          {raceDateLabel ? (
+            <div className="inline-flex items-center gap-2 rounded-full border bg-background/60 px-3 py-1">
+              <div className="text-xs text-muted-foreground whitespace-nowrap">Date</div>
+              <div className="text-sm font-semibold whitespace-nowrap">{raceDateLabel}</div>
+            </div>
+          ) : null}
           {primaryKpis.slice(0, 6).map((k) => (
             <div key={k.id} className="inline-flex items-center gap-2 rounded-full border bg-background/60 px-3 py-1">
               <div className="text-xs text-muted-foreground whitespace-nowrap">{k.label}</div>
@@ -357,7 +385,7 @@ export default function RealActivityPage() {
                   <CardContent className="px-4 pb-4">
                     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                       {secondaryKpis.map((k) => (
-                        <div key={k.id} className="rounded-lg border bg-background/60 p-3">
+                        <div key={k.id} className="rounded-lg border bg-background/60 p-3" title={KPI_HELP[k.id] ?? undefined}>
                           <div className="text-xs text-muted-foreground">{k.label}</div>
                           <div className="mt-1 text-sm font-semibold tabular-nums">
                             {k.formatted}
@@ -402,6 +430,7 @@ export default function RealActivityPage() {
               <Card>
                 <CardHeader className="py-3 px-4">
                   <CardTitle className="text-base">Distributions</CardTitle>
+                  <div className="text-xs text-muted-foreground">Histogramme des allures par split pour visualiser la regularite.</div>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
                   {splitRows.length ? (
@@ -409,14 +438,6 @@ export default function RealActivityPage() {
                   ) : (
                     <div className="text-sm text-muted-foreground">Aucune donnee de splits.</div>
                   )}
-                  <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setActiveTab('splits')}>
-                      Ouvrir Splits
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setActiveTab('charts')}>
-                      Ouvrir Charts
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -426,12 +447,7 @@ export default function RealActivityPage() {
         {activeTab === 'splits' ? (
           <div className="space-y-4">
             <MetricsRegistryRenderer data={activity} sections={splitsSections} density="compact" tableMaxHeight={tableMaxHeight} />
-          </div>
-        ) : null}
-
-        {activeTab === 'pacing' ? (
-          <div className="space-y-4">
-            <MetricsRegistryRenderer data={activity} sections={pacingSections} density="compact" tableMaxHeight={tableMaxHeight} />
+            <MetricsRegistryRenderer data={activity} sections={pacingSections} density="compact" />
           </div>
         ) : null}
 
@@ -453,14 +469,26 @@ export default function RealActivityPage() {
               </SectionCard>
             ) : null}
 
-            {chartsExtraSections.length ? (
-              <MetricsRegistryRenderer
-                data={activity}
-                sections={chartsExtraSections}
-                density="compact"
-                tableMaxHeight={tableMaxHeight}
-                className="grid grid-cols-1 xl:grid-cols-2 gap-4"
-              />
+            {realBinsQuery.data ? (
+              <>
+                <SectionCard title="Allure vs distance" description="Allure reelle avec profil d'altitude." accentColor={CATEGORY_COLORS.Charts}>
+                  <TheoreticalPaceElevationChart
+                    data={realBinsQuery.data.pace_elevation_series.map((p) => ({
+                      distance_km: p.distance_km,
+                      target_pace_s_per_km: p.pace_s_per_km,
+                      elevation_m: p.elevation_m ?? null,
+                    }))}
+                  />
+                </SectionCard>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <SectionCard title="Temps par allure" description="Repartition des temps par bins de 15s/km." accentColor={CATEGORY_COLORS.Charts}>
+                    <PaceTimeBarChart data={realBinsQuery.data.pace_time_bins} />
+                  </SectionCard>
+                  <SectionCard title="Temps par % de pente" description="Repartition des temps sur les segments en mouvement." accentColor={CATEGORY_COLORS.Climbs}>
+                    <GradeTimeBarChart data={realBinsQuery.data.grade_time_bins} />
+                  </SectionCard>
+                </div>
+              </>
             ) : null}
           </div>
         ) : null}

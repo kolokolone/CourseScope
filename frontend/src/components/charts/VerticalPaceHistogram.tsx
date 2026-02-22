@@ -35,8 +35,8 @@ function isFiniteNumber(value: unknown): value is number {
 
 function buildXTicks(count: number) {
   if (count <= 0) return [] as string[];
-  if (count <= 12) return Array.from({ length: count }, (_, i) => String(i + 1));
-  const step = count <= 40 ? 5 : 10;
+  if (count <= 5) return Array.from({ length: count }, (_, i) => String(i + 1));
+  const step = 5;
   const ticks: string[] = ['1'];
   for (let i = 1 + step; i <= count; i += step) ticks.push(String(i));
   if (ticks[ticks.length - 1] !== String(count)) ticks.push(String(count));
@@ -185,7 +185,6 @@ export default function VerticalPaceHistogram({
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-2 text-xs text-muted-foreground">Plus rapide en haut.</div>
     </div>
   );
 }
