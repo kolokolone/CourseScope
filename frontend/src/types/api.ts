@@ -38,6 +38,7 @@ export interface ActivityLimitsDetail {
 
 export interface RealActivityResponse {
   activity_name?: string;
+  started_at_utc?: string;
   summary: Record<string, unknown>;
   highlights: Record<string, unknown>;
   zones?: Record<string, unknown>;
@@ -256,6 +257,11 @@ export interface GoalItem {
   event_date: string;
   distance_km: number;
   location?: string | null;
+  location_city?: string | null;
+  location_country?: string | null;
+  location_country_code?: string | null;
+  location_lat?: number | null;
+  location_lon?: number | null;
   target_time_s?: number | null;
   target_pace_s_per_km?: number | null;
   race_type: GoalRaceType;
@@ -266,6 +272,32 @@ export interface GoalItem {
 
 export interface GoalsListResponse {
   goals: GoalItem[];
+}
+
+export interface GeoCityItem {
+  label: string;
+  city: string;
+  country: string;
+  country_code?: string | null;
+  lat: number;
+  lon: number;
+}
+
+export interface GeoCitiesResponse {
+  query: string;
+  results: GeoCityItem[];
+}
+
+export interface RealActivityPaceElevationPoint {
+  distance_km: number;
+  pace_s_per_km: number;
+  elevation_m?: number | null;
+}
+
+export interface RealActivityBinsResponse {
+  pace_elevation_series: RealActivityPaceElevationPoint[];
+  pace_time_bins: PaceTimeBin[];
+  grade_time_bins: GradeTimeBin[];
 }
 
 export interface ChartPoint {

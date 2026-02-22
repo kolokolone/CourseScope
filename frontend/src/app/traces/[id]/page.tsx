@@ -271,6 +271,11 @@ export default function TheoreticalActivityPage() {
   const targetPace = Number(summary.target_pace_s_per_km ?? summary.average_pace_s_per_km ?? 0);
   const estimatedTime = Number(summary.estimated_time_s ?? summary.total_time_s ?? 0);
 
+  const filteredPaceBins = (activity.pace_time_bins ?? []).filter(
+    (bin) => typeof bin.pace_bin_floor_s_per_km === 'number' && bin.pace_bin_floor_s_per_km <= targetPace * 2
+  );
+  const filteredGradeBins = (activity.grade_time_bins ?? []).filter((bin) => typeof bin.time_s === 'number' && bin.time_s >= 60);
+
   const elevationMin = typeof summary.elevation_min_m === 'number' ? summary.elevation_min_m : null;
   const elevationMax = typeof summary.elevation_max_m === 'number' ? summary.elevation_max_m : null;
 
@@ -530,10 +535,10 @@ export default function TheoreticalActivityPage() {
           </SectionCard>
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <SectionCard title="Temps par allure" description="Bins de 15s / km" accentColor="#334155">
-              <PaceTimeBarChart data={activity.pace_time_bins ?? []} />
+              <PaceTimeBarChart data={filteredPaceBins} />
             </SectionCard>
             <SectionCard title="Temps par % de pente" description="Bins de 0.5%" accentColor="#0072B2">
-              <GradeTimeBarChart data={activity.grade_time_bins ?? []} />
+              <GradeTimeBarChart data={filteredGradeBins} />
             </SectionCard>
           </div>
           <SectionCard title="Denivele" description="Profil altitude vs distance" accentColor="#475569">

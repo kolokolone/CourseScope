@@ -29,6 +29,8 @@ import {
   ProgressVerifyResponse,
   GoalItem,
   GoalsListResponse,
+  GeoCitiesResponse,
+  RealActivityBinsResponse,
   TraceItem,
   TraceOpenResponse,
   TracesListResponse,
@@ -176,6 +178,11 @@ export const goalsApi = {
     event_date: string;
     distance_km: number;
     location?: string;
+    location_city?: string;
+    location_country?: string;
+    location_country_code?: string;
+    location_lat?: number;
+    location_lon?: number;
     target_time_s?: number;
     target_pace_s_per_km?: number;
     race_type: 'road' | 'trail';
@@ -189,10 +196,15 @@ export const goalsApi = {
     goalId: string,
     payload: {
       name?: string;
-      event_date?: string;
-      distance_km?: number;
-      location?: string | null;
-      target_time_s?: number | null;
+        event_date?: string;
+        distance_km?: number;
+        location?: string | null;
+        location_city?: string | null;
+        location_country?: string | null;
+        location_country_code?: string | null;
+        location_lat?: number | null;
+        location_lon?: number | null;
+        target_time_s?: number | null;
       target_pace_s_per_km?: number | null;
       race_type?: 'road' | 'trail';
       notes?: string | null;
@@ -203,6 +215,17 @@ export const goalsApi = {
       body: JSON.stringify(payload),
     }),
   remove: async (goalId: string) => apiRequest<{ deleted: boolean }>(`/goals/${goalId}`, { method: 'DELETE' }),
+  cleanup: async () => apiRequest<{ deleted: number }>('/goals', { method: 'DELETE' }),
+};
+
+export const geoApi = {
+  cities: async (query: string, options?: { limit?: number; language?: string }) => {
+    const sp = new URLSearchParams();
+    sp.append('query', query);
+    if (typeof options?.limit === 'number') sp.append('limit', String(options.limit));
+    if (options?.language) sp.append('language', options.language);
+    return apiRequest<GeoCitiesResponse>(`/geo/cities?${sp.toString()}`);
+  },
 };
 
 export const garminApi = {
@@ -224,6 +247,7 @@ export const garminApi = {
 
 export const analysisApi = {
   getReal: async (activityId: string) => apiRequest<RealActivityResponse>(`/activity/${activityId}/real`),
+  getRealBins: async (activityId: string) => apiRequest<RealActivityBinsResponse>(`/activity/${activityId}/real-bins`),
   getTheoretical: async (
     activityId: string,
     params?: {

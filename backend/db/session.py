@@ -53,6 +53,21 @@ def init_db(engine: Engine) -> None:
                     conn.execute(text("ALTER TABLE activities ADD COLUMN progress_indexed_at_utc TEXT"))
                 if "progress_rollup_path" not in cols:
                     conn.execute(text("ALTER TABLE activities ADD COLUMN progress_rollup_path TEXT"))
+
+                goal_cols = [
+                    str(row[1])
+                    for row in conn.execute(text("PRAGMA table_info(goals)"))
+                ]
+                if "location_city" not in goal_cols:
+                    conn.execute(text("ALTER TABLE goals ADD COLUMN location_city TEXT"))
+                if "location_country" not in goal_cols:
+                    conn.execute(text("ALTER TABLE goals ADD COLUMN location_country TEXT"))
+                if "location_country_code" not in goal_cols:
+                    conn.execute(text("ALTER TABLE goals ADD COLUMN location_country_code TEXT"))
+                if "location_lat" not in goal_cols:
+                    conn.execute(text("ALTER TABLE goals ADD COLUMN location_lat REAL"))
+                if "location_lon" not in goal_cols:
+                    conn.execute(text("ALTER TABLE goals ADD COLUMN location_lon REAL"))
     except Exception:
         # Best-effort: app should stay usable even if migrations fail.
         pass

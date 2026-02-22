@@ -45,6 +45,7 @@ class ActivityLimitsDetail(BaseModel):
 # 3. GET /activity/{id}/real - Response
 class RealActivityResponse(BaseModel):
     activity_name: Optional[str] = None
+    started_at_utc: Optional[str] = None
     summary: dict  # Structure existante services/
     highlights: dict
     zones: Optional[dict] = None
@@ -214,6 +215,11 @@ class GoalItem(BaseModel):
     event_date: str
     distance_km: float
     location: Optional[str] = None
+    location_city: Optional[str] = None
+    location_country: Optional[str] = None
+    location_country_code: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lon: Optional[float] = None
     target_time_s: Optional[float] = None
     target_pace_s_per_km: Optional[float] = None
     race_type: Literal["road", "trail"]
@@ -227,6 +233,11 @@ class GoalCreateRequest(BaseModel):
     event_date: str
     distance_km: float
     location: Optional[str] = None
+    location_city: Optional[str] = None
+    location_country: Optional[str] = None
+    location_country_code: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lon: Optional[float] = None
     target_time_s: Optional[float] = None
     target_pace_s_per_km: Optional[float] = None
     race_type: Literal["road", "trail"]
@@ -238,6 +249,11 @@ class GoalUpdateRequest(BaseModel):
     event_date: Optional[str] = None
     distance_km: Optional[float] = None
     location: Optional[str] = None
+    location_city: Optional[str] = None
+    location_country: Optional[str] = None
+    location_country_code: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lon: Optional[float] = None
     target_time_s: Optional[float] = None
     target_pace_s_per_km: Optional[float] = None
     race_type: Optional[Literal["road", "trail"]] = None
@@ -246,3 +262,29 @@ class GoalUpdateRequest(BaseModel):
 
 class GoalsListResponse(BaseModel):
     goals: List[GoalItem]
+
+
+class GeoCityItem(BaseModel):
+    label: str
+    city: str
+    country: str
+    country_code: Optional[str] = None
+    lat: float
+    lon: float
+
+
+class GeoCitiesResponse(BaseModel):
+    query: str
+    results: List[GeoCityItem]
+
+
+class RealActivityPaceElevationPoint(BaseModel):
+    distance_km: float
+    pace_s_per_km: float
+    elevation_m: Optional[float] = None
+
+
+class RealActivityBinsResponse(BaseModel):
+    pace_elevation_series: List[RealActivityPaceElevationPoint]
+    pace_time_bins: List[dict]
+    grade_time_bins: List[dict]

@@ -14,6 +14,7 @@ from api.schemas import (
     PaceVsGradeBin,
     PaceVsGradeResponse,
     ProPaceVsGradePoint,
+    RealActivityBinsResponse,
     RealActivityResponse,
     SeriesIndex,
     TheoreticalActivityResponse,
@@ -189,6 +190,7 @@ def prepare_real_response(
 
     return RealActivityResponse(
         activity_name=activity_name,
+        started_at_utc=_started_at_utc_from_df(activity_df),
         summary=summary_payload,
         highlights={"items": result.highlights},
         zones=to_jsonable(zones_payload),
@@ -208,6 +210,117 @@ def prepare_real_response(
         training_load=training_load_payload,
         series_index=series_index,
         limits=_build_limits(activity_df),
+    )
+
+
+def _started_at_utc_from_df(activity_df: pd.DataFrame) -> str | None:
+    if "time" not in activity_df.columns:
+        return None
+    try:
+        value = pd.to_datetime(activity_df["time"], errors="coerce").min()
+    except Exception:
+        return None
+    if value is None or pd.isna(value):
+        return None
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.to_pydatetime().replace(microsecond=0).isoformat() + "Z"
+
+
+def _build_real_activity_bins(activity_df: pd.DataFrame) -> RealActivityBinsResponse:
+    required = {"distance_m", "time", "elevation"}
+    if not required.issubset(set(activity_df.columns)):
+        return RealActivityBinsResponse(pace_elevation_series=[], pace_time_bins=[], grade_time_bins=[])
+
+    work = activity_df.copy()
+    work["distance_m"] = pd.to_numeric(work["distance_m"], errors="coerce")
+    work["elevation"] = pd.to_numeric(work["elevation"], errors="coerce")
+    work["time"] = pd.to_datetime(work["time"], errors="coerce")
+
+    d1 = work["distance_m"].to_numpy(dtype=float)[1:]
+    d0 = work["distance_m"].to_numpy(dtype=float)[:-1]
+    delta_m = d1 - d0
+
+    t1 = work["time"].to_numpy()[1:]
+    t0 = work["time"].to_numpy()[:-1]
+    delta_t_s = ((t1 - t0) / np.timedelta64(1, "s")).astype(float)
+
+    e1 = work["elevation"].to_numpy(dtype=float)[1:]
+    e0 = work["elevation"].to_numpy(dtype=float)[:-1]
+    grade_pct = ((e1 - e0) / np.maximum(delta_m, 1e-9)) * 100.0
+
+    derived = compute_derived_series(work)
+    moving_mask = np.asarray(derived.moving_mask, dtype=bool)
+    if moving_mask.shape[0] == work.shape[0]:
+        moving_seg = moving_mask[1:]
+    else:
+        moving_seg = np.ones_like(delta_m, dtype=bool)
+
+    valid = (
+        np.isfinite(delta_m)
+        & np.isfinite(delta_t_s)
+        & np.isfinite(grade_pct)
+        & np.isfinite(e1)
+        & np.isfinite(d1)
+        & (delta_m > 1.0)
+        & (delta_t_s > 0.0)
+        & (delta_t_s < 120.0)
+        & moving_seg
+    )
+
+    if not np.any(valid):
+        return RealActivityBinsResponse(pace_elevation_series=[], pace_time_bins=[], grade_time_bins=[])
+
+    seg_dist_km = delta_m[valid] / 1000.0
+    seg_time_s = delta_t_s[valid]
+    seg_pace = np.clip(seg_time_s / np.maximum(seg_dist_km, 1e-6), 120.0, 1200.0)
+    seg_grade = np.clip(grade_pct[valid], -20.0, 20.0)
+
+    pace_table: dict[float, float] = {}
+    pace_bin_width = 15.0
+    pace_floor = np.floor(seg_pace / pace_bin_width) * pace_bin_width
+    for floor_s, t in zip(pace_floor, seg_time_s):
+        if not (math.isfinite(floor_s) and math.isfinite(t) and t > 0):
+            continue
+        pace_table[float(floor_s)] = pace_table.get(float(floor_s), 0.0) + float(t)
+    pace_time_bins = [
+        {
+            "pace_bin_floor_s_per_km": floor_s,
+            "label": _format_pace_bucket_label(floor_s, pace_bin_width),
+            "time_s": pace_table[floor_s],
+        }
+        for floor_s in sorted(pace_table.keys())
+    ]
+
+    grade_table: dict[float, float] = {}
+    grade_center = np.round(seg_grade * 2.0) / 2.0
+    for center, t in zip(grade_center, seg_time_s):
+        if not (math.isfinite(center) and math.isfinite(t) and t > 0):
+            continue
+        grade_table[float(center)] = grade_table.get(float(center), 0.0) + float(t)
+    grade_time_bins = [
+        {
+            "grade_bin_center_pct": center,
+            "label": f"{center:.1f}%",
+            "time_s": grade_table[center],
+        }
+        for center in sorted(grade_table.keys())
+    ]
+
+    series = [
+        {
+            "distance_km": float(dist_m) / 1000.0,
+            "pace_s_per_km": float(pace_s),
+            "elevation_m": float(elev),
+        }
+        for dist_m, pace_s, elev in zip(d1[valid], seg_pace, e1[valid])
+    ]
+
+    return RealActivityBinsResponse(
+        pace_elevation_series=series,
+        pace_time_bins=pace_time_bins,
+        grade_time_bins=grade_time_bins,
     )
 
 
@@ -879,3 +992,27 @@ async def get_pace_vs_grade(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to compute pace-vs-grade: {str(e)}")
+
+
+@router.get("/activity/{activity_id}/real-bins", response_model=RealActivityBinsResponse)
+async def get_real_activity_bins(request: Request, activity_id: str):
+    try:
+        storage = request.app.state.storage
+        try:
+            df = storage.load_dataframe(activity_id)
+        except FileNotFoundError:
+            temp_storage = getattr(request.app.state, "temp_storage", None)
+            if temp_storage is None:
+                raise
+            df = temp_storage.load_dataframe(activity_id)
+
+        if df.empty:
+            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+
+        return _build_real_activity_bins(df)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to compute real activity bins: {str(e)}")

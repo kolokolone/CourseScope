@@ -48,12 +48,27 @@ export function useUpdateGoal() {
         event_date?: string;
         distance_km?: number;
         location?: string | null;
+        location_city?: string | null;
+        location_country?: string | null;
+        location_country_code?: string | null;
+        location_lat?: number | null;
+        location_lon?: number | null;
         target_time_s?: number | null;
         target_pace_s_per_km?: number | null;
         race_type?: 'road' | 'trail';
         notes?: string | null;
       };
     }) => goalsApi.update(goalId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: goalsKeys.list() });
+    },
+  });
+}
+
+export function useCleanupGoals() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: goalsApi.cleanup,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: goalsKeys.list() });
     },

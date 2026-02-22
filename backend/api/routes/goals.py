@@ -61,6 +61,11 @@ def _to_goal_item(row) -> GoalItem:
         event_date=row.event_date,
         distance_km=float(row.distance_km),
         location=row.location,
+        location_city=row.location_city,
+        location_country=row.location_country,
+        location_country_code=row.location_country_code,
+        location_lat=float(row.location_lat) if row.location_lat is not None else None,
+        location_lon=float(row.location_lon) if row.location_lon is not None else None,
         target_time_s=float(row.target_time_s) if row.target_time_s is not None else None,
         target_pace_s_per_km=float(row.target_pace_s_per_km) if row.target_pace_s_per_km is not None else None,
         race_type=row.race_type,
@@ -99,6 +104,11 @@ async def create_goal(request: Request, payload: GoalCreateRequest):
         raise HTTPException(status_code=400, detail="name is required")
 
     location = payload.location.strip() if isinstance(payload.location, str) else ""
+    location_city = payload.location_city.strip() if isinstance(payload.location_city, str) else ""
+    location_country = payload.location_country.strip() if isinstance(payload.location_country, str) else ""
+    location_country_code = payload.location_country_code.strip().upper() if isinstance(payload.location_country_code, str) else ""
+    location_lat = float(payload.location_lat) if payload.location_lat is not None else None
+    location_lon = float(payload.location_lon) if payload.location_lon is not None else None
     notes = payload.notes.strip() if isinstance(payload.notes, str) else ""
     now_utc = utc_now_iso()
 
@@ -110,6 +120,11 @@ async def create_goal(request: Request, payload: GoalCreateRequest):
             event_date=event_date,
             distance_km=float(payload.distance_km),
             location=location if location else None,
+            location_city=location_city if location_city else None,
+            location_country=location_country if location_country else None,
+            location_country_code=location_country_code if location_country_code else None,
+            location_lat=location_lat,
+            location_lon=location_lon,
             target_time_s=target_time_s,
             target_pace_s_per_km=target_pace_s_per_km,
             race_type=payload.race_type,
@@ -169,6 +184,33 @@ async def update_goal(request: Request, goal_id: str, payload: GoalUpdateRequest
             location_clean = str(location_raw).strip()
             location = location_clean if location_clean else None
 
+        location_city_raw = patch.get("location_city", current.location_city)
+        if location_city_raw is None:
+            location_city = None
+        else:
+            location_city_clean = str(location_city_raw).strip()
+            location_city = location_city_clean if location_city_clean else None
+
+        location_country_raw = patch.get("location_country", current.location_country)
+        if location_country_raw is None:
+            location_country = None
+        else:
+            location_country_clean = str(location_country_raw).strip()
+            location_country = location_country_clean if location_country_clean else None
+
+        location_country_code_raw = patch.get("location_country_code", current.location_country_code)
+        if location_country_code_raw is None:
+            location_country_code = None
+        else:
+            location_country_code_clean = str(location_country_code_raw).strip().upper()
+            location_country_code = location_country_code_clean if location_country_code_clean else None
+
+        location_lat_raw = patch.get("location_lat", current.location_lat)
+        location_lat = float(location_lat_raw) if location_lat_raw is not None else None
+
+        location_lon_raw = patch.get("location_lon", current.location_lon)
+        location_lon = float(location_lon_raw) if location_lon_raw is not None else None
+
         notes_raw = patch.get("notes", current.notes)
         if notes_raw is None:
             notes = None
@@ -184,6 +226,11 @@ async def update_goal(request: Request, goal_id: str, payload: GoalUpdateRequest
             event_date=event_date,
             distance_km=distance_km,
             location=location,
+            location_city=location_city,
+            location_country=location_country,
+            location_country_code=location_country_code,
+            location_lat=location_lat,
+            location_lon=location_lon,
             target_time_s=target_time_s,
             target_pace_s_per_km=target_pace_s_per_km,
             race_type=str(race_type),
@@ -221,5 +268,21 @@ async def delete_goal(request: Request, goal_id: str):
     except Exception as exc:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete goal: {str(exc)}")
+    finally:
+        session.close()
+
+
+@router.delete("/goals")
+async def delete_all_goals(request: Request):
+    factory = _session_factory(request)
+    repo = GoalsRepository()
+    session = factory()
+    try:
+        deleted = repo.delete_all_goals(session)
+        session.commit()
+        return {"deleted": deleted}
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to cleanup goals: {str(exc)}")
     finally:
         session.close()
