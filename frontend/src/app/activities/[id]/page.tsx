@@ -15,7 +15,7 @@ import { getValueAtPath } from '@/components/metrics/metricsUtils';
 import { ActivityMap } from '@/components/maps/ActivityMap';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatMetricValue, formatNumber } from '@/lib/metricsFormat';
+import { formatMetricValue, formatNumber, type MetricFormat } from '@/lib/metricsFormat';
 import { useMapData, useRealActivity, useRealActivityBins, useRenameActivity } from '@/hooks/useActivity';
 import { CATEGORY_COLORS, CHART_SERIES, KPI_METRICS, REAL_METRIC_SECTIONS, type MetricItem, type MetricSection } from '@/lib/metricsRegistry';
 import { useUiPrefsStore } from '@/store/uiPrefsStore';
@@ -62,6 +62,169 @@ const KPI_HELP: Record<string, string> = {
   cadence_avg: 'Nombre moyen de pas par minute. Utile pour suivre la regularite technique et detecter une baisse d efficacite en fin de sortie.',
   power_avg: 'Puissance moyenne developpee en watts. Indicateur direct de l effort mecanique, souvent plus stable que l allure sur terrain varie.',
 };
+
+type DetailTileDensity = 'primary' | 'compact' | 'technical';
+
+type DetailTile = {
+  id: string;
+  label: string;
+  value: unknown;
+  format?: MetricFormat;
+  unit?: string;
+  density: DetailTileDensity;
+};
+
+type DetailSection = {
+  id: string;
+  title: string;
+  subtitle: string;
+  density: DetailTileDensity;
+  tiles: DetailTile[];
+};
+
+function hasRenderableValue(value: unknown) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'number') return Number.isFinite(value);
+  return true;
+}
+
+function firstAvailable(...values: unknown[]) {
+  for (const value of values) {
+    if (hasRenderableValue(value)) return value;
+  }
+  return null;
+}
+
+function tile(input: Omit<DetailTile, 'density'> & { density?: DetailTileDensity }): DetailTile {
+  return {
+    ...input,
+    density: input.density ?? 'compact',
+  };
+}
+
+function buildActivityDetailSections(activity: unknown): DetailSection[] {
+  const sections: DetailSection[] = [];
+
+  const pushSection = (section: Omit<DetailSection, 'tiles'> & { tiles: DetailTile[] }) => {
+    const tiles = section.tiles.filter((entry) => hasRenderableValue(entry.value));
+    if (tiles.length === 0) return;
+    sections.push({ ...section, tiles });
+  };
+
+  pushSection({
+    id: 'essential',
+    title: 'Section A - Essentiel',
+    subtitle: 'Toujours visible, en premier.',
+    density: 'primary',
+    tiles: [
+      tile({ id: 'distance', label: 'Distance', value: getValueAtPath(activity, 'summary.distance_km'), format: 'number', unit: 'km', density: 'primary' }),
+      tile({ id: 'total-time', label: 'Temps total', value: getValueAtPath(activity, 'summary.total_time_s'), format: 'duration', density: 'primary' }),
+      tile({ id: 'moving-time', label: 'Temps en mouvement', value: getValueAtPath(activity, 'summary.moving_time_s'), format: 'duration', density: 'primary' }),
+      tile({ id: 'avg-pace', label: 'Allure moyenne', value: getValueAtPath(activity, 'summary.average_pace_s_per_km'), format: 'pace', unit: '/ km', density: 'primary' }),
+      tile({ id: 'elev-gain', label: 'D+', value: firstAvailable(getValueAtPath(activity, 'summary.elevation_gain_m'), getValueAtPath(activity, 'garmin_summary.elevation_gain_m')), format: 'meters', unit: 'm', density: 'primary' }),
+      tile({ id: 'elev-loss', label: 'D-', value: firstAvailable(getValueAtPath(activity, 'garmin_summary.elevation_loss_m'), getValueAtPath(activity, 'summary.elevation_loss_m')), format: 'meters', unit: 'm', density: 'primary' }),
+      tile({ id: 'hr-avg', label: 'FC moyenne', value: getValueAtPath(activity, 'summary.cardio.hr_avg_bpm'), format: 'integer', unit: 'bpm', density: 'primary' }),
+      tile({ id: 'hr-max', label: 'FC max', value: getValueAtPath(activity, 'summary.cardio.hr_max_bpm'), format: 'integer', unit: 'bpm', density: 'primary' }),
+    ],
+  });
+
+  pushSection({
+    id: 'pace-speed',
+    title: 'Section B - Allure et vitesse',
+    subtitle: 'Rythme et performance immediate.',
+    density: 'compact',
+    tiles: [
+      tile({ id: 'best-pace', label: 'Meilleure allure', value: getValueAtPath(activity, 'garmin_summary.best_pace_s_per_km'), format: 'pace', unit: '/ km' }),
+      tile({ id: 'avg-speed', label: 'Vitesse moyenne', value: firstAvailable(getValueAtPath(activity, 'summary.average_speed_kmh'), getValueAtPath(activity, 'garmin_summary.average_speed_kmh')), format: 'speed', unit: 'km/h' }),
+      tile({ id: 'max-speed', label: 'Vitesse max', value: getValueAtPath(activity, 'garmin_summary.max_speed_kmh'), format: 'speed', unit: 'km/h' }),
+      tile({ id: 'gap-mean', label: 'GAP moyen', value: getValueAtPath(activity, 'garmin_summary.gap_mean_s_per_km'), format: 'pace', unit: '/ km' }),
+      tile({ id: 'pace-median', label: 'Allure mediane', value: getValueAtPath(activity, 'garmin_summary.pace_median_s_per_km'), format: 'pace', unit: '/ km' }),
+      tile({ id: 'pace-p10', label: 'Allure P10', value: getValueAtPath(activity, 'garmin_summary.pace_p10_s_per_km'), format: 'pace', unit: '/ km' }),
+      tile({ id: 'pace-p90', label: 'Allure P90', value: getValueAtPath(activity, 'garmin_summary.pace_p90_s_per_km'), format: 'pace', unit: '/ km' }),
+      tile({ id: 'pause-max', label: 'Pause max', value: getValueAtPath(activity, 'garmin_summary.longest_pause_s'), format: 'duration' }),
+      tile({ id: 'pause-total', label: "Temps a l'arret", value: getValueAtPath(activity, 'garmin_summary.pause_time_s'), format: 'duration' }),
+    ],
+  });
+
+  pushSection({
+    id: 'terrain',
+    title: 'Section C - Denivele et terrain',
+    subtitle: 'Relief global et contraintes du parcours.',
+    density: 'compact',
+    tiles: [
+      tile({ id: 'terrain-dplus', label: 'D+', value: firstAvailable(getValueAtPath(activity, 'garmin_summary.elevation_gain_m'), getValueAtPath(activity, 'summary.elevation_gain_m')), format: 'meters', unit: 'm' }),
+      tile({ id: 'terrain-dminus', label: 'D-', value: firstAvailable(getValueAtPath(activity, 'garmin_summary.elevation_loss_m'), getValueAtPath(activity, 'summary.elevation_loss_m')), format: 'meters', unit: 'm' }),
+      tile({ id: 'alt-min', label: 'Altitude min', value: getValueAtPath(activity, 'garmin_summary.elevation_min_m'), format: 'meters', unit: 'm' }),
+      tile({ id: 'alt-max', label: 'Altitude max', value: getValueAtPath(activity, 'garmin_summary.elevation_max_m'), format: 'meters', unit: 'm' }),
+      tile({ id: 'grade-mean', label: 'Pente moyenne', value: getValueAtPath(activity, 'garmin_summary.grade_mean_pct'), format: 'percent', unit: '%' }),
+      tile({ id: 'grade-min', label: 'Pente min', value: getValueAtPath(activity, 'garmin_summary.grade_min_pct'), format: 'percent', unit: '%' }),
+      tile({ id: 'grade-max', label: 'Pente max', value: getValueAtPath(activity, 'garmin_summary.grade_max_pct'), format: 'percent', unit: '%' }),
+      tile({ id: 'dplus-filtered', label: 'D+ filtre', value: getValueAtPath(activity, 'garmin_summary.elevation_gain_filtered_m'), format: 'meters', unit: 'm' }),
+      tile({ id: 'dminus-filtered', label: 'D- filtre', value: getValueAtPath(activity, 'garmin_summary.elevation_loss_filtered_m'), format: 'meters', unit: 'm' }),
+      tile({ id: 'steps-total', label: 'Pas total', value: getValueAtPath(activity, 'garmin_summary.steps_total'), format: 'integer' }),
+      tile({ id: 'step-length', label: 'Longueur de pas', value: getValueAtPath(activity, 'garmin_summary.step_length_est_m'), format: 'meters', unit: 'm' }),
+    ],
+  });
+
+  pushSection({
+    id: 'cardio',
+    title: 'Cardio',
+    subtitle: 'Visible uniquement si les donnees cardiaques existent.',
+    density: 'compact',
+    tiles: [
+      tile({ id: 'cardio-avg', label: 'FC moyenne', value: getValueAtPath(activity, 'summary.cardio.hr_avg_bpm'), format: 'integer', unit: 'bpm' }),
+      tile({ id: 'cardio-min', label: 'FC min', value: getValueAtPath(activity, 'summary.cardio.hr_min_bpm'), format: 'integer', unit: 'bpm' }),
+      tile({ id: 'cardio-max', label: 'FC max', value: getValueAtPath(activity, 'summary.cardio.hr_max_bpm'), format: 'integer', unit: 'bpm' }),
+      tile({ id: 'drift', label: 'Derive cardio', value: getValueAtPath(activity, 'pacing.cardiac_drift_pct'), format: 'percent', unit: '%' }),
+      tile({ id: 'drift-slope', label: 'Pente derive cardio', value: getValueAtPath(activity, 'pacing.cardiac_drift_slope_pct'), format: 'percent', unit: '%' }),
+    ],
+  });
+
+  pushSection({
+    id: 'cadence-dynamics',
+    title: 'Section E - Cadence et dynamique de course',
+    subtitle: 'Bloc biomecanique coherent.',
+    density: 'technical',
+    tiles: [
+      tile({ id: 'cadence-mean', label: 'Cadence moyenne', value: getValueAtPath(activity, 'cadence.mean_spm'), format: 'integer', unit: 'spm', density: 'technical' }),
+      tile({ id: 'cadence-max', label: 'Cadence max', value: getValueAtPath(activity, 'cadence.max_spm'), format: 'integer', unit: 'spm', density: 'technical' }),
+      tile({ id: 'stride', label: 'Longueur de foulee', value: getValueAtPath(activity, 'running_dynamics.stride_length_mean_m'), format: 'meters', unit: 'm', density: 'technical' }),
+      tile({ id: 'vert-osc', label: 'Oscillation verticale', value: getValueAtPath(activity, 'running_dynamics.vertical_oscillation_mean_cm'), format: 'number', unit: 'cm', density: 'technical' }),
+      tile({ id: 'vert-ratio', label: 'Vertical ratio', value: getValueAtPath(activity, 'running_dynamics.vertical_ratio_mean_pct'), format: 'percent', unit: '%', density: 'technical' }),
+      tile({ id: 'gct', label: 'Temps de contact', value: getValueAtPath(activity, 'running_dynamics.ground_contact_time_mean_ms'), format: 'integer', unit: 'ms', density: 'technical' }),
+      tile({ id: 'gct-balance', label: 'Balance G/D', value: getValueAtPath(activity, 'running_dynamics.gct_balance_mean_pct'), format: 'percent', unit: '%', density: 'technical' }),
+    ],
+  });
+
+  pushSection({
+    id: 'power',
+    title: 'Section F - Puissance',
+    subtitle: 'Masquee automatiquement si la puissance est absente.',
+    density: 'technical',
+    tiles: [
+      tile({ id: 'power-avg', label: 'Puissance moyenne', value: getValueAtPath(activity, 'power.mean_w'), format: 'integer', unit: 'W', density: 'technical' }),
+      tile({ id: 'power-max', label: 'Puissance max', value: getValueAtPath(activity, 'power.max_w'), format: 'integer', unit: 'W', density: 'technical' }),
+      tile({ id: 'ftp', label: 'FTP', value: getValueAtPath(activity, 'power.ftp_w'), format: 'integer', unit: 'W', density: 'technical' }),
+      tile({ id: 'ftp-est', label: 'FTP estimee', value: getValueAtPath(activity, 'power.ftp_estimated'), format: 'boolean', density: 'technical' }),
+      tile({ id: 'np', label: 'NP', value: getValueAtPath(activity, 'power_advanced.normalized_power_w'), format: 'integer', unit: 'W', density: 'technical' }),
+      tile({ id: 'if', label: 'IF', value: getValueAtPath(activity, 'power_advanced.intensity_factor'), format: 'number', density: 'technical' }),
+      tile({ id: 'tss', label: 'TSS', value: getValueAtPath(activity, 'power_advanced.tss'), format: 'number', density: 'technical' }),
+    ],
+  });
+
+  pushSection({
+    id: 'training-load',
+    title: "Section G - Charge d'entrainement",
+    subtitle: 'Synthese de charge interne.',
+    density: 'technical',
+    tiles: [
+      tile({ id: 'trimp', label: 'TRIMP', value: getValueAtPath(activity, 'training_load.trimp'), format: 'number', density: 'technical' }),
+      tile({ id: 'trimp-method', label: 'Methode', value: getValueAtPath(activity, 'training_load.method'), format: 'text', density: 'technical' }),
+    ],
+  });
+
+  return sections;
+}
 
 export default function RealActivityPage() {
   const params = useParams();
@@ -122,17 +285,7 @@ export default function RealActivityPage() {
   const splitsSections = React.useMemo(() => pickSections(['splits']), [pickSections]);
   const pacingSections = React.useMemo(() => pickSections(['pacing-horizontal-splits']), [pickSections]);
   const climbsSections = React.useMemo(() => pickSections(['climbs']), [pickSections]);
-  const pausesSections = React.useMemo(() => pickSections(['pauses']), [pickSections]);
-
-  const detailsCoreSections = React.useMemo(
-    () => pickSections(['summary', 'garmin-summary', 'pacing', 'cardio']),
-    [pickSections]
-  );
-  const detailsTechniqueSections = React.useMemo(
-    () => pickSections(['cadence', 'running-dynamics', 'power', 'training-load']),
-    [pickSections]
-  );
-  const detailsAnalysisSections = React.useMemo(
+  const detailsBottomSections = React.useMemo(
     () => pickSections(['performance-predictions', 'power-duration-curve', 'highlights']),
     [pickSections]
   );
@@ -199,6 +352,8 @@ export default function RealActivityPage() {
       })
       .filter((k) => k.formatted !== null);
   }, [activity, formatKpi, primaryKpis]);
+
+  const detailSections = React.useMemo(() => buildActivityDetailSections(activity), [activity]);
 
   const insights = React.useMemo(() => {
     const cards: Array<{ title: string; body: string; cta?: TabId }> = [];
@@ -268,7 +423,7 @@ export default function RealActivityPage() {
 
   const filteredGradeBins = React.useMemo(() => {
     const bins = realBinsQuery.data?.grade_time_bins ?? [];
-    return bins.filter((bin) => typeof bin.time_s === 'number' && bin.time_s >= 90);
+    return bins.filter((bin) => typeof bin.time_s === 'number' && bin.time_s >= 60);
   }, [realBinsQuery.data?.grade_time_bins]);
 
   React.useEffect(() => {
@@ -501,50 +656,83 @@ export default function RealActivityPage() {
         ) : null}
 
         {activeTab === 'map' ? (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-            <div className="xl:col-span-2">
-              {showMap && mapData ? (
-                <SectionCard title="Map" description="Trace GPS et marqueurs." accentColor={CATEGORY_COLORS.Map}>
-                  <ActivityMap mapData={mapData} activityId={activityId} pauseItems={getValueAtPath(activity, 'pauses.items')} />
-                </SectionCard>
-              ) : (
-                <SectionCard title="Map" description="Aucune donnee de carte disponible." accentColor={CATEGORY_COLORS.Map} density="compact">
-                  <div className="text-sm text-muted-foreground">Pas de polyline/markers.</div>
-                </SectionCard>
-              )}
-            </div>
-            <div>
-              <MetricsRegistryRenderer data={activity} sections={pausesSections} density="compact" tableMaxHeight={tableMaxHeight} />
-            </div>
+          <div>
+            {showMap && mapData ? (
+              <SectionCard title="Map" description="Trace GPS et marqueurs." accentColor={CATEGORY_COLORS.Map}>
+                <ActivityMap mapData={mapData} activityId={activityId} pauseItems={getValueAtPath(activity, 'pauses.items')} height="620px" />
+              </SectionCard>
+            ) : (
+              <SectionCard title="Map" description="Aucune donnee de carte disponible." accentColor={CATEGORY_COLORS.Map} density="compact">
+                <div className="text-sm text-muted-foreground">Pas de polyline/markers.</div>
+              </SectionCard>
+            )}
           </div>
         ) : null}
 
         {activeTab === 'details' ? (
           <div className="space-y-4">
-            <MetricsRegistryRenderer
-              data={activity}
-              sections={detailsCoreSections}
-              density="default"
-              tableMaxHeight={tableMaxHeight}
-              activityId={activityId}
-              className="grid grid-cols-1 xl:grid-cols-2 gap-4"
-            />
-            <MetricsRegistryRenderer
-              data={activity}
-              sections={detailsTechniqueSections}
-              density="default"
-              tableMaxHeight={tableMaxHeight}
-              activityId={activityId}
-              className="grid grid-cols-1 xl:grid-cols-2 gap-4"
-            />
-            <MetricsRegistryRenderer
-              data={activity}
-              sections={detailsAnalysisSections}
-              density="default"
-              tableMaxHeight={tableMaxHeight}
-              activityId={activityId}
-              className="grid grid-cols-1 gap-4"
-            />
+            <Card>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-base">Metriques de l activite</CardTitle>
+                <div className="text-sm text-muted-foreground">Resume Garmin + metriques avancees (si disponibles)</div>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-5">
+                {detailSections.map((section, index) => {
+                  const gridClassName =
+                    section.density === 'primary'
+                      ? 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3'
+                      : 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5';
+
+                  return (
+                    <section key={section.id} className={index > 0 ? 'border-t pt-4' : ''}>
+                      <div className="mb-3">
+                        <div className="inline-flex items-center gap-2">
+                          <span className="h-4 w-0.5 rounded-full bg-primary/70" aria-hidden="true" />
+                          <h3 className="text-sm font-semibold text-foreground">{section.title}</h3>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">{section.subtitle}</div>
+                      </div>
+                      <div className={gridClassName}>
+                        {section.tiles.map((entry) => {
+                          const value = formatMetricValue(entry.value, entry.format ?? 'text');
+                          const tileClassName =
+                            entry.density === 'primary'
+                              ? 'rounded-lg border bg-background/70 p-3.5'
+                              : entry.density === 'technical'
+                                ? 'rounded-md border bg-background/50 p-2.5'
+                                : 'rounded-md border bg-background/60 p-3';
+                          const valueClassName =
+                            entry.density === 'primary'
+                              ? 'mt-1.5 text-base font-semibold tabular-nums'
+                              : 'mt-1 text-sm font-semibold tabular-nums';
+
+                          return (
+                            <div key={entry.id} className={tileClassName}>
+                              <div className="text-xs text-muted-foreground">{entry.label}</div>
+                              <div className={valueClassName}>
+                                {value}
+                                {entry.unit ? ` ${entry.unit}` : ''}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            {detailsBottomSections.length > 0 ? (
+              <MetricsRegistryRenderer
+                data={activity}
+                sections={detailsBottomSections}
+                density="default"
+                tableMaxHeight={tableMaxHeight}
+                activityId={activityId}
+                className="grid grid-cols-1 gap-4"
+              />
+            ) : null}
           </div>
         ) : null}
       </div>

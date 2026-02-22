@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.77] - 2026-02-22
+
+### Changed
+- Activity map tab (`/activities/[id]`): removed the separate pauses card and promoted the map card to full width with the same large height as trace map view.
+- Activity details tab (`/activities/[id]`): replaced the multi-card metrics layout with a single full-width card (`Metriques de l activite`) structured into sections A->G (Essentiel, Allure/Vitesse, Denivele/Terrain, Cardio, Cadence/Dynamique, Puissance, Charge), while keeping the three bottom analysis cards below.
+- Pace/grade filters (`/activities/[id]`, `/traces/[id]`): minimum `time_s` threshold for pace and grade bins increased from 60s to 90s.
+
 ## [1.1.76] - 2026-02-22
 
 ### Changed
