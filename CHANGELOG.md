@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.76] - 2026-02-22
+
+### Changed
+- Goals (`/goals`): replaced synthetic globe texture with a real Earth map texture + bump map, keeping objective markers on top; timeline mini-cards now use content-based width and reduced spacing between goals.
+- Activities (`/activities/[id]`): secondary KPIs are always visible in Apercu (no hide toggle), KPI hover help is now also available on essential KPI tiles, and chart smoothing includes 20 with auto-reset to 15 when opening the page.
+- Splits UI (`/activities/[id]`): split card now uses full chart height and removes the collapsed split table; split description text is updated for clarity.
+- Charts (`/activities/[id]`): grade-time bars now reuse filtered bins (`time_s >= 60`) for consistency with trace behavior, and partial series reload issues no longer trigger a full red error state.
+- Details tab (`/activities/[id]`): reorganized into clearer groups and removed cards `Personal records`, `Qualite / limites`, `Efforts`, and `Segment analysis (time best efforts)`.
+- Traces (`/traces/[id]`): removed `Points de pauses` toggle from map controls and improved color-by-pace route computation with better pace-to-polyline alignment + smoothing.
+- Backend real analysis response: stopped returning payloads for removed activity-detail cards (`best_efforts`, `personal_records`, `segment_analysis`, `limits`) to reduce unnecessary response work.
+
 ## [1.1.75] - 2026-02-22
 
 ### Changed

@@ -155,14 +155,8 @@ def prepare_real_response(
         zones["power"] = power["zones"]
     zones_payload = zones or None
 
-    best_efforts_rows = df_to_records(result.best_efforts)
-    best_efforts_payload = {"rows": best_efforts_rows} if best_efforts_rows else None
-
     splits_rows = df_to_records(result.splits)
     splits_payload = {"rows": splits_rows} if splits_rows else None
-
-    segments_rows = df_to_records(result.best_efforts_time)
-    segment_analysis_payload = {"rows": segments_rows} if segments_rows else None
 
     garmin_summary_payload = to_jsonable(garmin.get("summary")) if garmin.get("summary") else None
     cadence_payload = to_jsonable(garmin.get("cadence")) if garmin.get("cadence") else None
@@ -178,8 +172,6 @@ def prepare_real_response(
         if result.performance_predictions
         else None
     )
-    personal_records_payload = {"rows": best_efforts_rows} if best_efforts_rows else None
-
     pauses_payload = {"items": to_jsonable(result.pauses)} if result.pauses else None
     climbs_payload = {"items": to_jsonable(result.climbs)} if result.climbs else None
 
@@ -194,9 +186,9 @@ def prepare_real_response(
         summary=summary_payload,
         highlights={"items": result.highlights},
         zones=to_jsonable(zones_payload),
-        best_efforts=best_efforts_payload,
-        personal_records=personal_records_payload,
-        segment_analysis=segment_analysis_payload,
+        best_efforts=None,
+        personal_records=None,
+        segment_analysis=None,
         performance_predictions=performance_predictions_payload,
         pauses=pauses_payload,
         climbs=climbs_payload,
@@ -209,7 +201,7 @@ def prepare_real_response(
         pacing=pacing_payload,
         training_load=training_load_payload,
         series_index=series_index,
-        limits=_build_limits(activity_df),
+        limits=None,
     )
 
 
