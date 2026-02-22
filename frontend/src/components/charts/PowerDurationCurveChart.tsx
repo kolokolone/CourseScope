@@ -40,7 +40,12 @@ export function PowerDurationCurveChart({
 }: {
   rows: unknown[];
 }) {
-  const data = React.useMemo(() => rows.map(toPoint).filter((p): p is ChartPoint => Boolean(p)), [rows]);
+  const data = React.useMemo(() => {
+    const points = rows.map(toPoint).filter((p): p is ChartPoint => Boolean(p));
+    const sorted = [...points].sort((a, b) => a.x - b.x);
+    const firstZeroIdx = sorted.findIndex((p) => p.y <= 0);
+    return firstZeroIdx === -1 ? sorted : sorted.slice(0, firstZeroIdx);
+  }, [rows]);
 
   if (data.length === 0) return null;
 

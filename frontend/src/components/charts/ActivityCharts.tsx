@@ -369,6 +369,7 @@ export function ActivityCharts({
 
   const seriesDefs = React.useMemo(() => {
     const preferredOrder = ['pace', 'heart_rate', 'elevation', 'grade', 'speed', 'power', 'cadence'] as const;
+    const unsupportedSeries = new Set(['hr_zones', 'power_zones']);
 
     const byName = new Map(CHART_SERIES.map((s) => [s.name, s] as const));
     const ordered: typeof CHART_SERIES = [];
@@ -376,12 +377,12 @@ export function ActivityCharts({
     for (const name of preferredOrder) {
       if (!availableNames.has(name)) continue;
       const def = byName.get(name);
-      if (def) ordered.push(def);
+      if (def && !unsupportedSeries.has(def.name)) ordered.push(def);
     }
 
     const preferredSet = new Set<string>(preferredOrder);
     const rest = CHART_SERIES.filter(
-      (s) => s.name !== 'moving' && availableNames.has(s.name) && !preferredSet.has(s.name)
+      (s) => s.name !== 'moving' && !unsupportedSeries.has(s.name) && availableNames.has(s.name) && !preferredSet.has(s.name)
     );
     return [...ordered, ...rest];
   }, [availableNames]);
