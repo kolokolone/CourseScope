@@ -63,6 +63,43 @@ const KPI_HELP: Record<string, string> = {
   power_avg: 'Puissance moyenne developpee en watts. Indicateur direct de l effort mecanique, souvent plus stable que l allure sur terrain varie.',
 };
 
+const DETAIL_HELP: Record<string, string> = {
+  distance: 'Distance totale de la sortie. Cette mesure sert de base pour comparer le volume d entrainement entre seances.',
+  'total-time': 'Temps ecoule total entre le debut et la fin de la seance. Cette valeur inclut les arrets et les pauses.',
+  'moving-time': 'Temps reel passe en mouvement. C est l indicateur principal pour juger la charge effective de course.',
+  'avg-pace': 'Allure moyenne globale sur la sortie. Elle integre toutes les variations de rythme du parcours.',
+  'elev-gain': 'Denivele positif cumule (D+). Plus il est eleve, plus la contrainte musculaire est importante.',
+  'elev-loss': 'Denivele negatif cumule (D-). Il aide a evaluer la technicite de la descente et la fatigue excentrique.',
+  'hr-avg': 'Frequence cardiaque moyenne de la seance. Elle donne une vue synthese de l intensite cardio globale.',
+  'hr-max': 'Frequence cardiaque maximale enregistree. Elle met en evidence les pics d intensite de l effort.',
+  'best-pace': 'Meilleure allure instantanee robuste. Elle indique ton potentiel de vitesse sur la seance.',
+  'avg-speed': 'Vitesse moyenne sur l ensemble du parcours. Elle complete la lecture d allure en km/h.',
+  'max-speed': 'Vitesse maximale atteinte. Utile pour reperer les accelerations ou sections rapides.',
+  'gap-mean': 'Allure ajustee par la pente (GAP) moyenne. Elle permet de comparer l effort malgre le relief.',
+  'pace-median': 'Allure mediane sur la sortie. Elle est moins sensible aux pics qu une moyenne classique.',
+  'pace-p10': 'Allure rapide representative (percentile 10). Elle illustre les portions courues a haut rythme.',
+  'pace-p90': 'Allure lente representative (percentile 90). Elle met en evidence les phases les plus lentes.',
+  'pause-max': 'Pause la plus longue detectee. Elle aide a comprendre les ruptures de rythme dans la seance.',
+  'pause-total': 'Somme des pauses detectees. Une valeur elevee peut fausser l allure moyenne globale.',
+  'cardio-avg': 'FC moyenne utile pour suivre la charge cardio. Permet aussi de comparer l efficacite dans le temps.',
+  'cardio-min': 'FC minimale observee pendant l activite. A interpréter surtout pendant les phases de recuperation.',
+  'cardio-max': 'FC maximale observee. Sert a identifier les moments les plus exigeants sur la seance.',
+  drift: 'Derive cardio en pourcentage. Une derive elevee peut signaler fatigue, chaleur ou pacing trop agressif.',
+  'drift-slope': 'Evolution progressive de la derive cardio. Une pente positive traduit souvent une contrainte qui augmente.',
+  'power-avg': 'Puissance moyenne sur la seance. C est une mesure directe de la charge mecanique produite.',
+  'power-max': 'Puissance maximale atteinte. Elle met en evidence les efforts explosifs ou les relances.',
+  ftp: 'FTP utilisee pour calibrer les zones de puissance. Elle conditionne l interpretation de l intensite relative.',
+  'ftp-est': 'Indique si la FTP est estimee automatiquement. Une estimation peut etre moins stable qu une valeur mesuree.',
+  np: 'Puissance normalisee (NP). Elle represente mieux la contrainte physiologique que la moyenne brute.',
+  if: 'Intensity Factor (IF). C est le ratio entre NP et FTP pour estimer l intensite relative de la seance.',
+  tss: 'Training Stress Score (TSS). Il quantifie la charge globale de la seance en combinant duree et intensite.',
+  trimp: 'TRIMP mesure la charge interne basee sur la reponse cardio. Pratique pour suivre la fatigue au fil des semaines.',
+};
+
+function detailHelpText(entry: DetailTile) {
+  return DETAIL_HELP[entry.id] ?? `Metrique ${entry.label}. Elle permet d affiner l analyse technique et physiologique de la sortie.`;
+}
+
 type DetailTileDensity = 'primary' | 'compact' | 'technical';
 
 type DetailTile = {
@@ -114,7 +151,7 @@ function buildActivityDetailSections(activity: unknown): DetailSection[] {
   pushSection({
     id: 'essential',
     title: 'Section A - Essentiel',
-    subtitle: 'Toujours visible, en premier.',
+    subtitle: '',
     density: 'primary',
     tiles: [
       tile({ id: 'distance', label: 'Distance', value: getValueAtPath(activity, 'summary.distance_km'), format: 'number', unit: 'km', density: 'primary' }),
@@ -169,7 +206,7 @@ function buildActivityDetailSections(activity: unknown): DetailSection[] {
   pushSection({
     id: 'cardio',
     title: 'Cardio',
-    subtitle: 'Visible uniquement si les donnees cardiaques existent.',
+    subtitle: '',
     density: 'compact',
     tiles: [
       tile({ id: 'cardio-avg', label: 'FC moyenne', value: getValueAtPath(activity, 'summary.cardio.hr_avg_bpm'), format: 'integer', unit: 'bpm' }),
@@ -199,7 +236,7 @@ function buildActivityDetailSections(activity: unknown): DetailSection[] {
   pushSection({
     id: 'power',
     title: 'Section F - Puissance',
-    subtitle: 'Masquee automatiquement si la puissance est absente.',
+    subtitle: '',
     density: 'technical',
     tiles: [
       tile({ id: 'power-avg', label: 'Puissance moyenne', value: getValueAtPath(activity, 'power.mean_w'), format: 'integer', unit: 'W', density: 'technical' }),
@@ -215,7 +252,7 @@ function buildActivityDetailSections(activity: unknown): DetailSection[] {
   pushSection({
     id: 'training-load',
     title: "Section G - Charge d'entrainement",
-    subtitle: 'Synthese de charge interne.',
+    subtitle: '',
     density: 'technical',
     tiles: [
       tile({ id: 'trimp', label: 'TRIMP', value: getValueAtPath(activity, 'training_load.trimp'), format: 'number', density: 'technical' }),
@@ -674,7 +711,6 @@ export default function RealActivityPage() {
             <Card>
               <CardHeader className="py-3 px-4">
                 <CardTitle className="text-base">Metriques de l activite</CardTitle>
-                <div className="text-sm text-muted-foreground">Resume Garmin + metriques avancees (si disponibles)</div>
               </CardHeader>
               <CardContent className="px-4 pb-4 space-y-5">
                 {detailSections.map((section, index) => {
@@ -707,7 +743,7 @@ export default function RealActivityPage() {
                               : 'mt-1 text-sm font-semibold tabular-nums';
 
                           return (
-                            <div key={entry.id} className={tileClassName}>
+                            <div key={entry.id} className={tileClassName} title={detailHelpText(entry)}>
                               <div className="text-xs text-muted-foreground">{entry.label}</div>
                               <div className={valueClassName}>
                                 {value}

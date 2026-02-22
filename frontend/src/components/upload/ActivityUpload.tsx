@@ -98,7 +98,7 @@ export function ActivityUpload({
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="text-base flex items-center gap-2">
           <Upload className="h-5 w-5" />
           {title ?? (activityType === 'real' ? 'Upload activite reelle' : 'Upload trace (theorique)')}
         </CardTitle>
