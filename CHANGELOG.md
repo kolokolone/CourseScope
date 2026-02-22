@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.79] - 2026-02-22
+
+### Changed
+- Goals (`/goals`): added a new `Map des objectifs` card above the 3D globe, using OpenStreetMap with marker display for all tracked goals.
+- Goals map interactions: marker hover now shows the same goal mini-card overlay style as the globe, and map auto-zoom focuses on the 3 next upcoming goals.
+
 ## [1.1.78] - 2026-02-22
 
 ### Changed
