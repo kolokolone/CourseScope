@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.81] - 2026-02-22
+
+### Changed
+- Activity details (`/activities/[id]`): detail metric tiles now expose explanatory hover notes and removed the requested helper subtitles/text blocks from the details card.
+- Progression (`/progress`): removed `Taxonomie des seances` and `Comparaisons like-for-like` cards, and added a VO2max line chart (3 last months only, y-axis 0 to max + 15%, same curve color as weekly volume).
+- VO2max indexing: added `vo2max` storage in `progress_activity_index`, `vo2max_lastest` in `user_settings`, and indexer updates so FIT-derived VO2max is persisted and refreshed during progression indexing.
+- Home (`/`): history card is now alone on its own row, removed action buttons from that card, aligned upload card title sizing with history title, moved `Prochain objectif` below history, and added `VO2 max actuelle` circular gauge card with hover-only category note.
+
 ## [1.1.80] - 2026-02-22
 
 ### Changed
