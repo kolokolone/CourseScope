@@ -13,6 +13,7 @@ interface ActivityMapProps {
   activityId?: string;
   height?: string;
   pauseItems?: unknown;
+  allowPauseToggle?: boolean;
 }
 
 type PauseItem = { lat: number; lon: number; label?: string; duration_s?: number };
@@ -46,7 +47,24 @@ function sampleArray<T>(arr: T[], max: number) {
   return out;
 }
 
-export function ActivityMapLeaflet({ mapData, activityId, height = '400px', pauseItems }: ActivityMapProps) {
+function smoothNumericSeries(values: Array<number | null>, windowSize: number) {
+  const radius = Math.max(0, Math.floor(windowSize / 2));
+  if (radius === 0) return values;
+  return values.map((_, idx) => {
+    let sum = 0;
+    let count = 0;
+    for (let j = idx - radius; j <= idx + radius; j += 1) {
+      const v = values[j];
+      if (typeof v !== 'number' || !Number.isFinite(v)) continue;
+      sum += v;
+      count += 1;
+    }
+    if (count === 0) return values[idx] ?? null;
+    return sum / count;
+  });
+}
+
+export function ActivityMapLeaflet({ mapData, activityId, height = '400px', pauseItems, allowPauseToggle = true }: ActivityMapProps) {
   const hasMapData = mapData && mapData.polyline && mapData.polyline.length > 0;
 
   const showColorByPace = useUiPrefsStore((s) => s.mapColorByPace);
@@ -81,7 +99,7 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
   const hasPausePoints = pauseMarkers.length > 0 || pauseItemsParsed.length > 0;
 
   const pauseGroups = React.useMemo(() => {
-    if (!showPausePoints) return [];
+    if (!allowPauseToggle || !showPausePoints) return [];
 
     const sources: Array<{ lat: number; lon: number; duration_s?: number }> = [];
     for (const p of pauseMarkers) sources.push({ lat: p.lat, lon: p.lon });
@@ -103,7 +121,7 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
       }
     }
     return Array.from(grouped.values());
-  }, [pauseItemsParsed, pauseMarkers, showPausePoints]);
+  }, [allowPauseToggle, pauseItemsParsed, pauseMarkers, showPausePoints]);
 
   const nonPauseMarkers = React.useMemo(() => {
     return (mapData.markers ?? []).filter((m) => String(m?.type ?? '').toLowerCase() !== 'pause');
@@ -113,11 +131,17 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
     if (!showColorByPace || !activityId || !paceValues || paceValues.length < 10) return null;
 
     const pts = sampleArray(polyline, 2500);
-    const paces = sampleArray(paceValues, 2500);
-    const len = Math.min(pts.length, paces.length);
+    const len = pts.length;
     if (len < 2) return null;
 
-    const finite = paces.slice(0, len).filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0);
+    const srcPaces = paceValues.map((v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null));
+    const mappedPaces = pts.map((_, idx) => {
+      const srcIdx = Math.round((idx / Math.max(1, len - 1)) * Math.max(0, srcPaces.length - 1));
+      return srcPaces[srcIdx] ?? null;
+    });
+    const paces = smoothNumericSeries(mappedPaces, 7);
+
+    const finite = paces.filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0);
     if (finite.length < 10) return null;
 
     const sorted = [...finite].sort((a, b) => a - b);
@@ -132,7 +156,7 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
     };
 
     const segs: Array<{ a: [number, number]; b: [number, number]; color: string }> = [];
-    for (let i = 0; i < len - 1; i += 1) {
+    for (let i = 0; i < pts.length - 1; i += 1) {
       const pace = paces[i];
       const color = typeof pace === 'number' && Number.isFinite(pace) ? colorFor(pace) : '#64748b';
       segs.push({ a: pts[i] as [number, number], b: pts[i + 1] as [number, number], color });
@@ -161,14 +185,16 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
             >
               Trace colore par allure
             </Button>
-            <Button
-              size="sm"
-              variant={showPausePoints ? 'outline' : 'ghost'}
-              onClick={() => setShowPausePoints(!showPausePoints)}
-              disabled={!hasPausePoints}
-            >
-              Points de pauses
-            </Button>
+            {allowPauseToggle ? (
+              <Button
+                size="sm"
+                variant={showPausePoints ? 'outline' : 'ghost'}
+                onClick={() => setShowPausePoints(!showPausePoints)}
+                disabled={!hasPausePoints}
+              >
+                Points de pauses
+              </Button>
+            ) : null}
             {showColorByPace && !coloredSegments ? (
               <div className="text-xs text-muted-foreground">Chargement couleur...</div>
             ) : null}

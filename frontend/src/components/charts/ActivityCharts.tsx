@@ -437,7 +437,11 @@ export function ActivityCharts({
     .filter(Boolean);
 
   const isLoading = queries.some((q) => q.isLoading);
-  const hasError = queries.some((q) => q.error);
+  const failedQueries = queries.filter((q) => q.error);
+  const fatalError = failedQueries.length > 0 && charts.length === 0;
+  const partialError = failedQueries.length > 0 && charts.length > 0;
+  const firstError = failedQueries[0]?.error;
+  const firstErrorMessage = firstError instanceof Error ? firstError.message : undefined;
 
   if (seriesDefs.length === 0) return null;
 
@@ -474,12 +478,24 @@ export function ActivityCharts({
           <Button size="sm" variant={smoothWindowClamped === 15 ? 'outline' : 'ghost'} onClick={() => setSmoothWindow(15)}>
             15
           </Button>
+          <Button size="sm" variant={smoothWindowClamped === 20 ? 'outline' : 'ghost'} onClick={() => setSmoothWindow(20)}>
+            20
+          </Button>
         </div>
           <div className="text-sm tabular-nums text-muted-foreground whitespace-nowrap">{`Fenetre: ${smoothWindowClamped}`}</div>
         </div>
         <div className="text-xs text-muted-foreground">{`Axe applique: ${axis === 'distance' ? 'Distance (km)' : 'Temps'}`}</div>
       </div>
-      {hasError ? <div className="text-sm text-red-600">Erreur de chargement des series.</div> : null}
+      {fatalError ? (
+        <div className="text-sm text-red-600">
+          {`Erreur de chargement des series${firstErrorMessage ? `: ${firstErrorMessage}` : '.'}`}
+        </div>
+      ) : null}
+      {partialError ? (
+        <div className="text-xs text-muted-foreground">
+          {`Certaines series n ont pas pu etre rechargees (${failedQueries.length}). Les autres restent affichees.`}
+        </div>
+      ) : null}
       {isLoading && charts.length === 0 ? (
         <div className="text-sm text-muted-foreground">Chargement des series...</div>
       ) : null}

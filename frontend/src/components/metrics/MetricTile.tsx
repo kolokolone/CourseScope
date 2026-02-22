@@ -122,6 +122,7 @@ export function MetricTile({
   metricKey,
   unit,
   format,
+  title,
   variant = 'default',
   className,
 }: {
@@ -130,6 +131,7 @@ export function MetricTile({
   metricKey?: string;
   unit?: string;
   format?: MetricFormat;
+  title?: string;
   variant?: MetricTileVariant;
   className?: string;
 }) {
@@ -138,6 +140,7 @@ export function MetricTile({
 
   return (
     <div
+      title={title}
       className={cn(
         'rounded-lg border bg-card/50 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/40',
         variant === 'kpi' ? 'p-5' : undefined,

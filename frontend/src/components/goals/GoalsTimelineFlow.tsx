@@ -26,7 +26,7 @@ function daysDeltaLabel(fromDate: Date, toDate: Date) {
 
 function connectorWidthFromDays(daysBetweenGoals: number) {
   const clamped = Math.max(1, Math.min(210, daysBetweenGoals));
-  return Math.round(38 + Math.log1p(clamped) * 28);
+  return Math.round(28 + Math.log1p(clamped) * 22);
 }
 
 function formatTodayLabel(date: Date) {
@@ -44,7 +44,7 @@ export function GoalsTimelineFlow({ goals, countdownByGoalId }: GoalsTimelineFlo
 
   return (
     <div className="overflow-x-auto pb-1">
-      <div className="inline-flex min-w-full items-center gap-2">
+      <div className="inline-flex min-w-full items-center gap-1.5">
         <div className="min-w-[11rem] shrink-0 rounded-md border bg-card p-2 text-[11px] shadow-sm">
           <div className="font-semibold leading-tight text-foreground">Aujourd&apos;hui</div>
           <div className="text-muted-foreground">{formatTodayLabel(today)}</div>
@@ -67,7 +67,7 @@ export function GoalsTimelineFlow({ goals, countdownByGoalId }: GoalsTimelineFlo
                   </div>
                 </div>
               </div>
-              <GoalMiniCard goal={goal} className="min-w-[11rem] shrink-0 self-center" />
+              <GoalMiniCard goal={goal} className="w-fit max-w-[14rem] shrink-0 self-center" />
             </React.Fragment>
           );
         })}
