@@ -19,11 +19,13 @@ export function KpiHeader({
   subtitle,
   items,
   className,
+  children,
 }: {
   title: string;
   subtitle?: string;
   items: KpiItem[];
   className?: string;
+  children?: React.ReactNode;
 }) {
   const visibleItems = items.filter((i) => i.value !== null && i.value !== undefined);
   if (visibleItems.length === 0) return null;
@@ -51,6 +53,7 @@ export function KpiHeader({
             />
           ))}
         </div>
+        {children ? <div className="mt-4">{children}</div> : null}
       </CardContent>
     </Card>
   );

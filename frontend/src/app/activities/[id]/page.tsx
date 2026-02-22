@@ -46,13 +46,13 @@ function formatRaceDate(iso: string | undefined) {
 }
 
 const KPI_HELP: Record<string, string> = {
-  moving_time: 'Temps total en mouvement sur la sortie.',
-  avg_speed: 'Vitesse moyenne courue sur tout le parcours.',
-  pause_time: "Temps passe a l'arret (pauses detectees).",
-  drift: "Evolution de la frequence cardiaque a effort comparable.",
-  drift_slope: 'Variation progressive de la derive cardio au fil de la sortie.',
-  cadence_avg: 'Nombre moyen de pas par minute pendant la course.',
-  power_avg: 'Puissance moyenne en watts sur la sortie.',
+  moving_time: 'Temps net passe en mouvement reel. Cette valeur exclut les arrets et permet de juger la charge effective de course.',
+  avg_speed: 'Vitesse moyenne globale sur l activite. Elle combine les portions rapides et les ralentissements pour donner le rythme reel du parcours.',
+  pause_time: "Somme des pauses detectees (arrets complets ou quasi complets). Plus elle est elevee, plus l allure moyenne peut etre tiree vers le bas.",
+  drift: 'Derive cardiaque entre debut et fin a intensite comparable. Une derive elevee peut signaler fatigue, chaleur, hydratation insuffisante ou pacing trop ambitieux.',
+  drift_slope: 'Pente de la derive cardio au fil du temps. Elle montre si la contrainte cardiaque augmente progressivement, meme quand l effort semble stable.',
+  cadence_avg: 'Nombre moyen de pas par minute. Utile pour suivre la regularite technique et detecter une baisse d efficacite en fin de sortie.',
+  power_avg: 'Puissance moyenne developpee en watts. Indicateur direct de l effort mecanique, souvent plus stable que l allure sur terrain varie.',
 };
 
 export default function RealActivityPage() {
@@ -250,6 +250,26 @@ export default function RealActivityPage() {
     return Array.isArray(rows) ? (rows as any[]) : [];
   }, [activity]);
 
+  const paceReference = React.useMemo(() => {
+    const candidate = [
+      getValueAtPath(activity, 'summary.target_pace_s_per_km'),
+      getValueAtPath(activity, 'summary.average_pace_s_per_km'),
+    ].find((v) => typeof v === 'number' && Number.isFinite(v));
+    return typeof candidate === 'number' ? candidate : null;
+  }, [activity]);
+
+  const filteredPaceBins = React.useMemo(() => {
+    const bins = realBinsQuery.data?.pace_time_bins ?? [];
+    if (paceReference === null) return bins.filter((bin) => typeof bin.time_s === 'number' && bin.time_s >= 60);
+    return bins.filter(
+      (bin) =>
+        typeof bin.pace_bin_floor_s_per_km === 'number' &&
+        typeof bin.time_s === 'number' &&
+        bin.pace_bin_floor_s_per_km <= paceReference * 1.75 &&
+        bin.time_s >= 60
+    );
+  }, [paceReference, realBinsQuery.data?.pace_time_bins]);
+
   const tableMaxHeight = 'max-h-[520px]';
 
   if (isLoading) {
@@ -333,12 +353,6 @@ export default function RealActivityPage() {
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          {raceDateLabel ? (
-            <div className="inline-flex items-center gap-2 rounded-full border bg-background/60 px-3 py-1">
-              <div className="text-xs text-muted-foreground whitespace-nowrap">Date</div>
-              <div className="text-sm font-semibold whitespace-nowrap">{raceDateLabel}</div>
-            </div>
-          ) : null}
           {primaryKpis.slice(0, 6).map((k) => (
             <div key={k.id} className="inline-flex items-center gap-2 rounded-full border bg-background/60 px-3 py-1">
               <div className="text-xs text-muted-foreground whitespace-nowrap">{k.label}</div>
@@ -369,20 +383,16 @@ export default function RealActivityPage() {
       <div>
         {activeTab === 'overview' ? (
           <div className="space-y-4">
-            <KpiHeader title="Apercu" subtitle="Essentiel, en un coup d'oeil" items={kpiItems} />
-
-            {secondaryKpis.length > 0 ? (
-              <Card>
-                <CardHeader className="py-3 px-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <CardTitle className="text-base">KPIs secondaires</CardTitle>
+            <KpiHeader title="Apercu" subtitle="Essentiel, en un coup d oeil" items={kpiItems}>
+              {secondaryKpis.length > 0 ? (
+                <div>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium text-foreground">KPIs secondaires</div>
                     <Button size="sm" variant="outline" onClick={() => setShowMoreKpis((v) => !v)}>
                       {showMoreKpis ? 'Masquer' : 'Plus'}
                     </Button>
                   </div>
-                </CardHeader>
-                {showMoreKpis ? (
-                  <CardContent className="px-4 pb-4">
+                  {showMoreKpis ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                       {secondaryKpis.map((k) => (
                         <div key={k.id} className="rounded-lg border bg-background/60 p-3" title={KPI_HELP[k.id] ?? undefined}>
@@ -394,10 +404,10 @@ export default function RealActivityPage() {
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                ) : null}
-              </Card>
-            ) : null}
+                  ) : null}
+                </div>
+              ) : null}
+            </KpiHeader>
 
             {insights.length ? (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -423,18 +433,18 @@ export default function RealActivityPage() {
               </div>
             ) : null}
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-stretch">
               <div>
                 <MetricsRegistryRenderer data={activity} sections={zonesSections} density="compact" />
               </div>
-              <Card>
+              <Card className="flex min-h-[28rem] flex-col">
                 <CardHeader className="py-3 px-4">
                   <CardTitle className="text-base">Distributions</CardTitle>
-                  <div className="text-xs text-muted-foreground">Histogramme des allures par split pour visualiser la regularite.</div>
+                  <div className="text-sm text-muted-foreground">Histogramme des allures par split pour visualiser la regularite.</div>
                 </CardHeader>
-                <CardContent className="px-4 pb-4">
+                <CardContent className="flex-1 px-4 pb-4">
                   {splitRows.length ? (
-                    <VerticalPaceHistogram data={splitRows as any[]} className="max-w-full" />
+                    <VerticalPaceHistogram data={splitRows as any[]} className="h-full max-w-full" />
                   ) : (
                     <div className="text-sm text-muted-foreground">Aucune donnee de splits.</div>
                   )}
@@ -482,7 +492,7 @@ export default function RealActivityPage() {
                 </SectionCard>
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   <SectionCard title="Temps par allure" description="Repartition des temps par bins de 15s/km." accentColor={CATEGORY_COLORS.Charts}>
-                    <PaceTimeBarChart data={realBinsQuery.data.pace_time_bins} />
+                    <PaceTimeBarChart data={filteredPaceBins} tickEverySeconds={30} />
                   </SectionCard>
                   <SectionCard title="Temps par % de pente" description="Repartition des temps sur les segments en mouvement." accentColor={CATEGORY_COLORS.Climbs}>
                     <GradeTimeBarChart data={realBinsQuery.data.grade_time_bins} />

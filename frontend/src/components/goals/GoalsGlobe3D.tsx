@@ -1,9 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Sphere } from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, Sphere, Stars } from '@react-three/drei';
 import type { Group } from 'three';
+import { CanvasTexture } from 'three';
 
 import { GoalMiniCard } from '@/components/goals/GoalMiniCard';
 import type { GoalItem } from '@/types/api';
@@ -37,13 +38,89 @@ function toPosition(lat: number, lon: number, radius: number): [number, number, 
   return [x, y, z];
 }
 
-function RotatingGroup({ children }: { children: React.ReactNode }) {
+function createEarthTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const water = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  water.addColorStop(0, '#dbeafe');
+  water.addColorStop(1, '#bfdbfe');
+  ctx.fillStyle = water;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = 'rgba(37, 99, 235, 0.22)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= canvas.width; x += 64) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= canvas.height; y += 64) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+
+  const landColor = 'rgba(30, 64, 175, 0.38)';
+  const drawBlob = (cx: number, cy: number, rx: number, ry: number, tilt: number) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(tilt);
+    ctx.fillStyle = landColor;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  drawBlob(190, 160, 90, 70, -0.35);
+  drawBlob(255, 250, 55, 95, 0.15);
+  drawBlob(500, 170, 105, 72, 0.08);
+  drawBlob(532, 270, 52, 75, -0.18);
+  drawBlob(694, 138, 120, 65, -0.2);
+  drawBlob(764, 230, 95, 58, 0.32);
+  drawBlob(868, 330, 60, 32, 0.18);
+
+  const texture = new CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function GoalMarker({
+  goal,
+  radius,
+  highlighted,
+  onHover,
+}: {
+  goal: MarkerGoal;
+  radius: number;
+  highlighted: boolean;
+  onHover: (goal: MarkerGoal | null) => void;
+}) {
   const ref = React.useRef<Group | null>(null);
-  useFrame((_, delta) => {
+  const { camera } = useThree();
+  const [x, y, z] = React.useMemo(() => toPosition(goal.location_lat, goal.location_lon, radius * 1.017), [goal.location_lat, goal.location_lon, radius]);
+
+  useFrame(() => {
     if (!ref.current) return;
-    ref.current.rotation.y += delta * 0.06;
+    const distance = ref.current.position.distanceTo(camera.position);
+    const base = distance * 0.0105;
+    ref.current.scale.setScalar(highlighted ? base * 1.2 : base);
   });
-  return <group ref={ref}>{children}</group>;
+
+  return (
+    <group ref={ref} position={[x, y, z]} onPointerOver={() => onHover(goal)} onPointerOut={() => onHover(null)}>
+      <mesh>
+        <sphereGeometry args={[1, 16, 16]} />
+        <meshStandardMaterial color={highlighted ? '#3b82f6' : '#2563eb'} emissive={highlighted ? '#2563eb' : '#1d4ed8'} emissiveIntensity={0.28} />
+      </mesh>
+    </group>
+  );
 }
 
 function GlobeScene({
@@ -56,48 +133,37 @@ function GlobeScene({
   onHover: (goal: MarkerGoal | null) => void;
 }) {
   const radius = 1.55;
+  const globeMap = React.useMemo(() => createEarthTexture(), []);
 
   const focusRotation = React.useMemo<[number, number, number]>(() => {
     if (markerGoals.length === 0) return [0, 0, 0];
     const targetGoals = markerGoals.slice(0, Math.min(3, markerGoals.length));
     const avgLat = targetGoals.reduce((sum, g) => sum + g.location_lat, 0) / targetGoals.length;
     const avgLon = targetGoals.reduce((sum, g) => sum + g.location_lon, 0) / targetGoals.length;
-    return [(-avgLat * Math.PI) / 180 * 0.45, (-avgLon * Math.PI) / 180, 0];
+    return [(-avgLat * Math.PI) / 180 * 0.52, (-avgLon * Math.PI) / 180, 0];
   }, [markerGoals]);
 
   return (
     <>
-      <ambientLight intensity={0.85} />
-      <directionalLight position={[4, 3, 5]} intensity={0.7} />
+      <ambientLight intensity={0.95} />
+      <directionalLight position={[4.5, 3.4, 4]} intensity={0.76} />
 
-      <RotatingGroup>
-        <group rotation={focusRotation}>
-          <Sphere args={[radius, 48, 48]}>
-            <meshStandardMaterial color="#f8fafc" roughness={0.78} metalness={0.08} />
-          </Sphere>
-          <Sphere args={[radius * 1.001, 24, 24]}>
-            <meshBasicMaterial color="#cbd5e1" wireframe transparent opacity={0.35} />
-          </Sphere>
+      <Stars radius={42} depth={22} count={680} factor={2.8} saturation={0} fade speed={0.22} />
 
-          {markerGoals.map((goal) => {
-            const [x, y, z] = toPosition(goal.location_lat, goal.location_lon, radius * 1.02);
-            const highlighted = highlightedIds.has(goal.id);
-            return (
-              <mesh
-                key={goal.id}
-                position={[x, y, z]}
-                onPointerOver={() => onHover(goal)}
-                onPointerOut={() => onHover(null)}
-              >
-                <sphereGeometry args={[highlighted ? 0.05 : 0.038, 16, 16]} />
-                <meshStandardMaterial color={highlighted ? '#0f766e' : '#0f172a'} emissive={highlighted ? '#0f766e' : '#1e293b'} emissiveIntensity={0.16} />
-              </mesh>
-            );
-          })}
-        </group>
-      </RotatingGroup>
+      <group rotation={focusRotation}>
+        <Sphere args={[radius, 64, 64]}>
+          <meshStandardMaterial map={globeMap ?? undefined} color={globeMap ? '#ffffff' : '#bfdbfe'} roughness={0.87} metalness={0.02} />
+        </Sphere>
+        <Sphere args={[radius * 1.0015, 40, 40]}>
+          <meshBasicMaterial color="#93c5fd" wireframe transparent opacity={0.16} />
+        </Sphere>
 
-      <OrbitControls enablePan={false} minDistance={2.5} maxDistance={5.4} />
+        {markerGoals.map((goal) => (
+          <GoalMarker key={goal.id} goal={goal} radius={radius} highlighted={highlightedIds.has(goal.id)} onHover={onHover} />
+        ))}
+      </group>
+
+      <OrbitControls enablePan={false} autoRotate={false} minDistance={2.6} maxDistance={5.6} />
     </>
   );
 }
@@ -114,10 +180,9 @@ export function GoalsGlobe3D({ goals }: GoalsGlobe3DProps) {
 
   return (
     <div className="relative overflow-hidden rounded-lg border bg-card">
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }} />
-      <div className="absolute inset-0 animate-[spin_90s_linear_infinite] opacity-70" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(15,23,42,0.14) 1px, transparent 1px), radial-gradient(circle at 70% 30%, rgba(15,23,42,0.12) 1px, transparent 1px), radial-gradient(circle at 35% 75%, rgba(15,23,42,0.14) 1px, transparent 1px), radial-gradient(circle at 80% 80%, rgba(15,23,42,0.1) 1px, transparent 1px)', backgroundSize: '170px 170px, 220px 220px, 200px 200px, 260px 260px' }} />
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(120% 88% at 50% 14%, #ffffff 0%, #f1f5f9 65%, #e2e8f0 100%)' }} />
 
-      <div className="relative mx-auto aspect-square w-full max-w-2xl">
+      <div className="relative h-[420px] w-full">
         <Canvas dpr={[1, 1.5]} camera={{ position: [0, 0, 3.5], fov: 45 }}>
           <GlobeScene markerGoals={markerGoals} highlightedIds={highlightedIds} onHover={setHoveredGoal} />
         </Canvas>

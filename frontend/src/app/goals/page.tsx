@@ -162,14 +162,14 @@ function compareGoals(a: GoalItem, b: GoalItem, key: SortKey) {
   return aObjective - bObjective;
 }
 
-function Timeline({ goals }: { goals: GoalItem[] }) {
+function Timeline({ goals, countdownByGoalId }: { goals: GoalItem[]; countdownByGoalId: Record<string, string> }) {
   return (
     <Card>
       <CardHeader className="py-3 px-4">
         <CardTitle className="text-base">Ligne temporelle des objectifs</CardTitle>
       </CardHeader>
       <CardContent className="px-4 pb-4">
-        <GoalsTimelineFlow goals={goals} />
+        <GoalsTimelineFlow goals={goals} countdownByGoalId={countdownByGoalId} />
       </CardContent>
     </Card>
   );
@@ -294,7 +294,7 @@ export default function GoalsPage() {
   const [sortKey, setSortKey] = React.useState<SortKey>('date');
   const [sortDir, setSortDir] = React.useState<SortDir>('asc');
 
-  const goals = goalsQuery.data?.goals ?? [];
+  const goals = React.useMemo(() => goalsQuery.data?.goals ?? [], [goalsQuery.data?.goals]);
   const hasGoals = goals.length > 0;
   const isSubmitting = createGoal.isPending || updateGoal.isPending;
 
@@ -312,6 +312,13 @@ export default function GoalsPage() {
   }, [goals, sortDir, sortKey]);
 
   const today = React.useMemo(() => startOfDay(new Date()), []);
+  const countdownByGoalId = React.useMemo(
+    () =>
+      Object.fromEntries(
+        goals.map((goal) => [goal.id, goalCountdownLabel(goal, today)])
+      ) as Record<string, string>,
+    [goals, today]
+  );
 
   const toggleSort = (key: SortKey) => {
     setSortKey((prev) => {
@@ -470,6 +477,147 @@ export default function GoalsPage() {
     setIsFormOpen(false);
   };
 
+  const goalFormCard = isFormOpen ? (
+    <Card>
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Flag className="h-4 w-4" />
+          {editingGoalId ? 'Modifier un objectif' : 'Nouvel objectif'}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-4 pb-4">
+        <form className="space-y-4" onSubmit={onSubmit}>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <label className="text-sm">
+              <div className="text-muted-foreground">Nom</div>
+              <input
+                className="mt-1 h-9 w-full rounded-md border px-3"
+                value={form.name}
+                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="Marathon de Paris"
+              />
+            </label>
+
+            <label className="text-sm">
+              <div className="text-muted-foreground">Date</div>
+              <input
+                type="date"
+                className="mt-1 h-9 w-full rounded-md border px-3"
+                value={form.eventDate}
+                onChange={(e) => setForm((prev) => ({ ...prev, eventDate: e.target.value }))}
+              />
+            </label>
+
+            <label className="text-sm">
+              <div className="text-muted-foreground">Distance (km)</div>
+              <input
+                type="number"
+                step="0.1"
+                className="mt-1 h-9 w-full rounded-md border px-3"
+                value={form.distanceKm}
+                onChange={(e) => setForm((prev) => ({ ...prev, distanceKm: e.target.value }))}
+                placeholder="42.2"
+              />
+            </label>
+
+            <label className="text-sm">
+              <div className="text-muted-foreground">Localisation</div>
+              <CityAutocomplete
+                className="h-9 w-full rounded-md border px-3"
+                value={form.location}
+                onChange={(next) => {
+                  setForm((prev) => ({ ...prev, location: next }));
+                  setLocationNeedsSelection(next.trim().length > 0);
+                }}
+                onSelectionChange={(item) => {
+                  setSelectedCity(item);
+                  setLocationNeedsSelection(item === null && form.location.trim().length > 0);
+                }}
+                placeholder="Ville, Pays"
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <label className="text-sm">
+              <div className="text-muted-foreground">Type de course</div>
+              <select
+                className="mt-1 h-9 w-full rounded-md border bg-background px-3"
+                value={form.raceType}
+                onChange={(e) => setForm((prev) => ({ ...prev, raceType: e.target.value as 'road' | 'trail' }))}
+              >
+                <option value="road">Course à pied</option>
+                <option value="trail">Trail</option>
+              </select>
+            </label>
+
+            <label className="text-sm">
+              <div className="text-muted-foreground">Objectif principal</div>
+              <select
+                className="mt-1 h-9 w-full rounded-md border bg-background px-3"
+                value={form.mode}
+                onChange={(e) => setForm((prev) => ({ ...prev, mode: e.target.value as GoalMode }))}
+              >
+                <option value="time">Temps cible</option>
+                <option value="pace">Allure cible</option>
+              </select>
+            </label>
+
+            {form.mode === 'time' ? (
+              <label className="text-sm md:col-span-2 xl:col-span-2">
+                <div className="text-muted-foreground">Temps cible</div>
+                <input
+                  className="mt-1 h-9 w-full rounded-md border px-3"
+                  value={form.targetTime}
+                  onChange={(e) => setForm((prev) => ({ ...prev, targetTime: e.target.value }))}
+                  placeholder="03:30:00"
+                />
+              </label>
+            ) : (
+              <label className="text-sm md:col-span-2 xl:col-span-2">
+                <div className="text-muted-foreground">Allure cible (/km)</div>
+                <input
+                  className="mt-1 h-9 w-full rounded-md border px-3"
+                  value={form.targetPace}
+                  onChange={(e) => setForm((prev) => ({ ...prev, targetPace: e.target.value }))}
+                  placeholder="4:45"
+                />
+              </label>
+            )}
+          </div>
+
+          <label className="block text-sm">
+            <div className="text-muted-foreground">Notes (optionnel)</div>
+            <textarea
+              className="mt-1 min-h-20 w-full rounded-md border px-3 py-2"
+              value={form.notes}
+              onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+              placeholder="Plan nutrition, stratégie de course, etc."
+            />
+          </label>
+
+          {formError ? <div className="text-sm text-red-600">{formError}</div> : null}
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsFormOpen(false);
+                resetFormState();
+              }}
+            >
+              Annuler
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Enregistrement...' : editingGoalId ? 'Enregistrer les modifications' : 'Enregistrer l’objectif'}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  ) : null;
+
   return (
     <div className="space-y-4">
       {!hasGoals ? (
@@ -495,8 +643,8 @@ export default function GoalsPage() {
         </Card>
       ) : (
         <>
-          <Timeline goals={goals} />
-          <GoalsCalendar goals={goals} />
+          <Timeline goals={goals} countdownByGoalId={countdownByGoalId} />
+          {goalFormCard}
           <Card>
             <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between gap-3">
@@ -595,6 +743,8 @@ export default function GoalsPage() {
             </CardContent>
           </Card>
 
+          <GoalsCalendar goals={goals} />
+
           <Card>
             <CardHeader className="py-3 px-4">
               <CardTitle className="text-base">Globe 3D des objectifs</CardTitle>
@@ -606,146 +756,7 @@ export default function GoalsPage() {
         </>
       )}
 
-      {isFormOpen ? (
-        <Card>
-          <CardHeader className="py-3 px-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Flag className="h-4 w-4" />
-              {editingGoalId ? 'Modifier un objectif' : 'Nouvel objectif'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <form className="space-y-4" onSubmit={onSubmit}>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <label className="text-sm">
-                  <div className="text-muted-foreground">Nom</div>
-                  <input
-                    className="mt-1 h-9 w-full rounded-md border px-3"
-                    value={form.name}
-                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                    placeholder="Marathon de Paris"
-                  />
-                </label>
-
-                <label className="text-sm">
-                  <div className="text-muted-foreground">Date</div>
-                  <input
-                    type="date"
-                    className="mt-1 h-9 w-full rounded-md border px-3"
-                    value={form.eventDate}
-                    onChange={(e) => setForm((prev) => ({ ...prev, eventDate: e.target.value }))}
-                  />
-                </label>
-
-                <label className="text-sm">
-                  <div className="text-muted-foreground">Distance (km)</div>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="mt-1 h-9 w-full rounded-md border px-3"
-                    value={form.distanceKm}
-                    onChange={(e) => setForm((prev) => ({ ...prev, distanceKm: e.target.value }))}
-                    placeholder="42.2"
-                  />
-                </label>
-
-                <label className="text-sm">
-                  <div className="text-muted-foreground">Localisation</div>
-                  <CityAutocomplete
-                    className="h-9 w-full rounded-md border px-3"
-                    value={form.location}
-                    onChange={(next) => {
-                      setForm((prev) => ({ ...prev, location: next }));
-                      setLocationNeedsSelection(next.trim().length > 0);
-                    }}
-                    onSelectionChange={(item) => {
-                      setSelectedCity(item);
-                      setLocationNeedsSelection(item === null && form.location.trim().length > 0);
-                    }}
-                    placeholder="Ville, Pays"
-                  />
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <label className="text-sm">
-                  <div className="text-muted-foreground">Type de course</div>
-                  <select
-                    className="mt-1 h-9 w-full rounded-md border bg-background px-3"
-                    value={form.raceType}
-                    onChange={(e) => setForm((prev) => ({ ...prev, raceType: e.target.value as 'road' | 'trail' }))}
-                  >
-                    <option value="road">Course à pied</option>
-                    <option value="trail">Trail</option>
-                  </select>
-                </label>
-
-                <label className="text-sm">
-                  <div className="text-muted-foreground">Objectif principal</div>
-                  <select
-                    className="mt-1 h-9 w-full rounded-md border bg-background px-3"
-                    value={form.mode}
-                    onChange={(e) => setForm((prev) => ({ ...prev, mode: e.target.value as GoalMode }))}
-                  >
-                    <option value="time">Temps cible</option>
-                    <option value="pace">Allure cible</option>
-                  </select>
-                </label>
-
-                {form.mode === 'time' ? (
-                  <label className="text-sm md:col-span-2 xl:col-span-2">
-                    <div className="text-muted-foreground">Temps cible</div>
-                    <input
-                      className="mt-1 h-9 w-full rounded-md border px-3"
-                      value={form.targetTime}
-                      onChange={(e) => setForm((prev) => ({ ...prev, targetTime: e.target.value }))}
-                      placeholder="03:30:00"
-                    />
-                  </label>
-                ) : (
-                  <label className="text-sm md:col-span-2 xl:col-span-2">
-                    <div className="text-muted-foreground">Allure cible (/km)</div>
-                    <input
-                      className="mt-1 h-9 w-full rounded-md border px-3"
-                      value={form.targetPace}
-                      onChange={(e) => setForm((prev) => ({ ...prev, targetPace: e.target.value }))}
-                      placeholder="4:45"
-                    />
-                  </label>
-                )}
-              </div>
-
-              <label className="block text-sm">
-                <div className="text-muted-foreground">Notes (optionnel)</div>
-                <textarea
-                  className="mt-1 min-h-20 w-full rounded-md border px-3 py-2"
-                  value={form.notes}
-                  onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Plan nutrition, stratégie de course, etc."
-                />
-              </label>
-
-              {formError ? <div className="text-sm text-red-600">{formError}</div> : null}
-
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsFormOpen(false);
-                    resetFormState();
-                  }}
-                >
-                  Annuler
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Enregistrement...' : editingGoalId ? 'Enregistrer les modifications' : 'Enregistrer l’objectif'}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      ) : null}
+      {!hasGoals ? goalFormCard : null}
     </div>
   );
 }
