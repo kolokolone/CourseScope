@@ -460,7 +460,7 @@ export default function TheoreticalActivityPage() {
           </Card>
 
           <SectionCard title="Map" description="Parcours du trace" accentColor="#E69F00">
-            {hasMap && mapData ? <ActivityMap mapData={mapData} activityId={activityId} height="420px" /> : <div className="text-sm text-muted-foreground">Aucune carte disponible.</div>}
+            {hasMap && mapData ? <ActivityMap mapData={mapData} activityId={activityId} height="420px" allowPauseToggle={false} /> : <div className="text-sm text-muted-foreground">Aucune carte disponible.</div>}
           </SectionCard>
 
           <SectionCard title="Allure vs distance" description="Allure theorique avec profil d'altitude" accentColor="#009E73">
@@ -553,7 +553,7 @@ export default function TheoreticalActivityPage() {
 
       {activeTab === 'map' ? (
         <SectionCard title="Map" description="Vue grand format" accentColor="#E69F00">
-          {hasMap && mapData ? <ActivityMap mapData={mapData} activityId={activityId} height="620px" /> : <div className="text-sm text-muted-foreground">Aucune carte disponible.</div>}
+          {hasMap && mapData ? <ActivityMap mapData={mapData} activityId={activityId} height="620px" allowPauseToggle={false} /> : <div className="text-sm text-muted-foreground">Aucune carte disponible.</div>}
         </SectionCard>
       ) : null}
     </div>

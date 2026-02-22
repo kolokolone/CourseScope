@@ -12,6 +12,7 @@ export type KpiItem = {
   value: unknown;
   metricKey?: string;
   unit?: string;
+  helpText?: string;
 };
 
 export function KpiHeader({
@@ -48,6 +49,7 @@ export function KpiHeader({
               value={item.value}
               metricKey={item.metricKey}
               unit={item.unit}
+              title={item.helpText}
               variant="kpi"
               className="bg-background/50"
             />

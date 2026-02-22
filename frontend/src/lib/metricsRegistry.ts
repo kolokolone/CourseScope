@@ -446,7 +446,7 @@ export const REAL_METRIC_SECTIONS: MetricSection[] = [
   {
     id: 'splits',
     title: 'Splits',
-    description: 'Decoupage par km (ou proche), utile pour la regularite.',
+    description: "Decoupage par km pour lire la regularite d allure et les variations d effort.",
     category: 'Splits',
     kind: 'table',
     rowsPath: 'splits.rows',

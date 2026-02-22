@@ -160,23 +160,8 @@ export function MetricsRegistryRenderer({
                 accentColor={accentColor}
                 density={density}
               >
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-semibold">Allure par split</h3>
-                    <div className="text-xs text-muted-foreground">Histogramme vertical des allures par split.</div>
-                  </div>
-                  <VerticalPaceHistogram data={sortedRows as any[]} />
-                  <details className="group">
-                    <summary className="cursor-pointer select-none list-none text-sm text-muted-foreground flex items-center justify-between">
-                      <span>{`Afficher le tableau (${sortedRows.length})`}</span>
-                      <span className="tabular-nums transition-transform group-open:rotate-180">v</span>
-                    </summary>
-                    <div className="mt-3">
-                      <div className={tableMaxHeight ? `${tableMaxHeight} overflow-auto` : undefined}>
-                        <SimpleTable rows={sortedRows} columns={section.columns} />
-                      </div>
-                    </div>
-                  </details>
+                <div className="h-[26rem]">
+                  <VerticalPaceHistogram data={sortedRows as any[]} className="h-full" />
                 </div>
               </SectionCard>
             );

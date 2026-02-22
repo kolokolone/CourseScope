@@ -1,10 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { OrbitControls, Sphere, Stars } from '@react-three/drei';
 import type { Group } from 'three';
-import { CanvasTexture } from 'three';
+import { TextureLoader } from 'three';
 
 import { GoalMiniCard } from '@/components/goals/GoalMiniCard';
 import type { GoalItem } from '@/types/api';
@@ -38,58 +38,8 @@ function toPosition(lat: number, lon: number, radius: number): [number, number, 
   return [x, y, z];
 }
 
-function createEarthTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-
-  const water = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  water.addColorStop(0, '#dbeafe');
-  water.addColorStop(1, '#bfdbfe');
-  ctx.fillStyle = water;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.strokeStyle = 'rgba(37, 99, 235, 0.22)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= canvas.width; x += 64) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-  for (let y = 0; y <= canvas.height; y += 64) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
-
-  const landColor = 'rgba(30, 64, 175, 0.38)';
-  const drawBlob = (cx: number, cy: number, rx: number, ry: number, tilt: number) => {
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(tilt);
-    ctx.fillStyle = landColor;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  };
-
-  drawBlob(190, 160, 90, 70, -0.35);
-  drawBlob(255, 250, 55, 95, 0.15);
-  drawBlob(500, 170, 105, 72, 0.08);
-  drawBlob(532, 270, 52, 75, -0.18);
-  drawBlob(694, 138, 120, 65, -0.2);
-  drawBlob(764, 230, 95, 58, 0.32);
-  drawBlob(868, 330, 60, 32, 0.18);
-
-  const texture = new CanvasTexture(canvas);
-  texture.needsUpdate = true;
-  return texture;
-}
+const EARTH_TEXTURE_URL = 'https://threejs.org/examples/textures/land_ocean_ice_cloud_2048.jpg';
+const EARTH_BUMP_URL = 'https://threejs.org/examples/textures/planets/earth_normal_2048.jpg';
 
 function GoalMarker({
   goal,
@@ -133,7 +83,7 @@ function GlobeScene({
   onHover: (goal: MarkerGoal | null) => void;
 }) {
   const radius = 1.55;
-  const globeMap = React.useMemo(() => createEarthTexture(), []);
+  const [globeMap, globeBump] = useLoader(TextureLoader, [EARTH_TEXTURE_URL, EARTH_BUMP_URL]);
 
   const focusRotation = React.useMemo<[number, number, number]>(() => {
     if (markerGoals.length === 0) return [0, 0, 0];
@@ -152,7 +102,14 @@ function GlobeScene({
 
       <group rotation={focusRotation}>
         <Sphere args={[radius, 64, 64]}>
-          <meshStandardMaterial map={globeMap ?? undefined} color={globeMap ? '#ffffff' : '#bfdbfe'} roughness={0.87} metalness={0.02} />
+          <meshStandardMaterial
+            map={globeMap}
+            bumpMap={globeBump}
+            bumpScale={0.015}
+            color="#ffffff"
+            roughness={0.9}
+            metalness={0.02}
+          />
         </Sphere>
         <Sphere args={[radius * 1.0015, 40, 40]}>
           <meshBasicMaterial color="#93c5fd" wireframe transparent opacity={0.16} />
@@ -184,7 +141,9 @@ export function GoalsGlobe3D({ goals }: GoalsGlobe3DProps) {
 
       <div className="relative h-[420px] w-full">
         <Canvas dpr={[1, 1.5]} camera={{ position: [0, 0, 3.5], fov: 45 }}>
-          <GlobeScene markerGoals={markerGoals} highlightedIds={highlightedIds} onHover={setHoveredGoal} />
+          <React.Suspense fallback={null}>
+            <GlobeScene markerGoals={markerGoals} highlightedIds={highlightedIds} onHover={setHoveredGoal} />
+          </React.Suspense>
         </Canvas>
       </div>
 

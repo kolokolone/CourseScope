@@ -10,6 +10,7 @@ interface ActivityMapProps {
   activityId?: string;
   height?: string;
   pauseItems?: unknown;
+  allowPauseToggle?: boolean;
 }
 
 const ActivityMapLeaflet = dynamic(

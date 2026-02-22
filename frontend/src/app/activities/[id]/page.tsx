@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatMetricValue, formatNumber } from '@/lib/metricsFormat';
 import { useMapData, useRealActivity, useRealActivityBins, useRenameActivity } from '@/hooks/useActivity';
 import { CATEGORY_COLORS, CHART_SERIES, KPI_METRICS, REAL_METRIC_SECTIONS, type MetricItem, type MetricSection } from '@/lib/metricsRegistry';
+import { useUiPrefsStore } from '@/store/uiPrefsStore';
 import type { SeriesInfo } from '@/types/api';
 
 function buildKpiItems(activity: unknown): KpiItem[] {
@@ -29,6 +30,7 @@ function buildKpiItems(activity: unknown): KpiItem[] {
       value,
       metricKey: metric.metricKey ?? metric.path.split('.').slice(-1)[0],
       unit: metric.unit,
+      helpText: KPI_HELP[metric.id] ?? KPI_HELP[metric.metricKey ?? metric.path.split('.').slice(-1)[0]],
     } satisfies KpiItem;
   }).filter((item) => item.value !== undefined && item.value !== null);
 }
@@ -46,6 +48,12 @@ function formatRaceDate(iso: string | undefined) {
 }
 
 const KPI_HELP: Record<string, string> = {
+  distance: 'Distance totale parcourue sur la sortie, utile pour comparer la charge entre seances.',
+  total_time: 'Duree totale de la seance, pauses incluses.',
+  avg_pace: 'Allure moyenne globale sur l ensemble du parcours.',
+  elevation_gain: 'Denivele positif cumule (D+) sur la sortie.',
+  hr_avg: 'Frequence cardiaque moyenne pendant l activite.',
+  hr_max: 'Frequence cardiaque maximale observee sur la seance.',
   moving_time: 'Temps net passe en mouvement reel. Cette valeur exclut les arrets et permet de juger la charge effective de course.',
   avg_speed: 'Vitesse moyenne globale sur l activite. Elle combine les portions rapides et les ralentissements pour donner le rythme reel du parcours.',
   pause_time: "Somme des pauses detectees (arrets complets ou quasi complets). Plus elle est elevee, plus l allure moyenne peut etre tiree vers le bas.",
@@ -64,6 +72,7 @@ export default function RealActivityPage() {
   const realBinsQuery = useRealActivityBins(activityId);
   const { data: mapData } = useMapData(activityId);
   const renameActivityMutation = useRenameActivity();
+  const setChartsSmoothWindow = useUiPrefsStore((s) => s.setChartsSmoothWindow);
 
   const [isEditingTitle, setIsEditingTitle] = React.useState(false);
   const [activityNameDraft, setActivityNameDraft] = React.useState('');
@@ -109,36 +118,24 @@ export default function RealActivityPage() {
     [sectionsById]
   );
 
-  const limitsSection = sectionsById.get('limits');
-
   const zonesSections = React.useMemo(() => pickSections(['zones']), [pickSections]);
   const splitsSections = React.useMemo(() => pickSections(['splits']), [pickSections]);
   const pacingSections = React.useMemo(() => pickSections(['pacing-horizontal-splits']), [pickSections]);
   const climbsSections = React.useMemo(() => pickSections(['climbs']), [pickSections]);
   const pausesSections = React.useMemo(() => pickSections(['pauses']), [pickSections]);
 
-  const movedToDetailsSections = React.useMemo(
-    () =>
-      pickSections([
-        'performance-predictions',
-        'power',
-        'power-duration-curve',
-        'training-load',
-      ]),
+  const detailsCoreSections = React.useMemo(
+    () => pickSections(['summary', 'garmin-summary', 'pacing', 'cardio']),
     [pickSections]
   );
-
-  const detailsSections = React.useMemo(() => {
-    const used = new Set<string>([
-      'zones',
-      'splits',
-      'pacing-horizontal-splits',
-      'climbs',
-      'pauses',
-      'limits',
-    ]);
-    return [...movedToDetailsSections, ...REAL_METRIC_SECTIONS.filter((s) => !used.has(s.id) && !movedToDetailsSections.some((m) => m.id === s.id))];
-  }, [movedToDetailsSections]);
+  const detailsTechniqueSections = React.useMemo(
+    () => pickSections(['cadence', 'running-dynamics', 'power', 'training-load']),
+    [pickSections]
+  );
+  const detailsAnalysisSections = React.useMemo(
+    () => pickSections(['performance-predictions', 'power-duration-curve', 'highlights']),
+    [pickSections]
+  );
 
   type TabId = 'overview' | 'splits' | 'climbs' | 'charts' | 'map' | 'details';
   const tabs = React.useMemo(
@@ -176,7 +173,6 @@ export default function RealActivityPage() {
     }).filter((k) => k.formatted !== null);
   }, [activity, formatKpi]);
 
-  const [showMoreKpis, setShowMoreKpis] = React.useState(false);
   const secondaryKpis = React.useMemo(() => {
     const candidates: MetricItem[] = [
       { id: 'moving_time', path: 'summary.moving_time_s', label: 'Temps en mouvement', format: 'duration', availability: 'both' },
@@ -269,6 +265,15 @@ export default function RealActivityPage() {
         bin.time_s >= 60
     );
   }, [paceReference, realBinsQuery.data?.pace_time_bins]);
+
+  const filteredGradeBins = React.useMemo(() => {
+    const bins = realBinsQuery.data?.grade_time_bins ?? [];
+    return bins.filter((bin) => typeof bin.time_s === 'number' && bin.time_s >= 60);
+  }, [realBinsQuery.data?.grade_time_bins]);
+
+  React.useEffect(() => {
+    setChartsSmoothWindow(15);
+  }, [setChartsSmoothWindow]);
 
   const tableMaxHeight = 'max-h-[520px]';
 
@@ -386,25 +391,17 @@ export default function RealActivityPage() {
             <KpiHeader title="Apercu" subtitle="Essentiel, en un coup d oeil" items={kpiItems}>
               {secondaryKpis.length > 0 ? (
                 <div>
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium text-foreground">KPIs secondaires</div>
-                    <Button size="sm" variant="outline" onClick={() => setShowMoreKpis((v) => !v)}>
-                      {showMoreKpis ? 'Masquer' : 'Plus'}
-                    </Button>
-                  </div>
-                  {showMoreKpis ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-                      {secondaryKpis.map((k) => (
-                        <div key={k.id} className="rounded-lg border bg-background/60 p-3" title={KPI_HELP[k.id] ?? undefined}>
-                          <div className="text-xs text-muted-foreground">{k.label}</div>
-                          <div className="mt-1 text-sm font-semibold tabular-nums">
-                            {k.formatted}
-                            {k.unit ? ` ${k.unit}` : ''}
-                          </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                    {secondaryKpis.map((k) => (
+                      <div key={k.id} className="rounded-lg border bg-background/60 p-3" title={KPI_HELP[k.id] ?? undefined}>
+                        <div className="text-xs text-muted-foreground">{k.label}</div>
+                        <div className="mt-1 text-sm font-semibold tabular-nums">
+                          {k.formatted}
+                          {k.unit ? ` ${k.unit}` : ''}
                         </div>
-                      ))}
-                    </div>
-                  ) : null}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </KpiHeader>
@@ -495,7 +492,7 @@ export default function RealActivityPage() {
                     <PaceTimeBarChart data={filteredPaceBins} tickEverySeconds={30} />
                   </SectionCard>
                   <SectionCard title="Temps par % de pente" description="Repartition des temps sur les segments en mouvement." accentColor={CATEGORY_COLORS.Climbs}>
-                    <GradeTimeBarChart data={realBinsQuery.data.grade_time_bins} />
+                    <GradeTimeBarChart data={filteredGradeBins} />
                   </SectionCard>
                 </div>
               </>
@@ -526,15 +523,28 @@ export default function RealActivityPage() {
           <div className="space-y-4">
             <MetricsRegistryRenderer
               data={activity}
-              sections={detailsSections}
-              density="compact"
+              sections={detailsCoreSections}
+              density="default"
               tableMaxHeight={tableMaxHeight}
               activityId={activityId}
               className="grid grid-cols-1 xl:grid-cols-2 gap-4"
             />
-            {limitsSection ? (
-              <MetricsRegistryRenderer data={activity} sections={[limitsSection]} density="compact" />
-            ) : null}
+            <MetricsRegistryRenderer
+              data={activity}
+              sections={detailsTechniqueSections}
+              density="default"
+              tableMaxHeight={tableMaxHeight}
+              activityId={activityId}
+              className="grid grid-cols-1 xl:grid-cols-2 gap-4"
+            />
+            <MetricsRegistryRenderer
+              data={activity}
+              sections={detailsAnalysisSections}
+              density="default"
+              tableMaxHeight={tableMaxHeight}
+              activityId={activityId}
+              className="grid grid-cols-1 gap-4"
+            />
           </div>
         ) : null}
       </div>
