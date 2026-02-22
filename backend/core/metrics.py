@@ -36,7 +36,37 @@ POWER_ZONES = [
     ("Z7", 1.50, math.inf),
 ]
 
-POWER_PEAK_DURATIONS_S = [5, 10, 30, 60, 120, 300, 600, 1200, 1800, 3600]
+BASE_POWER_PEAK_DURATIONS_S = [5, 10, 30, 60, 120, 300, 600, 1200, 1800, 3600]
+POWER_PEAK_EXTENSION_STEP_S = 900
+
+
+def _build_power_peak_durations(max_duration_s: float | int | None) -> list[int]:
+    if max_duration_s is None:
+        return list(BASE_POWER_PEAK_DURATIONS_S)
+
+    if not math.isfinite(float(max_duration_s)):
+        return list(BASE_POWER_PEAK_DURATIONS_S)
+
+    max_duration = int(math.floor(float(max_duration_s)))
+    if max_duration <= 0:
+        return list(BASE_POWER_PEAK_DURATIONS_S)
+
+    durations = [d for d in BASE_POWER_PEAK_DURATIONS_S if d <= max_duration]
+    if not durations:
+        return [max_duration]
+
+    if max_duration <= durations[-1]:
+        return durations
+
+    next_duration = durations[-1] + POWER_PEAK_EXTENSION_STEP_S
+    while next_duration < max_duration:
+        durations.append(next_duration)
+        next_duration += POWER_PEAK_EXTENSION_STEP_S
+
+    if durations[-1] != max_duration:
+        durations.append(max_duration)
+
+    return durations
 
 
 def _weighted_mean(values: np.ndarray, weights: np.ndarray) -> float:
@@ -738,7 +768,8 @@ def compute_garmin_like_stats(
             "intensity_factor": float(intensity_factor),
             "tss": float(tss),
         }
-        power_curve = _compute_power_duration_curve_from_series(power_series_1hz, POWER_PEAK_DURATIONS_S)
+        power_curve_durations = _build_power_peak_durations(len(power_series_1hz))
+        power_curve = _compute_power_duration_curve_from_series(power_series_1hz, power_curve_durations)
         if power_curve:
             power_advanced["power_duration_curve"] = power_curve
 
