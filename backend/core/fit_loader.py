@@ -212,6 +212,42 @@ def _distance_3d(
     return math.sqrt(dist_2d * dist_2d + delta_elev * delta_elev)
 
 
+def _extract_fit_vo2max(fitfile: FitFile) -> float:
+    candidate_names = {
+        "vo2max",
+        "vo2_max",
+        "max_oxygen_uptake",
+        "enhanced_vo2max",
+    }
+
+    candidates: list[float] = []
+    try:
+        for message_name in ("session", "sport", "record"):
+            for message in fitfile.get_messages(message_name):
+                fields = getattr(message, "fields", None)
+                if not fields:
+                    continue
+                for field in fields:
+                    name = str(getattr(field, "name", "") or "").lower()
+                    if not name:
+                        continue
+                    if name not in candidate_names and "vo2" not in name:
+                        continue
+                    raw = getattr(field, "value", None)
+                    try:
+                        value = float(raw)
+                    except (TypeError, ValueError):
+                        continue
+                    if math.isfinite(value) and 10.0 <= value <= 95.0:
+                        candidates.append(value)
+    except Exception:
+        return math.nan
+
+    if not candidates:
+        return math.nan
+    return float(candidates[-1])
+
+
 def load_fit(file: IO[bytes]) -> FitFile:
     """Lit un fichier FIT (file-like) et retourne l'objet FitFile."""
     return FitFile(file)
@@ -229,6 +265,7 @@ def fit_to_dataframe(fitfile: FitFile) -> pd.DataFrame:
     prev_lon = None
     prev_ele = None
     prev_distance = None
+    fit_vo2max = _extract_fit_vo2max(fitfile)
 
     for record in fitfile.get_messages("record"):
         lookup = _build_field_lookup(record)
@@ -337,6 +374,7 @@ def fit_to_dataframe(fitfile: FitFile) -> pd.DataFrame:
                 "vertical_ratio_pct": vertical_ratio_pct,
                 "ground_contact_time_ms": ground_contact_time_ms,
                 "gct_balance_pct": gct_balance_pct,
+                "vo2max": fit_vo2max,
             }
         )
 

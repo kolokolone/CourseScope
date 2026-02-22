@@ -12,12 +12,12 @@ from sqlalchemy.orm import Session
 from core.metrics import compute_garmin_like_stats
 from core.real_run_analysis import compute_best_efforts_by_duration, compute_derived_series
 from core.stats.basic_stats import compute_basic_stats
-from db.models import ProgressActivityIndex, ProgressActivityTag, ProgressBestEffortPoint, ProgressPaceHrBin
+from db.models import ProgressActivityIndex, ProgressActivityTag, ProgressBestEffortPoint, ProgressPaceHrBin, UserSettings
 from db.progress_repository import ProgressRepository
 from db.models import utc_now_iso
 
 
-METRICS_VERSION = 3
+METRICS_VERSION = 4
 
 
 def _parse_iso_datetime(value: object) -> datetime | None:
@@ -81,6 +81,20 @@ def _finite_or_none(value: object) -> float | None:
     if not math.isfinite(v):
         return None
     return v
+
+
+def _extract_vo2max(df: pd.DataFrame) -> float | None:
+    if "vo2max" not in df.columns:
+        return None
+    values = pd.to_numeric(df["vo2max"], errors="coerce").dropna()
+    if values.empty:
+        return None
+    value = float(values.iloc[-1])
+    if not math.isfinite(value):
+        return None
+    if value < 10.0 or value > 95.0:
+        return None
+    return value
 
 
 def _weighted_median(values: list[float], weights: list[float]) -> float | None:
@@ -339,6 +353,7 @@ def index_activity(
     has_power = 1 if ("power" in df.columns and bool(df["power"].notna().any())) else 0
     has_cadence = 1 if ("cadence" in df.columns and bool(df["cadence"].notna().any())) else 0
     data_points = int(len(df))
+    vo2max = _extract_vo2max(df)
 
     fingerprint = build_fingerprint(meta, parquet_path)
     indexed_at_ts = utc_now_iso()
@@ -369,12 +384,29 @@ def index_activity(
         stability_cv=stability_cv,
         stability_iqr_ratio=stability_iqr_ratio,
         aerobic_efficiency_m_s_per_bpm=aerobic_efficiency,
+        vo2max=vo2max,
         has_hr=has_hr,
         has_power=has_power,
         has_cadence=has_cadence,
         data_points=data_points,
     )
     repo.upsert_activity_index(session, row)
+
+    if vo2max is not None:
+        settings = session.get(UserSettings, 1)
+        if settings is None:
+            settings = UserSettings(
+                id=1,
+                vma_kmh=None,
+                vo2max_lastest=vo2max,
+                hr_max_manual_bpm=None,
+                hr_max_source="detected",
+                updated_at_utc=indexed_at_ts,
+            )
+            session.add(settings)
+        else:
+            settings.vo2max_lastest = vo2max
+            settings.updated_at_utc = indexed_at_ts
 
     session_tag, terrain_tag = _classify_session_and_terrain(
         activity_type=activity_type,

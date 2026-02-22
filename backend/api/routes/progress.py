@@ -248,6 +248,7 @@ async def list_progress_activities(
                     "trimp": r.trimp,
                     "training_load_method": r.training_load_method,
                     "aerobic_efficiency_m_s_per_bpm": r.aerobic_efficiency_m_s_per_bpm,
+                    "vo2max": r.vo2max,
                     "decoupling_pct": r.decoupling_pct,
                     "stability_cv": r.stability_cv,
                     "stability_iqr_ratio": r.stability_iqr_ratio,
@@ -288,6 +289,7 @@ async def get_progress_series(
         "elevation_gain_m",
         "trimp",
         "aerobic_efficiency_m_s_per_bpm",
+        "vo2max",
         "decoupling_pct",
     }
     if metric not in allowed_metrics:
