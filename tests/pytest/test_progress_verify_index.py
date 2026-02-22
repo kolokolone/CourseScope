@@ -149,7 +149,7 @@ def test_verify_progress_index_backfills_vo2max_from_fit_when_row_is_current(tmp
         session.close()
 
     monkeypatch.setattr(verify_mod, "load_fit", lambda _fh: object())
-    monkeypatch.setattr(verify_mod, "fit_to_dataframe", lambda _fit: _make_df(20).assign(vo2max=54.2))
+    monkeypatch.setattr(verify_mod, "_extract_fit_vo2max", lambda _fit: 54.2)
 
     session = factory()
     try:
@@ -216,18 +216,18 @@ def test_verify_progress_index_backfill_keeps_fit_stream_open(tmp_path, monkeypa
     finally:
         session.close()
 
-    def _fake_fit_to_dataframe(fh):
+    def _fake_extract_fit_vo2max(fh):
         if getattr(fh, "closed", False):
             raise ValueError("fit stream is closed")
         _ = fh.read(1)
-        return _make_df(20).assign(vo2max=51.1)
+        return 51.1
 
     monkeypatch.setattr(verify_mod, "load_fit", lambda fh: fh)
-    monkeypatch.setattr(verify_mod, "fit_to_dataframe", _fake_fit_to_dataframe)
+    monkeypatch.setattr(verify_mod, "_extract_fit_vo2max", _fake_extract_fit_vo2max)
     monkeypatch.setattr("backend.progress.verify_index.load_fit", lambda fh: fh, raising=False)
-    monkeypatch.setattr("backend.progress.verify_index.fit_to_dataframe", _fake_fit_to_dataframe, raising=False)
+    monkeypatch.setattr("backend.progress.verify_index._extract_fit_vo2max", _fake_extract_fit_vo2max, raising=False)
     monkeypatch.setattr("progress.verify_index.load_fit", lambda fh: fh, raising=False)
-    monkeypatch.setattr("progress.verify_index.fit_to_dataframe", _fake_fit_to_dataframe, raising=False)
+    monkeypatch.setattr("progress.verify_index._extract_fit_vo2max", _fake_extract_fit_vo2max, raising=False)
 
     session = factory()
     try:
@@ -274,14 +274,14 @@ def test_verify_progress_index_prefers_fit_vo2_over_existing_parquet_vo2_on_rein
     (activity_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=True, indent=2), encoding="utf-8")
     (activity_dir / "original.fit").write_bytes(b"fit")
 
-    def _fake_fit_to_dataframe(fh):
+    def _fake_extract_fit_vo2max(fh):
         if getattr(fh, "closed", False):
             raise ValueError("fit stream is closed")
         _ = fh.read(1)
-        return _make_df(20).assign(vo2max=52.6)
+        return 52.6
 
     monkeypatch.setattr(verify_mod, "load_fit", lambda fh: fh)
-    monkeypatch.setattr(verify_mod, "fit_to_dataframe", _fake_fit_to_dataframe)
+    monkeypatch.setattr(verify_mod, "_extract_fit_vo2max", _fake_extract_fit_vo2max)
 
     current_df = pd.read_parquet(parquet_path)
     assert float(_extract_vo2max_from_df(current_df)) == 60.0

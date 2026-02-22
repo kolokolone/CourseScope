@@ -12,7 +12,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from config import get_activities_dir
-from core.fit_loader import fit_to_dataframe, load_fit
+from core.fit_loader import _extract_fit_vo2max, load_fit
 from db.models import (
     Activity,
     ActivitySource,
@@ -107,10 +107,19 @@ def _maybe_backfill_vo2max_from_fit(activity_dir: Path, parquet_path: Path, df: 
 
     try:
         with fit_path.open("rb") as fh:
-            fit_df = fit_to_dataframe(load_fit(fh))
-        fit_vo2 = _extract_vo2max_from_df(fit_df)
-        if fit_vo2 is None:
+            fit = load_fit(fh)
+            fit_vo2 = _extract_fit_vo2max(fit)
+
+        if not math.isfinite(fit_vo2):
             return df
+        if fit_vo2 < 10.0 or fit_vo2 > 95.0:
+            return df
+
+        fit_vo2_value = float(fit_vo2)
+        fit_df = df.copy()
+        fit_df["vo2max"] = fit_vo2_value
+
+        # Persist enriched parquet so future reindex passes stay fast.
         try:
             fit_df.to_parquet(parquet_path, engine="pyarrow")
         except Exception:
