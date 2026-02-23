@@ -1,10 +1,12 @@
 from fastapi.testclient import TestClient
+from typing import Any, cast
 
 from backend.api.main import app
 
 
 def _insert_rows(client: TestClient, rows, best_efforts, pace_hr_bins, tags):
-    factory = getattr(client.app.state, "db_session_factory", None)
+    app_any = cast(Any, client.app)
+    factory = getattr(app_any.state, "db_session_factory", None)
     assert factory is not None
     session = factory()
     try:
@@ -331,6 +333,132 @@ def test_progress_verify_status_endpoint(tmp_path, monkeypatch):
         assert "last_finished_at_utc" in body
         assert "last_error" in body
         assert "last_result" in body
+
+
+def test_progress_index_status_endpoint(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    from backend.progress.indexation_runner import IndexationResult, IndexationState
+
+    monkeypatch.setattr(
+        "backend.api.routes.progress.get_indexation_state",
+        lambda: IndexationState(
+            running=False,
+            mode=None,
+            phase=None,
+            started_at_utc="2026-02-03T10:00:00Z",
+            finished_at_utc="2026-02-03T10:01:00Z",
+            progress_current=10,
+            progress_total=20,
+            last_error=None,
+            last_result=IndexationResult(scanned=4, added=1, deleted=0, indexed=3, up_to_date=1, errors=0, skipped=0),
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "api.routes.progress.get_indexation_state",
+        lambda: IndexationState(
+            running=False,
+            mode=None,
+            phase=None,
+            started_at_utc="2026-02-03T10:00:00Z",
+            finished_at_utc="2026-02-03T10:01:00Z",
+            progress_current=10,
+            progress_total=20,
+            last_error=None,
+            last_result=IndexationResult(scanned=4, added=1, deleted=0, indexed=3, up_to_date=1, errors=0, skipped=0),
+        ),
+        raising=False,
+    )
+
+    with TestClient(app) as client:
+        res = client.get("/progress/index/status")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["running"] is False
+        assert body["progress_current"] == 10
+        assert body["progress_total"] == 20
+        assert body["last_result"]["indexed"] == 3
+
+
+def test_progress_index_fast_returns_202_when_run_already_active(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    from backend.progress.indexation_runner import IndexationState
+
+    running_state = IndexationState(
+        running=True,
+        mode="fast",
+        phase="scan_fs",
+        started_at_utc="2026-02-03T10:00:00Z",
+        finished_at_utc=None,
+        progress_current=1,
+        progress_total=4,
+        last_error=None,
+        last_result=None,
+    )
+
+    monkeypatch.setattr("backend.api.routes.progress.get_indexation_state", lambda: running_state, raising=False)
+    monkeypatch.setattr("api.routes.progress.get_indexation_state", lambda: running_state, raising=False)
+    monkeypatch.setattr(
+        "backend.api.routes.progress.start_fast_indexation_in_background",
+        lambda db_session_factory, reason: running_state,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "api.routes.progress.start_fast_indexation_in_background",
+        lambda db_session_factory, reason: running_state,
+        raising=False,
+    )
+
+    with TestClient(app) as client:
+        res = client.post("/progress/index/fast")
+        assert res.status_code == 202
+        body = res.json()
+        assert body["running"] is True
+        assert body["mode"] == "fast"
+
+
+def test_progress_index_slow_accepts_payload(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    from backend.progress.indexation_runner import IndexationState
+
+    idle_state = IndexationState(
+        running=False,
+        mode="slow",
+        phase="prepare",
+        started_at_utc="2026-02-03T10:00:00Z",
+        finished_at_utc=None,
+        progress_current=0,
+        progress_total=0,
+        last_error=None,
+        last_result=None,
+    )
+
+    captured = {"strategy": None, "force": None, "reason": None}
+
+    def _fake_start(db_session_factory, reason, strategy, force):
+        _ = db_session_factory
+        captured["strategy"] = strategy
+        captured["force"] = force
+        captured["reason"] = reason
+        return idle_state
+
+    monkeypatch.setattr("backend.api.routes.progress.get_indexation_state", lambda: IndexationState(), raising=False)
+    monkeypatch.setattr("api.routes.progress.get_indexation_state", lambda: IndexationState(), raising=False)
+    monkeypatch.setattr("backend.api.routes.progress.start_slow_indexation_in_background", _fake_start, raising=False)
+    monkeypatch.setattr("api.routes.progress.start_slow_indexation_in_background", _fake_start, raising=False)
+
+    with TestClient(app) as client:
+        res = client.post(
+            "/progress/index/slow",
+            json={"strategy": "incremental", "reason": "settings_manual", "force": True},
+        )
+        assert res.status_code == 200
+        assert captured["reason"] == "settings_manual"
+        assert captured["force"] is True
+        assert captured["strategy"] == "backfill_full"
 
 
 def test_progress_activities_does_not_auto_trigger_verify(tmp_path, monkeypatch):

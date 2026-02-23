@@ -82,6 +82,10 @@ def init_db(engine: Engine) -> None:
                 ]
                 if "vo2max" not in progress_cols:
                     conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN vo2max REAL"))
+                if "fast_indexation_date" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN fast_indexation_date TEXT"))
+                if "slow_indexation_date" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN slow_indexation_date TEXT"))
     except Exception:
         # Best-effort: app should stay usable even if migrations fail.
         pass

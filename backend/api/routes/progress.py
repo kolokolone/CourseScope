@@ -4,9 +4,15 @@ import math
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from starlette.responses import JSONResponse
 
 from db.models import ProgressActivityTag, utc_now_iso
 from db.progress_repository import ProgressRepository
+from progress.indexation_runner import (
+    get_indexation_state,
+    start_fast_indexation_in_background,
+    start_slow_indexation_in_background,
+)
 from progress.verify_runner import get_verify_state, start_verify_in_background
 
 
@@ -14,6 +20,108 @@ router = APIRouter()
 
 SESSION_TAGS = {"easy", "tempo", "interval", "long_run", "unknown"}
 TERRAIN_TAGS = {"flat", "rolling", "hilly", "unknown"}
+
+
+def _to_indexation_status_payload(state) -> dict:
+    now = datetime.now(timezone.utc)
+
+    def _parse_iso(raw: str | None) -> datetime | None:
+        if raw is None:
+            return None
+        try:
+            dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except Exception:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    started = _parse_iso(state.started_at_utc)
+    finished = _parse_iso(state.finished_at_utc)
+
+    current_run_duration_ms = None
+    if bool(state.running) and started is not None:
+        current_run_duration_ms = max(0, int((now - started).total_seconds() * 1000.0))
+
+    last_duration_ms = None
+    if started is not None and finished is not None:
+        last_duration_ms = max(0, int((finished - started).total_seconds() * 1000.0))
+
+    total = int(state.progress_total or 0)
+    current = int(state.progress_current or 0)
+    percent = 0.0
+    if total > 0:
+        percent = max(0.0, min(100.0, (float(current) / float(total)) * 100.0))
+
+    last_result = state.last_result.to_dict() if state.last_result is not None else None
+
+    return {
+        "running": bool(state.running),
+        "mode": state.mode,
+        "phase": state.phase,
+        "current_run_duration_ms": current_run_duration_ms,
+        "progress_current": current,
+        "progress_total": total,
+        "percent": round(percent, 2),
+        "last_result": last_result,
+        "last_error": state.last_error,
+        "last_started_at_utc": state.started_at_utc,
+        "last_finished_at_utc": state.finished_at_utc,
+        "last_duration_ms": last_duration_ms,
+    }
+
+
+@router.post("/progress/index/fast")
+async def trigger_fast_indexation(request: Request):
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+
+    before = get_indexation_state()
+    state = start_fast_indexation_in_background(db_session_factory=db_session_factory, reason="api_fast")
+    payload = _to_indexation_status_payload(state)
+    if before.running:
+        return JSONResponse(status_code=202, content=payload)
+    return payload
+
+
+@router.post("/progress/index/slow")
+async def trigger_slow_indexation(request: Request, payload: dict | None = None):
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+
+    body = payload or {}
+    strategy_raw = str(body.get("strategy") or "incremental").strip().lower()
+    strategy = strategy_raw if strategy_raw in {"incremental", "backfill_missing", "backfill_full"} else "incremental"
+    reason = str(body.get("reason") or "manual").strip() or "manual"
+    force = bool(body.get("force") is True)
+    if force and strategy != "backfill_full":
+        strategy = "backfill_full"
+
+    before = get_indexation_state()
+    state = start_slow_indexation_in_background(
+        db_session_factory=db_session_factory,
+        reason=reason,
+        strategy=strategy,
+        force=force,
+    )
+    status = _to_indexation_status_payload(state)
+    if before.running:
+        return JSONResponse(status_code=202, content=status)
+    return status
+
+
+@router.get("/progress/index/status")
+async def get_progress_index_status(request: Request):
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+
+    state = get_indexation_state()
+    return _to_indexation_status_payload(state)
+
+
 @router.post("/progress/verify")
 async def verify_progress_index_endpoint(request: Request):
     db_session_factory = getattr(request.app.state, "db_session_factory", None)

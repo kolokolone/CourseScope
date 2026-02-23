@@ -139,6 +139,8 @@ class ProgressActivityIndex(Base):
     fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
     metrics_version: Mapped[int] = mapped_column(Integer, nullable=False)
     indexed_at_ts: Mapped[str] = mapped_column(Text, nullable=False)
+    fast_indexation_date: Mapped[str | None] = mapped_column(Text, nullable=True)
+    slow_indexation_date: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     distance_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     moving_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
