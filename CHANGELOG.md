@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.83] - 2026-02-23
+
+### Changed
+- Progression (`/progress`): switch to the new fast/slow indexation status flow (auto-trigger fast indexation on page load and poll unified status).
+- Settings (`/settings`): replace legacy progression verify button with explicit `Indexation rapide` and `Indexation complete` actions + progress/status display.
+
 ## [1.1.81] - 2026-02-22
 
 ### Changed
