@@ -72,13 +72,16 @@ def _to_indexation_status_payload(state) -> dict:
 
 
 @router.post("/progress/index/fast")
-async def trigger_fast_indexation(request: Request):
+async def trigger_fast_indexation(request: Request, payload: dict | None = None):
     db_session_factory = getattr(request.app.state, "db_session_factory", None)
     if db_session_factory is None:
         raise HTTPException(status_code=500, detail="DB not initialized")
 
+    body = payload or {}
+    reason = str(body.get("reason") or "api_fast").strip() or "api_fast"
+
     before = get_indexation_state()
-    state = start_fast_indexation_in_background(db_session_factory=db_session_factory, reason="api_fast")
+    state = start_fast_indexation_in_background(db_session_factory=db_session_factory, reason=reason)
     payload = _to_indexation_status_payload(state)
     if before.running:
         return JSONResponse(status_code=202, content=payload)

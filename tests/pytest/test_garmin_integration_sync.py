@@ -64,6 +64,18 @@ def test_garmin_sync_idempotent(_isolated_env, monkeypatch):
     from api.routes import garmin_integration as garmin_routes
 
     monkeypatch.setattr(garmin_routes, "connect_with_tokens", lambda: fake)
+    trigger_calls = {"n": 0, "reasons": []}
+
+    class _State:
+        running = False
+
+    def _fake_trigger(*, db_session_factory, reason):
+        _ = db_session_factory
+        trigger_calls["n"] += 1
+        trigger_calls["reasons"].append(reason)
+        return _State()
+
+    monkeypatch.setattr(garmin_routes, "start_fast_indexation_in_background", _fake_trigger)
 
     with TestClient(app) as client:
         r1 = client.post("/integrations/garmin/sync")
@@ -91,6 +103,8 @@ def test_garmin_sync_idempotent(_isolated_env, monkeypatch):
         assert p2["status"] == "ok"
         assert p2["imported_count"] == 0
         assert p2["skipped_count"] >= 1
+        assert trigger_calls["n"] == 2
+        assert trigger_calls["reasons"] == ["garmin_sync", "garmin_sync"]
 
 
 def test_garmin_sync_skips_when_manual_upload_matches_file_hash(_isolated_env, monkeypatch):

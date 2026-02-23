@@ -13,6 +13,7 @@ from db.repository import ActivityIndexRepository
 from integrations.garmin.client import GarminAuthError, GarminMfaState, resume_login_with_otp, start_login, connect_with_tokens
 from integrations.garmin.credentials_store import credentials_status, load_credentials, save_credentials
 from integrations.garmin.sync_service import GarminSyncService
+from progress.indexation_runner import start_fast_indexation_in_background
 
 
 logger = logging.getLogger("coursescope")
@@ -139,6 +140,14 @@ async def garmin_sync(request: Request):
     from anyio.to_thread import run_sync
 
     result = await run_sync(service.sync)
+
+    # Trigger a fast FS<->DB reconciliation after sync.
+    # Keep sync endpoint resilient if indexation launch fails.
+    try:
+        start_fast_indexation_in_background(db_session_factory=db_session_factory, reason="garmin_sync")
+    except Exception as exc:
+        logger.warning("garmin_sync_fast_indexation_trigger_failed", extra={"error": str(exc)})
+
     return GarminSyncResponse(**result.__dict__)
 
 

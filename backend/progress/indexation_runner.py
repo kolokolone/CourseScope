@@ -686,6 +686,13 @@ def start_fast_indexation_in_background(db_session_factory, reason: str) -> Inde
                     started_monotonic=slow_run_start_mono,
                 )
         finally:
+            snapshot = get_indexation_state()
+            _set_phase(
+                MODE_FAST,
+                PHASE_FINALIZE,
+                progress_current=int(max(snapshot.progress_current, snapshot.progress_total)),
+                progress_total=int(snapshot.progress_total),
+            )
             with _lock:
                 _state.running = False
                 _state.mode = None
@@ -778,6 +785,13 @@ def start_slow_indexation_in_background(
                 started_monotonic=run_start_mono,
             )
         finally:
+            snapshot = get_indexation_state()
+            _set_phase(
+                MODE_SLOW,
+                PHASE_FINALIZE,
+                progress_current=int(max(snapshot.progress_current, snapshot.progress_total)),
+                progress_total=int(snapshot.progress_total),
+            )
             with _lock:
                 _state.running = False
                 _state.mode = None

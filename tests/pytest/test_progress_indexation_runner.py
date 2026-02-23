@@ -146,7 +146,6 @@ def test_fast_adds_missing_db_row_from_fs(tmp_path, monkeypatch):
     finally:
         session.close()
 
-
 def test_fast_deletes_stale_db_row_absent_on_disk(tmp_path, monkeypatch):
     monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
 
@@ -189,7 +188,6 @@ def test_fast_deletes_stale_db_row_absent_on_disk(tmp_path, monkeypatch):
         assert session.get(Activity, activity_id) is None
     finally:
         session.close()
-
 
 def test_slow_reindexes_when_fingerprint_changes(tmp_path, monkeypatch):
     monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
@@ -428,3 +426,37 @@ def test_slow_persists_failed_run_record_on_timeout(tmp_path, monkeypatch):
         assert row.finished_at_utc is not None
     finally:
         session.close()
+
+
+def test_fast_trigger_is_idempotent_while_running(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    from backend.db.session import init_db, make_engine, make_session_factory
+    from backend.progress.indexation_runner import IndexationResult, start_fast_indexation_in_background
+
+    _wait_runner_done()
+    engine = make_engine()
+    init_db(engine)
+    factory = make_session_factory(engine)
+
+    call_count = {"n": 0}
+
+    def _fake_fast_once(session, *, activities_dir, deadline_ts, commit_every=50):
+        _ = session
+        _ = activities_dir
+        _ = deadline_ts
+        _ = commit_every
+        call_count["n"] += 1
+        time.sleep(0.25)
+        return IndexationResult(scanned=0, added=0, deleted=0, indexed=0, up_to_date=0, errors=0, skipped=0), False
+
+    monkeypatch.setattr("backend.progress.indexation_runner._run_fast_indexation_once", _fake_fast_once, raising=True)
+
+    state1 = start_fast_indexation_in_background(factory, reason="idempotence_test")
+    state2 = start_fast_indexation_in_background(factory, reason="idempotence_test")
+
+    assert state1.running is True
+    assert state2.running is True
+
+    _wait_runner_done()
+    assert call_count["n"] == 1
