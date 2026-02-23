@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.86] - 2026-02-23
+
+### Changed
+- Progress indexation API: propagate `reason` payload on `POST /progress/index/fast` instead of forcing `api_fast`.
+- Garmin sync: trigger fast indexation automatically after `/integrations/garmin/sync` (best-effort, non-blocking).
+- Indexation runner observability: emit explicit `finalize` phase before run completion.
+
+### Added
+- Tests: `slow` endpoint returns `202` when run already active, fast reason payload propagation, and fast trigger idempotence while running.
+- Frontend test for `/settings` full indexation click flow (`indexFast` + forced `indexSlow backfill_full`).
+- Operational migration/deployment runbook: `docs/indexation_operational_runbook.md`.
+
 ## [1.1.85] - 2026-02-23
 
 ### Changed
