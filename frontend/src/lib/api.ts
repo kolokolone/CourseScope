@@ -27,6 +27,8 @@ import {
   ProgressPaceHrWaterfallResponse,
   ProgressPaceAtHrResponse,
   ProgressVerifyResponse,
+  ProgressIndexStatusResponse,
+  ProgressIndexationStrategy,
   GoalItem,
   GoalsListResponse,
   GeoCitiesResponse,
@@ -363,6 +365,20 @@ export const metaApi = {
 };
 
 export const progressApi = {
+  indexFast: async (payload?: { reason?: string }) =>
+    apiRequest<ProgressIndexStatusResponse>('/progress/index/fast', {
+      method: 'POST',
+      body: JSON.stringify(payload ?? {}),
+    }),
+
+  indexSlow: async (payload?: { strategy?: ProgressIndexationStrategy; reason?: string; force?: boolean }) =>
+    apiRequest<ProgressIndexStatusResponse>('/progress/index/slow', {
+      method: 'POST',
+      body: JSON.stringify(payload ?? {}),
+    }),
+
+  indexStatus: async () => apiRequest<ProgressIndexStatusResponse>('/progress/index/status'),
+
   verify: async () => apiRequest<ProgressVerifyResponse>('/progress/verify', { method: 'POST' }),
 
   verifyStatus: async () => apiRequest<ProgressVerifyResponse>('/progress/verify-status'),

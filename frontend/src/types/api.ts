@@ -398,6 +398,35 @@ export interface ProgressVerifyResponse {
   last_result: ProgressVerifyResult | null;
 }
 
+export type ProgressIndexationMode = 'fast' | 'slow' | null;
+export type ProgressIndexationPhase = 'prepare' | 'scan_fs' | 'sync_db' | 'recompute' | 'finalize' | null;
+export type ProgressIndexationStrategy = 'incremental' | 'backfill_missing' | 'backfill_full';
+
+export interface ProgressIndexationResult {
+  scanned: number;
+  added: number;
+  deleted: number;
+  indexed: number;
+  up_to_date: number;
+  errors: number;
+  skipped: number;
+}
+
+export interface ProgressIndexStatusResponse {
+  running: boolean;
+  mode: ProgressIndexationMode;
+  phase: ProgressIndexationPhase;
+  current_run_duration_ms: number | null;
+  progress_current: number;
+  progress_total: number;
+  percent: number;
+  last_result: ProgressIndexationResult | null;
+  last_error: string | null;
+  last_started_at_utc: string | null;
+  last_finished_at_utc: string | null;
+  last_duration_ms: number | null;
+}
+
 export interface ProgressReferencePoint {
   activity_id: string;
   start_ts_utc: string;
