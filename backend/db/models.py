@@ -229,3 +229,24 @@ class ProgressActivityTag(Base):
     race_marker: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     source: Mapped[str] = mapped_column(String(16), nullable=False, default="auto")
     updated_at_ts: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class ProgressIndexationRun(Base):
+    __tablename__ = "progress_indexation_runs"
+    __table_args__ = (
+        Index("ix_progress_indexation_runs_started", "started_at_utc"),
+        Index("ix_progress_indexation_runs_mode_status", "mode", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    strategy: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    started_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+    finished_at_utc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    progress_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    progress_done: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)

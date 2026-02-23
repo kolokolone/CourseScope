@@ -45,6 +45,9 @@ def init_db(engine: Engine) -> None:
     try:
         if engine.dialect.name == "sqlite":
             with engine.begin() as conn:
+                conn.execute(text("PRAGMA journal_mode=WAL"))
+                conn.execute(text("PRAGMA busy_timeout=5000"))
+
                 cols = [
                     str(row[1])
                     for row in conn.execute(text("PRAGMA table_info(activities)"))
