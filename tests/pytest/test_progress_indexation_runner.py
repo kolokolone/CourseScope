@@ -334,3 +334,97 @@ def test_slow_ignores_activity_already_up_to_date(tmp_path, monkeypatch):
     assert state.last_result is not None
     assert state.last_result.indexed == 0
     assert state.last_result.up_to_date == 1
+
+
+def test_fast_persists_completed_run_record(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    from backend.config import get_activities_dir
+    from backend.db.models import ProgressIndexationRun
+    from backend.db.session import init_db, make_engine, make_session_factory
+    from backend.progress.indexation_runner import start_fast_indexation_in_background
+
+    _wait_runner_done()
+    engine = make_engine()
+    init_db(engine)
+    factory = make_session_factory(engine)
+
+    activities_dir = get_activities_dir().resolve()
+    _write_activity_fs(activities_dir, "00000000-0000-0000-0000-0000000001f6", file_hash="f" * 64)
+
+    start_fast_indexation_in_background(factory, reason="test_fast_run_persistence")
+    _wait_runner_done()
+
+    session = factory()
+    try:
+        rows = session.query(ProgressIndexationRun).order_by(ProgressIndexationRun.started_at_utc.asc()).all()
+        assert len(rows) >= 1
+        candidates = [r for r in rows if r.mode == "fast" and r.reason == "test_fast_run_persistence"]
+        assert len(candidates) == 1
+        row = candidates[0]
+        assert row.mode == "fast"
+        assert row.reason == "test_fast_run_persistence"
+        assert row.status == "completed"
+        assert row.finished_at_utc is not None
+        assert int(row.duration_ms) >= 0
+        assert row.result_json is not None
+        payload = json.loads(str(row.result_json))
+        assert "scanned" in payload
+    finally:
+        session.close()
+
+
+def test_slow_persists_failed_run_record_on_timeout(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("COURSESCOPE_INDEXATION_TIMEOUT_S", "0.0001")
+
+    from backend.config import get_activities_dir
+    from backend.db.models import Activity, ProgressIndexationRun
+    from backend.db.session import init_db, make_engine, make_session_factory
+    from backend.progress.indexation_runner import start_slow_indexation_in_background
+
+    _wait_runner_done()
+    engine = make_engine()
+    init_db(engine)
+    factory = make_session_factory(engine)
+
+    activities_dir = get_activities_dir().resolve()
+    activity_id = "00000000-0000-0000-0000-0000000001f7"
+    _, parquet_path, _ = _write_activity_fs(activities_dir, activity_id, file_hash="g" * 64)
+
+    session = factory()
+    try:
+        session.add(
+            Activity(
+                id=activity_id,
+                name="Timeout",
+                activity_type="real",
+                started_at_utc="2026-02-03T10:00:00Z",
+                created_at_utc="2026-02-03T10:00:00Z",
+                file_hash_sha256="g" * 64,
+                original_path=str((activities_dir / activity_id / "original.gpx").resolve()),
+                parquet_path=str(parquet_path.resolve()),
+            )
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    start_slow_indexation_in_background(factory, reason="test_timeout", strategy="backfill_full", force=True)
+    state = _wait_runner_done()
+
+    assert state.last_error is not None
+    assert "timeout" in state.last_error.lower()
+
+    session = factory()
+    try:
+        rows = session.query(ProgressIndexationRun).order_by(ProgressIndexationRun.started_at_utc.asc()).all()
+        assert len(rows) >= 1
+        row = rows[-1]
+        assert row.mode == "slow"
+        assert row.status == "failed"
+        assert row.error is not None
+        assert "timeout" in str(row.error).lower()
+        assert row.finished_at_utc is not None
+    finally:
+        session.close()
