@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.85] - 2026-02-23
+
+### Changed
+- Progress indexation: stabilize CLI tooling with `scripts/index_progress.py` and keep `scripts/reindex_progress.py` as a compatibility alias.
+
 ## [1.1.83] - 2026-02-23
 
 ### Changed
