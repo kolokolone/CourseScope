@@ -10,7 +10,7 @@ import type {
   GarminCredentialsStatusResponse,
   GarminStatusResponse,
   GarminSyncResponse,
-  ProgressVerifyResponse,
+  ProgressIndexStatusResponse,
 } from '@/types/api';
 import { Save, Settings, Trash2 } from 'lucide-react';
 import { useCleanupActivities } from '@/hooks/useActivity';
@@ -48,6 +48,12 @@ function parseOptionalInt(value: string): number | null {
   const n = Number(trimmed);
   if (!Number.isFinite(n)) return null;
   return Math.round(n);
+}
+
+function formatIndexationMode(mode: ProgressIndexStatusResponse['mode']): string {
+  if (mode === 'fast') return 'rapide';
+  if (mode === 'slow') return 'complete';
+  return 'inconnue';
 }
 
 export default function SettingsPage() {
@@ -122,16 +128,35 @@ export default function SettingsPage() {
   const cleanupMutation = useCleanupActivities();
   const cleanupTracesMutation = useCleanupTraces();
   const cleanupGoalsMutation = useCleanupGoals();
-  const progressVerifyStatus = useQuery<ProgressVerifyResponse>({
-    queryKey: ['progress', 'verify-status'],
-    queryFn: () => progressApi.verifyStatus(),
-    staleTime: 5_000,
-    refetchInterval: 5_000,
+  const progressIndexStatus = useQuery<ProgressIndexStatusResponse>({
+    queryKey: ['progress', 'index-status'],
+    queryFn: () => progressApi.indexStatus(),
+    staleTime: 2_000,
+    refetchInterval: (query) => {
+      const state = query.state.data as ProgressIndexStatusResponse | undefined;
+      return state?.running ? 2_000 : 5_000;
+    },
   });
-  const reindexProgressMutation = useMutation<ProgressVerifyResponse, Error, void>({
-    mutationFn: () => progressApi.verify(),
+
+  const indexFastMutation = useMutation<ProgressIndexStatusResponse, Error, void>({
+    mutationFn: () => progressApi.indexFast({ reason: 'settings_manual_fast' }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['progress', 'verify-status'] });
+      queryClient.invalidateQueries({ queryKey: ['progress', 'index-status'] });
+      queryClient.invalidateQueries({ queryKey: ['progress'] });
+    },
+  });
+
+  const indexFullMutation = useMutation<ProgressIndexStatusResponse, Error, void>({
+    mutationFn: async () => {
+      await progressApi.indexFast({ reason: 'settings_manual' });
+      return progressApi.indexSlow({
+        strategy: 'backfill_full',
+        reason: 'settings_manual',
+        force: true,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['progress', 'index-status'] });
       queryClient.invalidateQueries({ queryKey: ['progress'] });
     },
   });
@@ -169,15 +194,31 @@ export default function SettingsPage() {
     }
   };
 
-  const handleReindexProgress = async () => {
-    if (!window.confirm('Lancer une reindexation complete de toutes les metriques de progression ?')) return;
+  const handleFastIndexation = async () => {
     try {
-      await reindexProgressMutation.mutateAsync();
-      await progressVerifyStatus.refetch();
+      await indexFastMutation.mutateAsync();
+      await progressIndexStatus.refetch();
     } catch {
-      alert('Echec du lancement de la reindexation des metriques');
+      alert('Echec du lancement de l indexation rapide');
     }
   };
+
+  const handleFullIndexation = async () => {
+    if (!window.confirm('Lancer une indexation complete (rapide puis recalcul total) ?')) return;
+    try {
+      await indexFullMutation.mutateAsync();
+      await progressIndexStatus.refetch();
+    } catch {
+      alert('Echec du lancement de l indexation complete');
+    }
+  };
+
+  const isIndexationRunning = progressIndexStatus.data?.running === true;
+  const indexationModeLabel = formatIndexationMode(progressIndexStatus.data?.mode ?? null);
+  const indexationPercent =
+    typeof progressIndexStatus.data?.percent === 'number'
+      ? Math.max(0, Math.min(100, progressIndexStatus.data.percent))
+      : 0;
 
   const startConnect = async (payload: { email?: string; password?: string }) => {
     setOtp('');
@@ -498,31 +539,52 @@ export default function SettingsPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={handleReindexProgress}
-              disabled={reindexProgressMutation.isPending || progressVerifyStatus.data?.running === true}
+              onClick={handleFastIndexation}
+              disabled={indexFastMutation.isPending || indexFullMutation.isPending || isIndexationRunning}
             >
               <Settings className="h-4 w-4 mr-2" />
-              Reindexer metriques progression
+              Indexation rapide
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleFullIndexation}
+              disabled={indexFastMutation.isPending || indexFullMutation.isPending || isIndexationRunning}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Indexation complete
             </Button>
           </div>
 
           <div className="mt-3 text-sm text-muted-foreground">
-            {progressVerifyStatus.isLoading ? (
+            {progressIndexStatus.isLoading ? (
               <span>Etat indexation: chargement...</span>
-            ) : progressVerifyStatus.isError ? (
+            ) : progressIndexStatus.isError ? (
               <span>Etat indexation: indisponible</span>
-            ) : progressVerifyStatus.data ? (
+            ) : progressIndexStatus.data ? (
               <span>
-                Etat indexation: {progressVerifyStatus.data.running ? 'en cours' : 'au repos'}
-                {progressVerifyStatus.data.last_result
-                  ? ` • scan=${progressVerifyStatus.data.last_result.scanned}, indexees=${progressVerifyStatus.data.last_result.indexed}, a jour=${progressVerifyStatus.data.last_result.up_to_date}, erreurs=${progressVerifyStatus.data.last_result.errors}`
+                Etat indexation: {progressIndexStatus.data.running ? `indexation ${indexationModeLabel} en cours` : 'au repos'}
+                {progressIndexStatus.data.last_result
+                  ? ` • scan=${progressIndexStatus.data.last_result.scanned}, ajoutees=${progressIndexStatus.data.last_result.added}, supprimees=${progressIndexStatus.data.last_result.deleted}, indexees=${progressIndexStatus.data.last_result.indexed}, a_jour=${progressIndexStatus.data.last_result.up_to_date}, erreurs=${progressIndexStatus.data.last_result.errors}`
                   : ''}
-                {progressVerifyStatus.data.last_error ? ` • erreur: ${progressVerifyStatus.data.last_error}` : ''}
+                {progressIndexStatus.data.last_error ? ` • erreur: ${progressIndexStatus.data.last_error}` : ''}
               </span>
             ) : (
               <span>Etat indexation: inconnu</span>
             )}
           </div>
+
+          {progressIndexStatus.data ? (
+            <div className="mt-2">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${indexationPercent}%` }} />
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Progression: {progressIndexStatus.data.progress_current}/{progressIndexStatus.data.progress_total} ({indexationPercent.toFixed(1)}%)
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

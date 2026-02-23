@@ -31,10 +31,10 @@ import { progressApi } from '@/lib/api';
 import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
 import type {
   ProgressActivity,
+  ProgressIndexStatusResponse,
   ProgressSeriesMetric,
   ProgressSessionTag,
   ProgressTerrainTag,
-  ProgressVerifyResponse,
 } from '@/types/api';
 import { PaceHr3DChart } from '@/components/charts/PaceHr3DChart';
 import { TrendingUp } from 'lucide-react';
@@ -195,8 +195,8 @@ const TERRAIN_FILTER_OPTIONS: Array<{ value: 'all' | ProgressTerrainTag; label: 
 
 export default function ProgressPage() {
   const queryClient = useQueryClient();
-  const verifyStartedRef = React.useRef(false);
-  const lastVerifyRefreshAtRef = React.useRef<string | null>(null);
+  const indexationStartedRef = React.useRef(false);
+  const lastIndexationRefreshAtRef = React.useRef<string | null>(null);
   const [range, setRange] = React.useState<HistoryRange>('6m');
   const [volumeMetric, setVolumeMetric] = React.useState<ProgressSeriesMetric>('distance_m');
   const [bestDuration, setBestDuration] = React.useState(1200);
@@ -205,25 +205,25 @@ export default function ProgressPage() {
   const [waterfallSessionTag, setWaterfallSessionTag] = React.useState<'all' | ProgressSessionTag>('all');
   const [waterfallTerrainTag, setWaterfallTerrainTag] = React.useState<'all' | ProgressTerrainTag>('all');
   const [waterfallEnduranceOnly, setWaterfallEnduranceOnly] = React.useState(false);
-  const [verifyState, setVerifyState] = React.useState<ProgressVerifyResponse | null>(null);
+  const [indexationState, setIndexationState] = React.useState<ProgressIndexStatusResponse | null>(null);
 
   React.useEffect(() => {
-    if (verifyStartedRef.current) return;
-    verifyStartedRef.current = true;
+    if (indexationStartedRef.current) return;
+    indexationStartedRef.current = true;
 
     let cancelled = false;
     let timer: number | null = null;
 
-    const applyState = (state: ProgressVerifyResponse) => {
+    const applyState = (state: ProgressIndexStatusResponse) => {
       if (cancelled) return;
 
       const finishedAt = state.last_finished_at_utc;
-      if (!state.running && finishedAt && lastVerifyRefreshAtRef.current !== finishedAt) {
-        lastVerifyRefreshAtRef.current = finishedAt;
+      if (!state.running && finishedAt && lastIndexationRefreshAtRef.current !== finishedAt) {
+        lastIndexationRefreshAtRef.current = finishedAt;
         void queryClient.invalidateQueries({ queryKey: ['progress'] });
       }
 
-      setVerifyState(state);
+      setIndexationState(state);
       if (!state.running && timer !== null) {
         window.clearInterval(timer);
         timer = null;
@@ -232,7 +232,7 @@ export default function ProgressPage() {
 
     const pollStatus = async () => {
       try {
-        const state = await progressApi.verifyStatus();
+        const state = await progressApi.indexStatus();
         applyState(state);
       } catch {
         // Keep silent: this status should not block chart rendering.
@@ -246,21 +246,28 @@ export default function ProgressPage() {
       }, 2000);
     };
 
-    const startVerify = async () => {
+    const startFastIndexation = async () => {
       try {
-        const state = await progressApi.verify();
+        const state = await progressApi.indexFast({ reason: 'progress_page' });
         applyState(state);
         if (state.running) {
           startPolling();
         }
       } catch (error) {
-        setVerifyState((prev) =>
+        setIndexationState((prev) =>
           prev ?? {
             running: false,
+            mode: null,
+            phase: null,
+            current_run_duration_ms: null,
+            progress_current: 0,
+            progress_total: 0,
+            percent: 0,
             last_started_at_utc: null,
             last_finished_at_utc: null,
-            last_error: error instanceof Error ? error.message : 'Impossible de lancer la verification automatique.',
+            last_error: error instanceof Error ? error.message : 'Impossible de lancer l indexation rapide automatique.',
             last_result: null,
+            last_duration_ms: null,
           }
         );
 
@@ -277,7 +284,7 @@ export default function ProgressPage() {
       }
     };
 
-    void startVerify();
+    void startFastIndexation();
 
     return () => {
       cancelled = true;
@@ -581,15 +588,15 @@ export default function ProgressPage() {
 
   return (
     <div className="space-y-4">
-      {verifyState?.running ? (
+      {indexationState?.running ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Indexation en cours: les graphes peuvent etre incomplets pendant quelques secondes.
+          Indexation {indexationState?.mode === 'slow' ? 'complete' : 'rapide'} en cours: les graphes peuvent etre incomplets pendant quelques secondes.
         </div>
       ) : null}
 
-      {!verifyState?.running && verifyState?.last_error ? (
+      {!indexationState?.running && indexationState?.last_error ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          Echec de l'indexation: {verifyState.last_error}
+          Echec de l indexation: {indexationState.last_error}
         </div>
       ) : null}
 
@@ -638,9 +645,9 @@ export default function ProgressPage() {
               <div className="text-sm text-red-600">Erreur de chargement.</div>
             ) : volumeData.length === 0 ? (
               <div className="text-muted-foreground">
-                {verifyState?.running
+                {indexationState?.running
                   ? 'Indexation automatique en cours. Les donnees vont apparaitre des la fin du calcul.'
-                  : 'Aucune donnee indexee pour le moment. La page lance automatiquement une verification/reindexation a l ouverture.'}
+                  : 'Aucune donnee indexee pour le moment. La page lance automatiquement une indexation rapide a l ouverture.'}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>

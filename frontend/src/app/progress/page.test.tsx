@@ -8,19 +8,33 @@ import ProgressPage from './page';
 
 vi.mock('@/lib/api', () => ({
   progressApi: {
-    verify: vi.fn(async () => ({
+    indexFast: vi.fn(async () => ({
       running: true,
+      mode: 'fast',
+      phase: 'scan_fs',
+      current_run_duration_ms: 120,
+      progress_current: 1,
+      progress_total: 3,
+      percent: 33.3,
       last_started_at_utc: '2026-02-14T10:00:00Z',
       last_finished_at_utc: null,
       last_error: null,
       last_result: null,
+      last_duration_ms: null,
     })),
-    verifyStatus: vi.fn(async () => ({
+    indexStatus: vi.fn(async () => ({
       running: true,
+      mode: 'fast',
+      phase: 'scan_fs',
+      current_run_duration_ms: 240,
+      progress_current: 2,
+      progress_total: 3,
+      percent: 66.7,
       last_started_at_utc: '2026-02-14T10:00:00Z',
       last_finished_at_utc: null,
       last_error: null,
       last_result: null,
+      last_duration_ms: null,
     })),
   },
 }));
@@ -45,6 +59,6 @@ describe('ProgressPage', () => {
     );
     expect(screen.getByRole('heading', { name: 'Volume hebdo' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Charge (TRIMP) par semaine' })).toBeInTheDocument();
-    expect(await screen.findByText(/Indexation en cours/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Indexation automatique en cours/i)).toBeInTheDocument();
   });
 });
