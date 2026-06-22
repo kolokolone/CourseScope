@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CourseScope API",
     description="Analytics pour traces GPX/FIT",
-    version="1.1.86",
+    version="1.1.87",
     lifespan=lifespan,
 )
 

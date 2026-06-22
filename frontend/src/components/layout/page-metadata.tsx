@@ -67,6 +67,10 @@ function isDynamicRealActivityRoute(pathname: string) {
   return /^\/activities\/[^/]+$/.test(pathname);
 }
 
+function isDynamicBetaActivityRoute(pathname: string) {
+  return /^\/activities-beta\/[^/]+$/.test(pathname);
+}
+
 function isDynamicTraceRoute(pathname: string) {
   return /^\/traces\/[^/]+$/.test(pathname);
 }
@@ -78,6 +82,15 @@ export function resolvePageMetadata(pathname: string): PageMetadata {
     return {
       title: 'Activité',
       subtitle: 'Analyse réelle',
+      container: 'wide',
+      showToday: true,
+    };
+  }
+
+  if (isDynamicBetaActivityRoute(normalizedPathname)) {
+    return {
+      title: 'Activité (bêta)',
+      subtitle: 'Nouvelle vue détaillée',
       container: 'wide',
       showToday: true,
     };

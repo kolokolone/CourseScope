@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.87] - 2026-06-22
+
+### Added
+- Nouvelle page bêta `/activities-beta/[id]` avec hero éditable, sub-nav sticky par ancres françaises, insights interprétatifs, carte sans footer technique, splits, zones, relief et accordéons repliables. Frontend-only, zéro modification backend.
+
+### Fixed
+- `params.id` Promise error Next.js 16 → passage à `useParams()` hook.
+- Superposition chart/contrôles dans `MainAnalysisCard` → retrait du `h-[420px]` fixe et des doublons de contrôles.
+- Sub-nav masquée par la carte Leaflet → z-index passé à `z-[1001]`.
+- Scroll saccadé → `IntersectionObserver` déplacé dans `ActivityBetaSubNav` pour isoler les re-rendus.
+- Colonnes D+/D- et KM vides dans `SplitsCard` → champs corrigés (`elev_delta_m`, `split_index`).
+- Barres d'allure compressées dans `SplitsCard` → normalisation entre 10 %–90 % de la largeur.
+
 ## [1.1.86] - 2026-02-23
 
 ### Changed
