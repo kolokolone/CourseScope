@@ -18,7 +18,7 @@ import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
 
 type BinPoint = {
   grade: number;
-  paceMean: number;
+  paceMedian: number;
   paceStd: number;
   n: number;
   proPace?: number | null;
@@ -32,16 +32,17 @@ type TooltipContentProps = {
 
 function AllureVsPenteTooltip({ active, payload }: TooltipContentProps) {
   if (!active || !payload || payload.length === 0) return null;
-  const p = payload.find((x) => (x?.payload as { paceMean?: unknown } | undefined)?.paceMean !== undefined)?.payload as
+  const p = payload.find((x) => (x?.payload as { paceMedian?: unknown } | undefined)?.paceMedian !== undefined)?.payload as
     | BinPoint
     | undefined;
   if (!p) return null;
   const pro = typeof p.proPace === 'number' && Number.isFinite(p.proPace) ? p.proPace : null;
   return (
     <div className="rounded-md border bg-background/95 px-3 py-2 text-sm shadow-sm">
-      <div className="font-medium">{`Mon allure: ${formatPaceSecondsPerKm(p.paceMean)}`}</div>
+      <div className="font-medium">{`Mon allure: ${formatPaceSecondsPerKm(p.paceMedian)}`}</div>
       <div className="text-muted-foreground">{`Pente: ${formatNumber(p.grade, { decimals: 1 })}%`}</div>
       <div className="text-muted-foreground">{`Allure pro: ${pro ? formatPaceSecondsPerKm(pro) : '—'}`}</div>
+      <div className="text-muted-foreground">{`Échantillons: ${p.n}`}</div>
     </div>
   );
 }
@@ -70,8 +71,8 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
 
       out.push({
         grade: b.grade_center,
-        paceMean: b.pace_med_s_per_km,
-        paceStd: b.pace_std_s_per_km,
+        paceMedian: b.pace_med_s_per_km,
+        paceStd: b.pace_std_w_s_per_km ?? b.pace_std_s_per_km,
         n: b.pace_n,
         proPace: b.pro_pace_s_per_km ?? null,
       });
@@ -99,8 +100,8 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
 
   const { chartData, yDomain } = React.useMemo(() => {
     const data = points.map((p) => {
-      const lower = p.paceMean - p.paceStd;
-      const upper = p.paceMean + p.paceStd;
+      const lower = p.paceMedian - p.paceStd;
+      const upper = p.paceMedian + p.paceStd;
       return {
         ...p,
         paceLower: lower,
@@ -159,7 +160,7 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
                 tick={{ fontSize: 12 }}
               />
               <YAxis
-                dataKey="paceMean"
+                dataKey="paceMedian"
                 type="number"
                 tickFormatter={(v) => formatPaceSecondsPerKm(Number(v))}
                 tick={{ fontSize: 12 }}
@@ -193,22 +194,22 @@ export function AllureVsPenteChart({ activityId }: { activityId: string }) {
 
               <Line
                 type="monotone"
-                dataKey="paceMean"
+                dataKey="paceMedian"
                 stroke="#0f172a"
                 strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
               />
 
-              <Scatter dataKey="paceMean" shape={pointShape} />
+              <Scatter dataKey="paceMedian" shape={pointShape} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Ce graphe montre comment ton allure varie selon la pente (bins par % de pente, axe centre sur 0). La barre verticale
-        represente la variabilite (ecart-type) autour de l&apos;allure moyenne. La ligne pointillee est une reference pro (Kilian)
+        Ce graphe montre comment ton allure varie selon la pente (bins par % de pente, axe centre sur 0). La zone grise
+        represente la variabilite (ecart-type) autour de l&apos;allure mediane. La ligne pointillee est une reference pro (Kilian)
         issue des donnees du projet.
       </p>
     </div>

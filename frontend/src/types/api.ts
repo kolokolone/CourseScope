@@ -193,8 +193,10 @@ export interface PaceVsGradeBin {
   grade_center: number;
   pace_med_s_per_km: number;
   pace_std_s_per_km: number;
+  pace_std_w_s_per_km?: number | null;
   pace_n: number;
   pro_pace_s_per_km?: number | null;
+  time_s_bin?: number | null;
 }
 
 export interface ProPaceVsGradePoint {
