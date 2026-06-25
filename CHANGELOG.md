@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.88] - 2026-06-25
+
+### Fixed
+- **AllureVsPenteChart** : bande de variabilité utilise désormais `pace_std_w_s_per_km` (écart-type pondéré) au lieu de `pace_std_s_per_km` (non pondéré) — correction M-1 de l'audit.
+- Renommage `paceMean` → `paceMedian` dans `BinPoint` pour refléter la sémantique réelle (médiane, pas moyenne).
+- Description du graphique corrigée : « La barre verticale » → « La zone grise ».
+- Tooltip enrichi avec le nombre d'échantillons par bin.
+- Types TypeScript `PaceVsGradeBin` complétés (`pace_std_w_s_per_km`, `time_s_bin`).
+
 ## [1.1.87] - 2026-06-22
 
 ### Added
