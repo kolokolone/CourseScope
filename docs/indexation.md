@@ -1,13 +1,11 @@
-# Indexation - Architecture cible
+# Indexation — Architecture
 
-Ce document est la base de verite de l indexation CourseScope.
+> **Type** : Spécification · **Statut** : ✅ Implémentée
+> **Dernière mise à jour** : 2026-02-23
 
-Scope:
-- Architecture cible fast/slow
-- Contrats de donnees, API et execution
-- Invariants de stabilite, performance et non regression
+Ce document est la référence de l'indexation CourseScope.
 
-Ce document decrit uniquement la nouvelle architecture cible.
+**Périmètre** : architecture fast/slow, contrats de données, API, invariants de stabilité et performance.
 
 ## 1) Vue d ensemble
 

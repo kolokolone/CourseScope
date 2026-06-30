@@ -1,6 +1,9 @@
-# Runbook operationnel - Indexation
+# Runbook opérationnel — Indexation
 
-Ce runbook decrit la procedure de deploiement et de verification pour la migration indexation fast/slow.
+> **Type** : Procédure · **Statut** : Actif
+> **Dernière mise à jour** : 2026-02-23
+
+Ce runbook décrit la procédure de déploiement et de vérification pour l'indexation fast/slow.
 
 ## 1. Pre-requis
 

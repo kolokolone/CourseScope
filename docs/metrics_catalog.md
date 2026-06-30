@@ -1,7 +1,15 @@
 # Metrics Catalog
 
 Compiled from API schemas and backend metric builders (`backend/api/schemas.py`, `backend/core/real_run_analysis.py`, `backend/core/metrics.py`).
-See `docs/metrics_list.txt` for a categorized list of all file-only metrics.
+
+## Data Source Compatibility
+
+| Label | Meaning |
+|---|---|
+| `[Both]` | Available from both GPX and FIT files |
+| `[FIT]` | Requires FIT file with heart rate / power / running dynamics fields present |
+| `[Cond cadence]` | Conditional on cadence data being present in the file |
+| `[Cond …]` | Conditional on the specified sensor data being present |
 
 ## Activity Load (POST /activity/load)
 
@@ -174,6 +182,17 @@ See `docs/metrics_list.txt` for a categorized list of all file-only metrics.
 | `pauses.items[].lon` | unknown | - | lon |
 | `pauses.items[].label` | unknown | - | label |
 
+### Map data (GET /activity/{id}/map)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `bbox` | [number,number,number,number] | deg | Bounding box [south,west,north,east] |
+| `polyline` | array<[number,number]> | deg | GPX polyline points |
+| `markers[].lat` | float | deg | Marker latitude |
+| `markers[].lon` | float | deg | Marker longitude |
+| `markers[].label` | string | - | Marker label |
+| `markers[].type` | string | - | Marker type |
+
 ### Climbs
 
 | Path | Type | Unit | Description |
@@ -296,6 +315,23 @@ See `docs/metrics_list.txt` for a categorized list of all file-only metrics.
 | `training_load.method` | string | - | method name |
 
 ### Series index
+
+Available series (names used in `GET /activity/{id}/series/{name}`):
+
+| Series name | Source | Description |
+| --- | --- | --- |
+| `speed` | [Both] | Speed (m/s) |
+| `pace` | [Both] | Pace (s/km) |
+| `elevation` | [Both] | Elevation (m) |
+| `heart_rate` | [FIT] | Heart rate (bpm) |
+| `cadence` | [Cond cadence] | Cadence (spm) |
+| `power` | [FIT] | Power (watts) |
+| `grade` | [Both] | Grade (%) |
+| `moving` | [Both] | Moving mask (boolean) |
+| `hr_zones` | [FIT] | HR zone at each point |
+| `power_zones` | [FIT] | Power zone at each point |
+
+Series metadata:
 
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |

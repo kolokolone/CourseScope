@@ -1,68 +1,83 @@
-# climbs (Montees detectees)
+# Détection des montées (`climbs`)
 
-Ce document decrit la logique backend utilisee pour la section "Montees detectees" (payload `climbs.items`).
+> **Type** : Référence technique · **Endpoint** : `GET /activity/{id}/real` (champ `climbs`)
+> **Dernière mise à jour** : v1.1.46+
+
+## Objectif
+
+Décrire l'algorithme de détection des segments de montée utilisé par le backend, les données d'entrée, et le contrat de sortie API.
+
+## Périmètre
+
+Ce document couvre :
+- L'algorithme de détection (machine d'état, lissage, gap bridging)
+- Les métriques calculées par segment
+- Le contrat API exposé au frontend
+
+Ne couvre pas : l'affichage frontend (voir `docs/style-frontend-ui.md`).
 
 ## Source
 
-- Calcul: `backend/core/real_run_analysis.py:compute_climbs`
-- Integration: `backend/services/real_activity_service.py:prepare_base`
-- Exposition API: `backend/api/routes/analysis.py:prepare_real_response` (champ `climbs`)
+- Calcul : `backend/core/real_run_analysis.py:compute_climbs`
+- Intégration : `backend/services/real_activity_service.py:prepare_base`
+- Exposition API : `backend/api/routes/analysis.py:prepare_real_response` (champ `climbs`)
 
-## Donnees d'entree (DataFrame)
+## Données d'entrée (DataFrame)
 
-Colonnes requises (unites):
+Colonnes requises (unités) :
 - `distance_m` (m)
 - `delta_distance_m` (m)
 - `elevation` (m)
 - `delta_time_s` (s)
 - `pace_s_per_km` (s/km)
 
-## Objectif
+## Algorithme
 
-Detecter des segments de montee de facon robuste, en evitant:
-- la sur-segmentation (replats/variations courtes)
-- le bruit altitude (GPS/baro)
+1) **Grille distance (resampling)**
+   - Grille régulière en distance (step ~ 5 m)
+   - Interpolation altitude et moving time sur cette grille
 
-## Algorithme (v1.1.46+)
+2) **Lissage altitude (en distance)**
+   - Moyenne glissante sur ~25 m (fenêtre en mètres)
 
-1) Grille distance (resampling)
-- Construction d'une grille reguliere en distance (step ~ 5m).
-- Interpolation de l'altitude et du "moving time" sur cette grille.
+3) **Pente robuste (fenêtre distance)**
+   - Pente calculée sur ~50 m : `grade[%] = 100 × (elev_smooth[i] - elev_smooth[i-lag]) / window_m`
 
-2) Lissage altitude (en distance)
-- Lissage par moyenne glissante sur ~25m (fenetre en metres, pas en nombre de points).
+4) **Détection (machine d'état)**
+   - Start : `grade >= 3%` sur ≥ 20 m
+   - Continue : `grade >= 1%`
+   - Gap bridging : replats tolérés (`grade >= 0.2%`) tant que le gap est court
+   - Stop : gap trop long ou descente (`grade <= -1%` sur ≥ 30 m)
 
-3) Pente robuste (fenetre distance)
-- Pente calculee sur une fenetre de distance (ex: 50m):
-  - `grade[%] = 100 * (elev_smooth[i] - elev_smooth[i-lag]) / window_m`
+5) **Métriques sur segment complet**
+   - Distance : `distance_m[end] - distance_m[start]`
+   - D+ : somme des incréments positifs d'altitude lissée
+   - Pente moyenne : `D+ / distance × 100`
+   - VAM : `D+ / durée × 3600` (durée = moving time)
+   - Allure : médiane de `pace_s_per_km` sur le segment
 
-4) Detection (machine d'etat)
-- Start: `grade >= 3%` sur une distance minimale (ex: 20m)
-- Continue: `grade >= 1%`
-- Gap bridging: replats tolérés tant que `grade >= 0.2%` et que le gap reste court (distance et/ou temps)
-- Stop: gap trop long, ou descente nette (`grade <= -1%` sur >= 30m)
+## Contrat API
 
-5) Metriques sur segment complet
-- Distance: `distance_m[end] - distance_m[start]`
-- D+: somme des increments positifs sur l'altitude lissee
-- Pente moyenne: `D+ / distance * 100`
-- VAM: `D+ / duree * 3600` (duree = moving time, pauses exclues)
-- Allure: mediane de `pace_s_per_km` sur le segment
+Chaque item renvoyé :
 
-## Output (contrat API conserve)
+| Champ | Type | Description |
+|---|---|---|
+| `distance_km` | float | Distance de la montée (km) |
+| `elevation_gain_m` | float | Dénivelé positif (m) |
+| `avg_grade_percent` | float | Pente moyenne (%) |
+| `pace_s_per_km` | float | Allure médiane (s/km) |
+| `vam_m_h` | float | Vitesse ascensionnelle (m/h) |
+| `start_idx` | int | Index de début |
+| `end_idx` | int | Index de fin |
+| `distance_m_end` | float | Distance cumulée à la fin (m) |
+| `start_km` | float | Kilomètre de début |
+| `end_km` | float | Kilomètre de fin |
+| `start_end_km` | string | Plage formatée ("xx.xx → yy.yy") |
+| `duration_s` | float | Temps de mouvement (s) |
 
-Chaque item renvoye conserve les champs attendus par le frontend:
-- `distance_km`
-- `elevation_gain_m`
-- `avg_grade_percent`
-- `pace_s_per_km`
-- `vam_m_h`
-- `start_idx`, `end_idx`
-- `distance_m_end`
+Les items sont triés par `elevation_gain_m` décroissant. La liste complète est renvoyée (pas de top N).
 
-Champs additionnels (optionnels, UI):
-- `start_km`, `end_km`
-- `start_end_km` (string avec centiemes)
-- `duration_s` (moving time)
+## Notes
 
-Les items sont tries par `elevation_gain_m` (descendant). Aucun "top 3" n'est force: le frontend affiche la liste telle quelle.
+- Le seuil de vitesse pour le masque moving est `MOVING_SPEED_THRESHOLD_M_S = 0.5 m/s` (défini dans `backend/core/constants.py`)
+- La version actuelle (v1.1.46+) utilise une machine d'état avec gap bridging, remplaçant l'ancien seuillage point par point

@@ -1,5 +1,8 @@
 # CourseScope - Guide de style Frontend UI
 
+> **Type** : Guide normatif · **Cible** : Développeurs frontend & agents IA
+> **Dernière mise à jour** : 2026-01-20
+
 ## 1) Objectif de cette note
 
 Ce document est la reference UI pour maintenir une interface homogene dans le temps.

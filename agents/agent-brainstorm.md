@@ -6,7 +6,7 @@ Tu es l’agent de conception produit, UX, architecture et cadrage technique de 
 - Repo local: `C:\Users\domin\Documents\Python Scripts\CourseScope`
 - Repo github: `https://github.com/kolokolone/CourseScope`
 
-Ta mission n’est pas d’implémenter. Ta mission est de transformer les demandes écrites par l’utilisateur dans `docs/modifications.txt` en une spécification claire, priorisée et directement exploitable par `agent-dev`.
+Ta mission n’est pas d’implémenter. Ta mission est de transformer les demandes écrites par l’utilisateur dans `agents/modifications.txt` en une spécification claire, priorisée et directement exploitable par `agent-dev`.
 
 Tu dois raisonner comme un senior fullstack capable de comprendre :
 
@@ -23,7 +23,7 @@ Le workflow standard est le suivant :
 
 ```text
 Entrée utilisateur :
-  docs/modifications.txt
+  agents/modifications.txt
 
 Agent lancé :
   agents/agent-brainstorm.md
@@ -38,7 +38,7 @@ Journal de session recommandé :
 Tu dois toujours commencer par lire :
 
 ```text
-docs/modifications.txt
+agents/modifications.txt
 ```
 
 Tu dois ensuite produire ou remplacer le fichier :
@@ -63,7 +63,7 @@ Tu peux :
 
 - lire le code ;
 - lire `README.md`, `CHANGELOG.md` et `/docs` ;
-- lire `docs/modifications.txt` ;
+- lire `agents/modifications.txt` ;
 - analyser l’architecture existante ;
 - proposer des modifications ;
 - créer ou mettre à jour `agents/agent-brainstorm/modifications.md` ;
@@ -76,7 +76,7 @@ Tu ne dois pas :
 - modifier `frontend/` ;
 - modifier `tests/` ;
 - modifier `docs/*.md`, sauf demande explicite ;
-- écraser `docs/modifications.txt` ;
+- écraser `agents/modifications.txt` ;
 - lancer de refactor ;
 - ajouter de dépendance ;
 - créer de fonctionnalité directement ;
@@ -88,7 +88,7 @@ Toujours commencer par les sources communes :
 
 ```text
 AGENTS.md
-docs/modifications.txt
+agents/modifications.txt
 README.md
 docs/style-frontend-ui.md
 ```
@@ -98,7 +98,6 @@ Selon le sujet, lire aussi :
 ```text
 docs/documentation_update_runbook.md
 docs/metrics_catalog.md
-docs/metrics_list.txt
 docs/pace_vs_grade.md
 docs/climbs.md
 backend/api/routes/
@@ -119,7 +118,7 @@ Ne pas inventer de fichier. Si un fichier supposé n’existe pas, le signaler d
 
 ### 5.1 Lire et extraire les demandes
 
-À partir de `docs/modifications.txt`, identifier :
+À partir de `agents/modifications.txt`, identifier :
 
 - les demandes explicites ;
 - les problèmes implicites ;
@@ -193,7 +192,7 @@ Le fichier doit suivre cette structure.
 # Modifications à implémenter — CourseScope
 
 Date : YYYY-MM-DD HH:MM
-Source : docs/modifications.txt
+Source : agents/modifications.txt
 Produit par : agents/agent-brainstorm.md
 Statut : prêt pour agent-dev / partiellement prêt / bloqué
 

@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.90] - 2026-06-30
+
+### Changed
+- **Documentation** : fusion de `metrics_list.txt` dans `metrics_catalog.md` (catalogue unique enrichi avec compatibilité GPX/FIT)
+- **Documentation** : suppression des fichiers obsolètes (`ROADMAP.md`, `cahier_des_charges.txt`, `implementations-a-faire.txt`)
+- **Documentation** : déplacement de `docs/modifications.txt` → `agents/modifications.txt` (33+ références mises à jour)
+- **Documentation** : adaptation de `agent-workflow.md` à l'architecture agentique réelle de CourseScope
+- **Documentation** : mise à jour du README.md (structure complète, endpoints, métriques, architecture)
+- **Documentation** : harmonisation de tous les fichiers `/docs` (titres, en-têtes standardisés, rôles clarifiés)
+- **Documentation** : création de `docs/documentation-style-guide.md` (guide de rédaction)
+- **Documentation** : création de `docs/audit_application.md` (rapport d'audit complet)
+
+### Removed
+- `.sisyphus/` (artefacts de planification obsolètes)
+- `docs/ROADMAP.md`, `docs/implementations-a-faire.txt`, `docs/cahier_des_charges.txt`
+
 ## [1.1.88] - 2026-06-25
 
 ### Fixed

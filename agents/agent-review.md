@@ -27,7 +27,7 @@ Tu dois auditer avec une compétence fullstack :
 Le workflow principal est :
 
 ```text
-docs/modifications.txt
+agents/modifications.txt
   -> agents/agent-brainstorm.md
   -> agents/agent-brainstorm/modifications.md
   -> agents/agent-dev.md
@@ -126,7 +126,6 @@ Selon le scope, lire aussi :
 ```text
 docs/documentation_update_runbook.md
 docs/metrics_catalog.md
-docs/metrics_list.txt
 backend/api/main.py
 backend/api/routes/
 backend/api/schemas.py

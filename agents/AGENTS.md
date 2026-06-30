@@ -45,12 +45,12 @@ Le workflow standard du projet est séquentiel. Ne pas le court-circuiter sans d
 
 ```text
 1. L’utilisateur écrit les modifications souhaitées dans :
-   docs/modifications.txt
+   agents/modifications.txt
 
 2. L’utilisateur lance :
    agents/agent-brainstorm.md
 
-3. agent-brainstorm lit docs/modifications.txt, analyse le repo, puis écrit la spécification consolidée dans :
+3. agent-brainstorm lit agents/modifications.txt, analyse le repo, puis écrit la spécification consolidée dans :
    agents/agent-brainstorm/modifications.md
 
 4. L’utilisateur lance :
@@ -81,7 +81,7 @@ Agent de conception produit, UX, architecture et cadrage technique.
 Il lit :
 
 ```text
-docs/modifications.txt
+agents/modifications.txt
 ```
 
 Il produit :
@@ -194,7 +194,7 @@ Ne pas modifier `docs/*.md` sauf si :
 - le changement modifie un contrat, une métrique, une commande, une page majeure ou un comportement user-facing ;
 - l’agent spécialisé indique que la documentation est nécessaire et que l’utilisateur a validé cette mise à jour.
 
-Exception : `docs/modifications.txt` est le fichier d’entrée utilisateur du workflow. Les agents peuvent le lire. Ils ne doivent pas l’écraser sauf demande explicite.
+Exception : `agents/modifications.txt` est le fichier d’entrée utilisateur du workflow. Les agents peuvent le lire. Ils ne doivent pas l’écraser sauf demande explicite.
 
 ## 6. Commandes utiles
 

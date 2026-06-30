@@ -1,5 +1,8 @@
 # Guide universel de maintenance du README
 
+> **Type** : Guide de référence · **Statut** : Référence (non normatif)
+> **Note** : Ce document est un guide générique. Pour les règles spécifiques à CourseScope, voir [`docs/documentation-style-guide.md`](documentation-style-guide.md).
+
 Ce document définit comment écrire, modifier et maintenir un `README.md` clair, utile et durable pour n'importe quel projet logiciel.
 
 ## Objectif

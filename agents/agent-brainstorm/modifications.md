@@ -1,7 +1,7 @@
 # Modifications à implémenter — CourseScope
 
 Date : 2026-06-30 14:10
-Source : docs/modifications.txt
+Source : agents/modifications.txt
 Produit par : agents/agent-brainstorm.md
 Statut : prêt pour agent-dev
 
@@ -55,7 +55,7 @@ Priorisation :
 
 ### 3.1 Fichiers et zones lus
 
-- `docs/modifications.txt`
+- `agents/modifications.txt`
 - `docs/calendrier-implementation.md`
 - `docs/charge-entrainement-implementation.md`
 - `docs/style-frontend-ui.md`
@@ -355,7 +355,7 @@ Les deux nouveaux endpoints doivent être accessibles via `/progress/calendar` E
 
 La documentation suivante devra être mise à jour (après implémentation, si demandé) :
 - `docs/metrics_catalog.md` : ajouter Calendrier et Training Load.
-- `docs/metrics_list.txt` : ajouter les nouveaux endpoints.
+- `docs/metrics_catalog.md` : ajouter les nouveaux endpoints.
 
 **Justification** : nouvelles métriques exposées par l'API → documentation nécessaire. Mais selon `AGENTS.md` §5.6, ne pas modifier sans demande explicite. L'agent-dev devra confirmer avant de toucher à la documentation.
 
@@ -519,13 +519,13 @@ Vérifications manuelles :
 3. **Version récupérée via `useQuery` dans AppShell** : plutôt que de convertir Sidebar en composant client, on garde Sidebar simple et on passe la version en prop depuis AppShell (déjà `'use client'`).
 4. **Option A (ajout inline) pour les deux composants** : pas de refacto par onglets. La page `/progress` fait déjà 1200 lignes — un refacto par onglets est souhaitable mais hors scope. Les docs sources mentionnent cette option comme la plus simple.
 5. **`finiteNumber` dupliquée dans TrainingLoadChart** : plutôt que d'extraire dans un utilitaire partagé (refacto qui toucherait `page.tsx`), on duplique la fonction dans le nouveau composant. Cohérent avec le principe "changer le minimum nécessaire".
-6. **Pas de modification de `docs/`** : la mise à jour de `metrics_catalog.md` et `metrics_list.txt` est laissée à l'appréciation de l'utilisateur après validation.
+6. **Pas de modification de `docs/`** : la mise à jour de `metrics_catalog.md` est laissée à l'appréciation de l'utilisateur après validation.
 
 ## 11. Points à ne pas faire
 
 - **Ne pas refactorer `/progress` en onglets** : option B des docs sources. Hors scope, trop risqué pour cette itération.
 - **Ne pas modifier le drawer mobile** : sa largeur (`w-[18rem] max-w-[88vw]`) est indépendante de la sidebar desktop.
-- **Ne pas modifier `docs/modifications.txt`** : c'est le fichier d'entrée utilisateur.
+- **Ne pas modifier `agents/modifications.txt`** : c'est le fichier d'entrée utilisateur.
 - **Ne pas modifier les endpoints existants** : `/progress/series`, `/progress/activities`, etc. restent inchangés.
 - **Ne pas ajouter de dépendance npm** : Recharts, TanStack Query, Tailwind sont déjà installés.
 - **Ne pas modifier la navigation (`nav.ts`)** : pas d'ajout de page.

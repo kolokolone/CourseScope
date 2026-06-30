@@ -1,5 +1,8 @@
 # Documentation update runbook
 
+> **Type** : Procédure · **Cible** : Agents IA et mainteneurs
+> **Dernière mise à jour** : 2026-06-30
+
 NE PAS MODIFIER CE FICHIER.
 Suivre ces etapes uniquement quand je te le demande.
 
@@ -27,15 +30,16 @@ Objectif: garder une documentation reproductible apres chaque changement backend
   - modifier celles dont le contrat a change
   - conserver le schema/tableaux existants.
 
-3) Mettre a jour la liste file-only
-- Mettre a jour `docs/metrics_list.txt`:
+3) Mettre a jour le catalogue des metriques
+- Mettre a jour `docs/metrics_catalog.md`:
   - ajouter/retirer les paths
-  - garder le format (sections numerotees, labels [Both]/[FIT]/[Cond ...]).
+  - garder le format (tableaux avec types, unites, descriptions).
+  - les labels [Both]/[FIT]/[Cond ...] sont documentes dans la section "Data Source Compatibility".
 
 4) Mettre a jour les autres docs (si demande)
 - README: seulement si la navigation/commande/definition a change.
 - CHANGELOG: toujours ajouter une entree pour la version.
-- Autres docs (ex: cahier_des_charges): uniquement si le fichier existe et si demande.
+- Autres docs (ex: design.md, progression.md): uniquement si le fichier existe et si demande.
 
 5) Verification
 - Backend: `python -m pytest -q`

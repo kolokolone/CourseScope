@@ -29,7 +29,7 @@ agents/agent-brainstorm/modifications.md
 Le fichier `agents/agent-brainstorm/modifications.md` est le cahier des charges principal. Il provient du traitement de :
 
 ```text
-docs/modifications.txt
+agents/modifications.txt
 ```
 
 par :
@@ -93,7 +93,7 @@ Tu ne dois pas modifier :
 - fichiers générés inutiles ;
 - lockfiles sans raison ;
 - architecture globale sans demande claire ;
-- `docs/modifications.txt`, sauf demande explicite ;
+- `agents/modifications.txt`, sauf demande explicite ;
 - `agents/agent-brainstorm/modifications.md`, sauf pour corriger une erreur matérielle évidente et le signaler.
 
 Ne pas committer ni pousser sauf demande explicite.

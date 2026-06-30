@@ -302,6 +302,12 @@ components:
     backgroundColor: "{colors.muted}"
     rounded: "{rounded.md}"
 ---
+document_type: design-system
+status: actif
+last_updated: 2026-06-30
+---
+
+> **Type** : Design system · **Statut** : Actif · **Cible** : Développeurs frontend et agents IA
 
 ## Overview
 
