@@ -16,6 +16,7 @@ import { useMultipleSeries } from '@/hooks/useActivity';
 import { useUiPrefsStore } from '@/store/uiPrefsStore';
 import { formatDurationSeconds, formatMetricValue, formatNumber, type MetricFormat } from '@/lib/metricsFormat';
 import { CHART_SERIES, CATEGORY_COLORS } from '@/lib/metricsRegistry';
+import { samplePoints, rollingMeanPoints } from '@/lib/chartUtils';
 import type { SeriesInfo, SeriesResponse } from '@/types/api';
 
 const SERIES_COLORS = ['#0072B2', '#E69F00', '#009E73', '#D55E00', '#56B4E9', '#CC79A7', '#F0E442'];
@@ -38,16 +39,6 @@ function buildSeriesData(series: SeriesResponse): ChartPoint[] {
     points.push({ x, y: Number.isFinite(y) ? y : null });
   }
   return points;
-}
-
-function samplePoints(points: ChartPoint[], maxPoints: number) {
-  if (points.length <= maxPoints) return points;
-  const step = Math.ceil(points.length / maxPoints);
-  const sampled: ChartPoint[] = [];
-  for (let i = 0; i < points.length; i += step) {
-    sampled.push(points[i]);
-  }
-  return sampled;
 }
 
 function smoothMovingAverage(points: ChartPoint[], windowSize: number) {
@@ -327,24 +318,6 @@ function SeriesChart({
   );
 }
 
-function rollingMean(points: ChartPoint[], windowSize: number) {
-  const w = Math.max(1, Math.floor(windowSize));
-  if (w <= 1) return points;
-  const out: ChartPoint[] = [];
-  let sum = 0;
-  const q: number[] = [];
-  for (let i = 0; i < points.length; i += 1) {
-    const y = points[i]?.y;
-    if (typeof y !== 'number' || !Number.isFinite(y)) continue;
-    q.push(y);
-    sum += y;
-    if (q.length > w) sum -= q.shift() as number;
-    const mean = sum / q.length;
-    out.push({ x: points[i].x, y: mean });
-  }
-  return out;
-}
-
 export function ActivityCharts({
   activityId,
   available,
@@ -399,8 +372,8 @@ export function ActivityCharts({
 
       const points = buildSeriesData(query.data);
       const hrBase = def.name === 'heart_rate' ? samplePoints(points, RENDER_POINTS) : null;
-      const trend = hrBase ? rollingMean(hrBase, HR_TREND_WINDOW) : undefined;
-      const trendSlow = hrBase ? rollingMean(hrBase, HR_TREND_WINDOW_SLOW) : undefined;
+      const trend = hrBase ? rollingMeanPoints(hrBase, HR_TREND_WINDOW) : undefined;
+      const trendSlow = hrBase ? rollingMeanPoints(hrBase, HR_TREND_WINDOW_SLOW) : undefined;
 
       const yDomain: [number, number] | undefined = (() => {
         if (def.name !== 'heart_rate') return undefined;

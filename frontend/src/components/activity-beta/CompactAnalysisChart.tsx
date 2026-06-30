@@ -7,33 +7,13 @@ import {
 import { useSeriesData } from '@/hooks/useActivity';
 import { formatPaceSecondsPerKm } from '@/lib/metricsFormat';
 import { ToggleButton } from './ui/ToggleButton';
+import { type ChartPoint, buildPoints, samplePoints } from '@/lib/chartUtils';
 import type { SeriesInfo, SeriesResponse } from '@/types/api';
 
 type CompactAnalysisChartProps = {
   activityId: string;
   seriesAvailable: SeriesInfo[];
 };
-
-type ChartPoint = { x: number; y: number | null };
-
-function buildPoints(series: SeriesResponse): ChartPoint[] {
-  const points: ChartPoint[] = [];
-  const len = Math.min(series.x.length, series.y.length);
-  for (let i = 0; i < len; i += 1) {
-    const x = series.x[i];
-    const y = series.y[i];
-    points.push({ x, y: typeof y === 'number' && Number.isFinite(y) ? y : null });
-  }
-  return points;
-}
-
-function samplePoints(points: ChartPoint[], max: number): ChartPoint[] {
-  if (points.length <= max) return points;
-  const step = Math.ceil(points.length / max);
-  const out: ChartPoint[] = [];
-  for (let i = 0; i < points.length; i += step) out.push(points[i]);
-  return out;
-}
 
 const MAX_POINTS = 3000;
 

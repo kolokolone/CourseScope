@@ -29,6 +29,8 @@ import {
 } from '@/hooks/useProgress';
 import { progressApi } from '@/lib/api';
 import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
+import { type HistoryRange, isoDateUtc, weekStartUtc, shiftRangeStart, formatDateLabel } from '@/lib/dateUtils';
+import { rollingMean } from '@/lib/chartUtils';
 import type {
   ProgressActivity,
   ProgressIndexStatusResponse,
@@ -41,48 +43,6 @@ import CalendarHeatmap from '@/components/features/progress/CalendarHeatmap';
 import TrainingLoadChart from '@/components/features/progress/TrainingLoadChart';
 import { TrendingUp } from 'lucide-react';
 
-type HistoryRange = '3m' | '6m' | '1y' | 'all';
-
-function isoDateUtc(d: Date) {
-  const dt = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  return dt.toISOString().slice(0, 10);
-}
-
-function weekStartUtc(date: Date): Date {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const day = d.getUTCDay();
-  const diff = (day + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - diff);
-  return d;
-}
-
-function shiftRangeStart(end: Date, range: HistoryRange): Date {
-  if (range === 'all') return new Date(0);
-  const d = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
-  if (range === '3m') d.setUTCMonth(d.getUTCMonth() - 3);
-  if (range === '6m') d.setUTCMonth(d.getUTCMonth() - 6);
-  if (range === '1y') d.setUTCFullYear(d.getUTCFullYear() - 1);
-  return d;
-}
-
-function rollingMean(values: number[], windowSize: number) {
-  const w = Math.max(1, Math.floor(windowSize));
-  const out: Array<number | null> = [];
-  let sum = 0;
-  const q: number[] = [];
-  for (const v of values) {
-    if (!Number.isFinite(v)) {
-      out.push(null);
-      continue;
-    }
-    q.push(v);
-    sum += v;
-    if (q.length > w) sum -= q.shift() as number;
-    out.push(sum / q.length);
-  }
-  return out;
-}
-
 function parseBucketStartMs(bucketStart: string) {
   const t = new Date(`${bucketStart}T00:00:00Z`).getTime();
   return Number.isFinite(t) ? t : 0;
@@ -92,12 +52,6 @@ function formatBucketLabel(bucketStart: string) {
   const d = new Date(`${bucketStart}T00:00:00Z`);
   if (!Number.isFinite(d.getTime())) return bucketStart;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function formatDateLabel(ms: number) {
-  const d = new Date(ms);
-  if (!Number.isFinite(d.getTime())) return '—';
-  return d.toLocaleDateString();
 }
 
 function finiteNumber(value: unknown): number | null {

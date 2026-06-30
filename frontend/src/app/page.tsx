@@ -8,21 +8,8 @@ import { useGoalsList } from '@/hooks/useGoals';
 import { usePersonalSettings } from '@/hooks/useSettings';
 import { formatNumber } from '@/lib/metricsFormat';
 import { getActivityDetailPath } from '@/lib/routes';
+import { startOfDay, dateAtStart, formatDateLabel } from '@/lib/dateUtils';
 import { Activity } from 'lucide-react';
-
-function startOfDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-}
-
-function dateAtStart(eventDate: string) {
-  return startOfDay(new Date(`${eventDate}T00:00:00`));
-}
-
-function formatDateLabel(eventDate: string) {
-  const date = dateAtStart(eventDate);
-  if (Number.isNaN(date.getTime())) return eventDate;
-  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-}
 
 export default function HomePage() {
   const router = useRouter();

@@ -9,6 +9,8 @@ import { GoalMiniCard } from '@/components/goals/GoalMiniCard';
 import { GoalsObjectivesMap } from '@/components/goals/GoalsObjectivesMap';
 import { CityAutocomplete } from '@/components/inputs/CityAutocomplete';
 import { formatDurationSeconds, formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
+import { startOfDay, dateAtStart, formatDateLabel } from '@/lib/dateUtils';
+import { parseFlexibleSeconds, formatPaceInputFromSeconds, formatTimeInputFromSeconds } from '@/lib/paceUtils';
 import type { GeoCityItem, GoalItem } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,63 +45,12 @@ const INITIAL_FORM: GoalFormState = {
   notes: '',
 };
 
-function startOfDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-}
-
 function addDays(date: Date, count: number) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + count);
 }
 
 function addWeeks(date: Date, count: number) {
   return addDays(date, count * 7);
-}
-
-function parseFlexibleSeconds(input: string): number | null {
-  const raw = input.trim();
-  if (!raw) return null;
-  if (/^\d+$/.test(raw)) {
-    const minutes = Number(raw);
-    if (!Number.isFinite(minutes) || minutes <= 0) return null;
-    return minutes * 60;
-  }
-  const parts = raw.split(':').map((p) => p.trim());
-  if (!parts.every((p) => /^\d+$/.test(p))) return null;
-  if (parts.length === 2) {
-    const mm = Number(parts[0]);
-    const ss = Number(parts[1]);
-    if (ss >= 60) return null;
-    return mm * 60 + ss;
-  }
-  if (parts.length === 3) {
-    const hh = Number(parts[0]);
-    const mm = Number(parts[1]);
-    const ss = Number(parts[2]);
-    if (mm >= 60 || ss >= 60) return null;
-    return hh * 3600 + mm * 60 + ss;
-  }
-  return null;
-}
-
-function formatPaceInputFromSeconds(value: number): string {
-  const total = Math.max(0, Math.round(value));
-  const mm = Math.floor(total / 60);
-  const ss = total % 60;
-  return `${mm}:${String(ss).padStart(2, '0')}`;
-}
-
-function formatTimeInputFromSeconds(value: number): string {
-  const total = Math.max(0, Math.round(value));
-  const hh = Math.floor(total / 3600);
-  const mm = Math.floor((total % 3600) / 60);
-  const ss = total % 60;
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-}
-
-function formatDateLabel(eventDate: string) {
-  const date = new Date(`${eventDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return eventDate;
-  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function isoDayKey(date: Date) {
@@ -110,10 +61,6 @@ function mondayStartOfWeek(date: Date) {
   const start = startOfDay(date);
   const weekday = (start.getDay() + 6) % 7;
   return addDays(start, -weekday);
-}
-
-function dateAtStart(eventDate: string) {
-  return startOfDay(new Date(`${eventDate}T00:00:00`));
 }
 
 function goalDaysDeltaFromToday(eventDate: string, today: Date) {

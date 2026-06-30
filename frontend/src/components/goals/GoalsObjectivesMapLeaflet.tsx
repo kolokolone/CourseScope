@@ -4,16 +4,13 @@ import * as React from 'react';
 import { CircleMarker, MapContainer, TileLayer, useMap } from 'react-leaflet';
 
 import { GoalMiniCard } from '@/components/goals/GoalMiniCard';
+import { dateAtStart } from '@/lib/dateUtils';
 import type { GoalItem } from '@/types/api';
 
 type MarkerGoal = GoalItem & {
   location_lat: number;
   location_lon: number;
 };
-
-function dateAtStart(eventDate: string) {
-  return new Date(`${eventDate}T00:00:00`);
-}
 
 function toMarkerGoals(goals: GoalItem[]): MarkerGoal[] {
   return goals

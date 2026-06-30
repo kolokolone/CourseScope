@@ -1,4 +1,5 @@
 import { getValueAtPath } from '@/components/metrics/metricsUtils';
+import { isValidNumber } from './formatters';
 
 export type InsightTone = 'green' | 'blue' | 'orange' | 'red' | 'gray';
 
@@ -178,10 +179,6 @@ export function analyzePauses(activity: unknown): InsightItem | null {
     description: `${pauseMinutes} min de pause au total${longestMinutes > 0 ? `, plus longue : ${longestMinutes} min` : ''}.`,
     badge: 'Notable',
   };
-}
-
-function isValidNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
 }
 
 export function computeAllInsights(activity: unknown): InsightItem[] {

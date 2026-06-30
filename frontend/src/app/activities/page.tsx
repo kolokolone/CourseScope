@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
 import { getActivityDetailPath } from '@/lib/routes';
+import { type HistoryRange } from '@/lib/dateUtils';
+import { isoDateUtc, weekStartUtc, shiftRangeStart } from '@/lib/dateUtils';
 import type { ActivityMetadata } from '@/types/api';
 import { ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import {
@@ -19,27 +21,13 @@ import {
   YAxis,
 } from 'recharts';
 
-type HistoryRange = '3m' | '6m' | '1y' | 'all';
 type SortKey = 'date' | 'distance_km' | 'elevation_gain_m';
 type SortDir = 'asc' | 'desc';
-
-function isoDateUtc(d: Date) {
-  const dt = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  return dt.toISOString().slice(0, 10);
-}
 
 function formatBucketLabel(bucketStart: string) {
   const d = new Date(`${bucketStart}T00:00:00Z`);
   if (!Number.isFinite(d.getTime())) return bucketStart;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function weekStartUtc(date: Date): Date {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const day = d.getUTCDay();
-  const diff = (day + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - diff);
-  return d;
 }
 
 function isoWeek(date: Date): { year: number; week: number } {
@@ -50,15 +38,6 @@ function isoWeek(date: Date): { year: number; week: number } {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const week = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   return { year: d.getUTCFullYear(), week };
-}
-
-function shiftRangeStart(end: Date, range: HistoryRange): Date {
-  if (range === 'all') return new Date(0);
-  const d = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
-  if (range === '3m') d.setUTCMonth(d.getUTCMonth() - 3);
-  if (range === '6m') d.setUTCMonth(d.getUTCMonth() - 6);
-  if (range === '1y') d.setUTCFullYear(d.getUTCFullYear() - 1);
-  return d;
 }
 
 function buildWeeklySeries(activities: ActivityMetadata[], range: HistoryRange) {

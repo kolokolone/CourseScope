@@ -16,49 +16,9 @@ import { useMapData, useSaveActivityTrace, useTheoreticalActivity } from '@/hook
 import { usePersonalSettings } from '@/hooks/useSettings';
 import { useOpenTrace, useRenameTrace } from '@/hooks/useTraces';
 import { formatDurationSeconds, formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
+import { parseFlexibleSeconds, formatPaceInputFromSeconds, formatTimeInputFromSeconds } from '@/lib/paceUtils';
 
 type TabId = 'overview' | 'charts' | 'map';
-
-function parseFlexibleSeconds(input: string): number | null {
-  const raw = input.trim();
-  if (raw.length === 0) return null;
-  if (/^\d+$/.test(raw)) {
-    const minutes = Number(raw);
-    if (!Number.isFinite(minutes) || minutes <= 0) return null;
-    return minutes * 60;
-  }
-  const parts = raw.split(':').map((p) => p.trim());
-  if (!parts.every((p) => /^\d+$/.test(p))) return null;
-  if (parts.length === 2) {
-    const mm = Number(parts[0]);
-    const ss = Number(parts[1]);
-    if (ss >= 60) return null;
-    return mm * 60 + ss;
-  }
-  if (parts.length === 3) {
-    const hh = Number(parts[0]);
-    const mm = Number(parts[1]);
-    const ss = Number(parts[2]);
-    if (mm >= 60 || ss >= 60) return null;
-    return hh * 3600 + mm * 60 + ss;
-  }
-  return null;
-}
-
-function formatPaceInputFromSeconds(value: number): string {
-  const total = Math.round(value);
-  const mm = Math.floor(total / 60);
-  const ss = total % 60;
-  return `${mm}:${String(ss).padStart(2, '0')}`;
-}
-
-function formatTimeInputFromSeconds(value: number): string {
-  const total = Math.max(0, Math.round(value));
-  const hh = Math.floor(total / 3600);
-  const mm = Math.floor((total % 3600) / 60);
-  const ss = total % 60;
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-}
 
 function computeDefaultPaceFromVma(vmaKmh?: number | null): string {
   if (typeof vmaKmh !== 'number' || !Number.isFinite(vmaKmh) || vmaKmh <= 0) {

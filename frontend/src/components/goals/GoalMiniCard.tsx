@@ -1,18 +1,13 @@
 import * as React from 'react';
 
 import { formatNumber } from '@/lib/metricsFormat';
+import { formatDateLabel } from '@/lib/dateUtils';
 import type { GoalItem } from '@/types/api';
 
 type GoalMiniCardProps = {
   goal: GoalItem;
   className?: string;
 };
-
-function formatDateLabel(eventDate: string) {
-  const date = new Date(`${eventDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return eventDate;
-  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-}
 
 export function GoalMiniCard({ goal, className = '' }: GoalMiniCardProps) {
   return (

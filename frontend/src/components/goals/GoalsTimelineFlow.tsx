@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { GoalMiniCard } from '@/components/goals/GoalMiniCard';
+import { startOfDay, dateAtStart } from '@/lib/dateUtils';
 import type { GoalItem } from '@/types/api';
 
 type GoalsTimelineFlowProps = {
@@ -9,14 +10,6 @@ type GoalsTimelineFlowProps = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-function startOfDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-}
-
-function dateAtStart(eventDate: string) {
-  return startOfDay(new Date(`${eventDate}T00:00:00`));
-}
 
 function daysDeltaLabel(fromDate: Date, toDate: Date) {
   const delta = Math.round((toDate.getTime() - fromDate.getTime()) / DAY_MS);

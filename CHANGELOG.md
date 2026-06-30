@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.93] - 2026-06-30
+
+### Changed
+- **Refactor** : extraction des fonctions dupliquées frontend (`lib/dateUtils.ts`, `lib/chartUtils.ts`, `lib/paceUtils.ts`) — 12 doublons éliminés dans 10 fichiers consommateurs
+- **Suppression** : composants inutilisés `HeroKpi.tsx`, `MetricTile.tsx` (activity-beta), `SidebarStats.tsx`, `store/activityStore.ts`
+- **Correction** : `isValidNumber` dans `insights.ts` importe désormais depuis `formatters.ts`
+
 ## [1.1.92] - 2026-06-30
 
 ### Changed
