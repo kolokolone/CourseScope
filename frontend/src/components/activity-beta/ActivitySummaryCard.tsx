@@ -1,4 +1,5 @@
 import { Heart, TrendingUp, Target, Activity, ArrowUpDown, Pause, Zap } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { InsightRow } from './ui/InsightRow';
 import { computeAllInsights, type InsightItem } from './utils/insights';
 
@@ -14,13 +15,14 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 
 type ActivitySummaryCardProps = {
   activity: unknown;
+  className?: string;
 };
 
-export function ActivitySummaryCard({ activity }: ActivitySummaryCardProps) {
+export function ActivitySummaryCard({ activity, className }: ActivitySummaryCardProps) {
   const insights: InsightItem[] = computeAllInsights(activity);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm col-span-12 lg:col-span-5">
+    <div className={cn("rounded-2xl border border-slate-200 bg-white shadow-sm", className)}>
       <div className="px-5 pt-5">
         <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-slate-950">
           Résumé de la séance

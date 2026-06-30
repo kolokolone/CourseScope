@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import { MiniMetric } from './ui/MiniMetric';
 import { getValueAtPath } from '@/components/metrics/metricsUtils';
 import { formatNumber } from '@/lib/metricsFormat';
@@ -5,6 +6,7 @@ import { isValidNumber } from './utils/formatters';
 
 type KeyIndicatorsCardProps = {
   activity: unknown;
+  className?: string;
 };
 
 function getTotalZoneTimePct(activity: unknown, zoneKey: string, indices: number[]): number {
@@ -20,7 +22,7 @@ function getTotalZoneTimePct(activity: unknown, zoneKey: string, indices: number
   }, 0);
 }
 
-export function KeyIndicatorsCard({ activity }: KeyIndicatorsCardProps) {
+export function KeyIndicatorsCard({ activity, className }: KeyIndicatorsCardProps) {
   const avgSpeed = getValueAtPath(activity, 'summary.average_speed_kmh');
   const cadence = getValueAtPath(activity, 'cadence.mean_spm');
   const avgPower = getValueAtPath(activity, 'power.mean_w');
@@ -41,7 +43,7 @@ export function KeyIndicatorsCard({ activity }: KeyIndicatorsCardProps) {
   const trimpLevel = trimpVal < 50 ? 'Faible' : trimpVal < 150 ? 'Modéré' : 'Élevé';
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm col-span-12 lg:col-span-7">
+    <div className={cn("rounded-2xl border border-slate-200 bg-white shadow-sm", className)}>
       <div className="px-5 pt-5">
         <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-slate-950">
           Indicateurs clés

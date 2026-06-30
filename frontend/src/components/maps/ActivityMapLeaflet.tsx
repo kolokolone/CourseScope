@@ -8,12 +8,15 @@ import { useSeriesData } from '@/hooks/useActivity';
 import { useUiPrefsStore } from '@/store/uiPrefsStore';
 import type { ActivityMapResponse } from '@/types/api';
 
+type MapColorMetric = 'pace' | 'heart_rate' | 'grade' | 'power';
+
 interface ActivityMapProps {
   mapData: Partial<ActivityMapResponse>;
   activityId?: string;
   height?: string;
   pauseItems?: unknown;
   allowPauseToggle?: boolean;
+  colorMetric?: MapColorMetric;
 }
 
 type PauseItem = { lat: number; lon: number; label?: string; duration_s?: number };
@@ -64,13 +67,15 @@ function smoothNumericSeries(values: Array<number | null>, windowSize: number) {
   });
 }
 
-export function ActivityMapLeaflet({ mapData, activityId, height = '400px', pauseItems, allowPauseToggle = true }: ActivityMapProps) {
+export function ActivityMapLeaflet({ mapData, activityId, height = '400px', pauseItems, allowPauseToggle = true, colorMetric }: ActivityMapProps) {
   const hasMapData = mapData && mapData.polyline && mapData.polyline.length > 0;
 
   const showColorByPace = useUiPrefsStore((s) => s.mapColorByPace);
   const setShowColorByPace = useUiPrefsStore((s) => s.setMapColorByPace);
   const showPausePoints = useUiPrefsStore((s) => s.mapPausePoints);
   const setShowPausePoints = useUiPrefsStore((s) => s.setMapPausePoints);
+
+  const effectiveColorMetric = colorMetric ?? (showColorByPace ? 'pace' : null);
 
   const bounds = React.useMemo(() => {
     if (!mapData?.bbox || mapData.bbox.length !== 4) return undefined;
@@ -87,8 +92,9 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
 
   const canToggleColorByPace = Boolean(activityId && polyline.length > 10);
 
-  const paceQuery = useSeriesData(activityId ?? '', showColorByPace ? 'pace' : '', { x_axis: 'distance' });
-  const paceValues = paceQuery.data?.y;
+  const metricSeriesName = effectiveColorMetric === 'heart_rate' ? 'heart_rate' : effectiveColorMetric === 'grade' ? 'grade' : effectiveColorMetric === 'power' ? 'power' : effectiveColorMetric === 'pace' ? 'pace' : '';
+  const metricQuery = useSeriesData(activityId ?? '', metricSeriesName, { x_axis: 'distance' });
+  const metricValues = metricQuery.data?.y;
 
   const pauseMarkers = React.useMemo(() => {
     return (mapData.markers ?? []).filter((m) => String(m?.type ?? '').toLowerCase() === 'pause');
@@ -128,41 +134,44 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
   }, [mapData.markers]);
 
   const coloredSegments = React.useMemo(() => {
-    if (!showColorByPace || !activityId || !paceValues || paceValues.length < 10) return null;
+    if (!effectiveColorMetric || !activityId || !metricValues || metricValues.length < 10) return null;
 
     const pts = sampleArray(polyline, 2500);
     const len = pts.length;
     if (len < 2) return null;
 
-    const srcPaces = paceValues.map((v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null));
-    const mappedPaces = pts.map((_, idx) => {
-      const srcIdx = Math.round((idx / Math.max(1, len - 1)) * Math.max(0, srcPaces.length - 1));
-      return srcPaces[srcIdx] ?? null;
+    const srcValues = metricValues.map((v) => (typeof v === 'number' && Number.isFinite(v) ? v : null));
+    const mappedValues = pts.map((_, idx) => {
+      const srcIdx = Math.round((idx / Math.max(1, len - 1)) * Math.max(0, srcValues.length - 1));
+      return srcValues[srcIdx] ?? null;
     });
-    const paces = smoothNumericSeries(mappedPaces, 7);
+    const values = smoothNumericSeries(mappedValues, 7);
 
-    const finite = paces.filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0);
+    const finite = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
     if (finite.length < 10) return null;
 
     const sorted = [...finite].sort((a, b) => a - b);
     const q33 = quantile(sorted, 0.33);
     const q66 = quantile(sorted, 0.66);
 
-    const colorFor = (paceSPerKm: number) => {
-      // Slow = higher seconds per km.
-      if (paceSPerKm >= q66) return '#ef4444';
-      if (paceSPerKm <= q33) return '#22c55e';
+    const colorFor = (v: number) => {
+      // For pace, lower is better (faster). For all others, higher is better/more intense.
+      const isPace = effectiveColorMetric === 'pace';
+      const high = isPace ? q66 : q33;
+      const low = isPace ? q33 : q66;
+      if (isPace ? v <= low : v >= high) return '#22c55e';
+      if (isPace ? v >= high : v <= low) return '#ef4444';
       return '#eab308';
     };
 
     const segs: Array<{ a: [number, number]; b: [number, number]; color: string }> = [];
     for (let i = 0; i < pts.length - 1; i += 1) {
-      const pace = paces[i];
-      const color = typeof pace === 'number' && Number.isFinite(pace) ? colorFor(pace) : '#64748b';
+      const val = values[i];
+      const color = typeof val === 'number' && Number.isFinite(val) ? colorFor(val) : '#64748b';
       segs.push({ a: pts[i] as [number, number], b: pts[i + 1] as [number, number], color });
     }
     return segs;
-  }, [activityId, paceValues, polyline, showColorByPace]);
+  }, [effectiveColorMetric, activityId, metricValues, polyline]);
 
   if (!hasMapData) {
     return (
@@ -177,14 +186,16 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
       <div className="absolute right-2 top-2 z-[1000]">
         <div className="rounded-md border bg-white/90 p-2 backdrop-blur">
           <div className="flex flex-col gap-2">
-            <Button
-              size="sm"
-              variant={showColorByPace ? 'outline' : 'ghost'}
-              onClick={() => setShowColorByPace(!showColorByPace)}
-              disabled={!canToggleColorByPace}
-            >
-              Trace colore par allure
-            </Button>
+            {!colorMetric ? (
+              <Button
+                size="sm"
+                variant={showColorByPace ? 'outline' : 'ghost'}
+                onClick={() => setShowColorByPace(!showColorByPace)}
+                disabled={!canToggleColorByPace}
+              >
+                Trace colore par allure
+              </Button>
+            ) : null}
             {allowPauseToggle ? (
               <Button
                 size="sm"
@@ -195,7 +206,7 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
                 Points de pauses
               </Button>
             ) : null}
-            {showColorByPace && !coloredSegments ? (
+            {effectiveColorMetric && !coloredSegments ? (
               <div className="text-xs text-muted-foreground">Chargement couleur...</div>
             ) : null}
           </div>

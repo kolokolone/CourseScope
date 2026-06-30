@@ -5,10 +5,11 @@ import * as React from 'react';
 const SUB_NAV_ITEMS = [
   { id: 'apercu', label: 'Aperçu' },
   { id: 'analyse', label: 'Analyse' },
-  { id: 'splits', label: 'Splits' },
   { id: 'carte', label: 'Carte' },
-  { id: 'relief', label: 'Relief' },
+  { id: 'splits', label: 'Splits' },
   { id: 'zones', label: 'Zones' },
+  { id: 'allure-pente', label: 'Allure vs Pente' },
+  { id: 'relief', label: 'Relief et pente' },
   { id: 'details', label: 'Détails' },
 ] as const;
 
@@ -46,23 +47,20 @@ export function ActivityBetaSubNav({ onSectionClick }: ActivityBetaSubNavProps) 
   }, []);
 
   return (
-    <nav className="sticky top-0 z-[1001] bg-[rgba(245,247,251,0.92)] backdrop-blur-md border-b border-slate-200 mt-[14px]">
-      <div className="flex gap-[6px] overflow-x-auto px-[2px] pb-[2px]">
+    <nav className="sticky top-0 z-30 -mx-4 border-b border-slate-200 bg-slate-50/90 px-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto py-2">
         {SUB_NAV_ITEMS.map((item) => (
           <button
             key={item.id}
-            className={`relative px-[14px] py-[14px] text-sm font-semibold whitespace-nowrap transition-colors ${
+            className={`rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition ${
               activeSection === item.id
-                ? 'text-[#0f4c81]'
-                : 'text-slate-600 hover:text-slate-800'
+                ? 'bg-blue-950 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-white hover:text-slate-950'
             }`}
             data-active={activeSection === item.id}
             onClick={() => onSectionClick(item.id)}
           >
             {item.label}
-            {activeSection === item.id && (
-              <span className="absolute left-[10px] right-[10px] bottom-0 h-[3px] rounded-t-full bg-[#1769aa]" />
-            )}
           </button>
         ))}
       </div>

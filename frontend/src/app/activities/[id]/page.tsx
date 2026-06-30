@@ -514,6 +514,14 @@ export default function RealActivityPage() {
                 <span className="inline-flex items-center rounded-full border bg-background/70 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
                   {activityId}
                 </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs text-muted-foreground"
+                  onClick={() => router.push(`/activities-beta/${activityId}`)}
+                >
+                  Vue bêta
+                </Button>
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2">

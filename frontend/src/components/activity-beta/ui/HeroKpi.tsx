@@ -8,7 +8,7 @@ type HeroKpiProps = {
   subValue?: string;
 };
 
-export function HeroKpi({ icon, label, value, unit, subValue }: HeroKpiProps) {
+export function HeroKpi({ icon: _icon, label, value, unit, subValue }: HeroKpiProps) {
   return (
     <div className="border border-slate-200 rounded-xl p-[14px_16px] min-h-[92px] bg-white">
       <div className="text-xs text-slate-500 mb-2">{label}</div>

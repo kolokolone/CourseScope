@@ -1,7 +1,6 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, MoreVertical } from 'lucide-react';
 
 import { useMapData, useRealActivity } from '@/hooks/useActivity';
 import { getValueAtPath } from '@/components/metrics/metricsUtils';
@@ -14,18 +13,10 @@ import { ActivityMapCard } from './ActivityMapCard';
 import { SplitsCard } from './SplitsCard';
 import { ZonesCard } from './ZonesCard';
 import { ReliefCard } from './ReliefCard';
+import { PaceVsGradeCard } from './PaceVsGradeCard';
 import { ActivityAccordions } from './ActivityAccordions';
 import { BetaSkeleton } from './BetaSkeleton';
 import { BetaError } from './BetaError';
-
-function formatDateFR(iso: string | undefined) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return '';
-  return d.toLocaleDateString('fr-FR', {
-    day: '2-digit', month: 'long', year: 'numeric',
-  });
-}
 
 export function ActivityBetaPage({ activityId }: { activityId: string }) {
   const router = useRouter();
@@ -54,33 +45,16 @@ export function ActivityBetaPage({ activityId }: { activityId: string }) {
   const hasPower = typeof powMean === 'number' && Number.isFinite(powMean);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between text-sm text-slate-500">
-        <button
-          onClick={() => router.push('/activities')}
-          className="inline-flex items-center gap-2 text-blue-700 hover:text-blue-900 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Retour aux activités
-        </button>
-        <div className="flex items-center gap-3">
-          <span>{formatDateFR(new Date().toISOString())}</span>
-          <button
-            className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 transition-colors"
-            aria-label="Menu"
-          >
-            <MoreVertical className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
+    <div className="space-y-5">
       <ActivityBetaHero activity={activity} activityId={activityId} />
 
       <ActivityBetaSubNav onSectionClick={handleSectionClick} />
 
-      <section id="apercu" className="grid grid-cols-12 gap-4 scroll-mt-28">
-        <ActivitySummaryCard activity={activity} />
-        <KeyIndicatorsCard activity={activity} />
+      <section id="apercu" className="scroll-mt-28">
+        <div className="grid gap-4 xl:grid-cols-12">
+          <ActivitySummaryCard activity={activity} className="xl:col-span-5" />
+          <KeyIndicatorsCard activity={activity} className="xl:col-span-7" />
+        </div>
       </section>
 
       {availableSeries.length > 0 && (
@@ -98,9 +72,17 @@ export function ActivityBetaPage({ activityId }: { activityId: string }) {
         />
       </section>
 
-      <section id="splits" className="grid grid-cols-12 gap-4 scroll-mt-28">
-        <SplitsCard activity={activity} />
-        <ZonesCard activity={activity} />
+      <div className="grid gap-4 xl:grid-cols-12">
+        <section id="splits" className="scroll-mt-28 xl:col-span-7">
+          <SplitsCard activity={activity} />
+        </section>
+        <section id="zones" className="scroll-mt-28 xl:col-span-5">
+          <ZonesCard activity={activity} />
+        </section>
+      </div>
+
+      <section id="allure-pente" className="scroll-mt-28">
+        <PaceVsGradeCard activityId={activityId} />
       </section>
 
       <section id="relief" className="scroll-mt-28">
@@ -108,7 +90,7 @@ export function ActivityBetaPage({ activityId }: { activityId: string }) {
       </section>
 
       <section id="details" className="scroll-mt-28">
-        <ActivityAccordions activity={activity} />
+        <ActivityAccordions activity={activity} activityId={activityId} />
       </section>
     </div>
   );
