@@ -314,6 +314,7 @@ def _run_fast_indexation_once(
     added = 0
     deleted = 0
     errors = 0
+    skipped = 0
 
     _set_phase(MODE_FAST, PHASE_SCAN_FS, progress_current=0, progress_total=0)
     activities_dir.mkdir(parents=True, exist_ok=True)
@@ -334,6 +335,7 @@ def _run_fast_indexation_once(
 
     _set_phase(MODE_FAST, PHASE_SYNC_DB, progress_current=0, progress_total=max(1, scanned))
     db_ids = {str(v) for v in session.execute(select(Activity.id)).scalars().all() if v is not None}
+    db_hashes = {str(v) for v in session.execute(select(Activity.file_hash_sha256)).scalars().all() if v is not None}
     missing_on_disk = sorted(db_ids - fs_ids)
     missing_in_db = sorted(fs_ids - db_ids)
 
@@ -357,6 +359,14 @@ def _run_fast_indexation_once(
             created = _parse_iso(meta.get("created_at")) or utc_now_iso()
             file_hash = str(meta.get("file_hash") or f"missing:{activity_id}")
 
+            if file_hash in db_hashes:
+                skipped += 1
+                logger.info(
+                    "fast_indexation_duplicate_hash",
+                    extra={"activity_id": activity_id, "file_hash": file_hash},
+                )
+                continue
+
             session.add(
                 Activity(
                     id=activity_id,
@@ -371,6 +381,7 @@ def _run_fast_indexation_once(
             )
             added += 1
             created_since_commit += 1
+            db_hashes.add(file_hash)
             if commit_mod and created_since_commit % commit_mod == 0:
                 _commit_with_retry(session)
         except Exception as exc:
@@ -387,7 +398,7 @@ def _run_fast_indexation_once(
         row.fast_indexation_date = stamped_at
 
     _commit_with_retry(session)
-    result = IndexationResult(scanned=scanned, added=added, deleted=deleted, errors=errors)
+    result = IndexationResult(scanned=scanned, added=added, deleted=deleted, errors=errors, skipped=skipped)
     should_chain_slow = bool((added + deleted) > 0)
     return result, should_chain_slow
 
