@@ -83,8 +83,8 @@ export default function HomePage() {
     const rad = (angle * Math.PI) / 180;
     const radius = 58;
     const center = 70;
-    const x = center + Math.cos(rad) * radius;
-    const y = center + Math.sin(rad) * radius;
+    const x = center + Math.sin(rad) * radius;
+    const y = center - Math.cos(rad) * radius;
     return { left: `${x}px`, top: `${y}px` };
   }, [vo2maxCurrent]);
 
