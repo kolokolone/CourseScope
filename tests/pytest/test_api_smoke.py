@@ -11,14 +11,6 @@ def _load_fixture_bytes() -> tuple[bytes, str]:
     return fixture.read_bytes(), fixture.name
 
 
-def test_health_check():
-    with TestClient(app) as client:
-        response = client.get("/health")
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["status"] == "healthy"
-
-
 def test_load_activity_and_fetch_endpoints():
     with TestClient(app) as client:
         data, filename = _load_fixture_bytes()

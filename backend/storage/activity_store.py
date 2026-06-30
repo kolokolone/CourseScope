@@ -12,6 +12,7 @@ import pandas as pd
 
 from api.schemas import ActivityMetadata, SidebarStats
 from core.stats.basic_stats import compute_basic_stats
+from progress._utils import _parse_iso_datetime, _to_utc, _infer_started_at_utc_from_df
 from services.models import LoadedActivity as ServiceLoadedActivity
 from db.repository import ActivityIndexRepository
 
@@ -27,25 +28,6 @@ def _model_to_dict(model):
         # Pydantic v1 fallback.
         return json.loads(model.json())
     return model.dict()
-
-
-def _parse_iso_datetime(value: object) -> datetime | None:
-    if not isinstance(value, str) or not value:
-        return None
-    # Accept:
-    # - "2026-02-09T15:42:19Z"
-    # - "2026-02-09T15:42:19+00:00"
-    # - legacy: "2026-02-09 15:42:19"
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except Exception:
-        return None
-
-
-def _to_utc(dt: datetime) -> datetime:
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
 
 
 class ActivityStorage(ABC):
@@ -136,26 +118,7 @@ class LocalTempStorage(ActivityStorage):
                 pass
 
     def _infer_started_at_utc(self, df: pd.DataFrame) -> str | None:
-        if df is None or df.empty:
-            return None
-        if "time" not in df.columns:
-            return None
-        try:
-            v = df["time"].min()
-            if v is None:
-                return None
-            if isinstance(v, pd.Timestamp):
-                dt = v.to_pydatetime()
-            elif isinstance(v, datetime):
-                dt = v
-            else:
-                # Try pandas conversion.
-                dt = pd.to_datetime(v).to_pydatetime()
-            if dt.tzinfo is not None:
-                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-            return dt.replace(microsecond=0).isoformat() + "Z"
-        except Exception:
-            return None
+        return _infer_started_at_utc_from_df(df)
 
     def _get_activity_dir(self, activity_id: str) -> Path:
         """Retourne le chemin du dossier d'activité"""

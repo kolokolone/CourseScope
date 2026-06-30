@@ -25,8 +25,15 @@ from db.models import (
     ProgressPaceHrBin,
     utc_now_iso,
 )
+from progress._utils import (
+    _read_json,
+    _parse_iso,
+    _find_original_path,
+    _find_original_fit_path,
+    _maybe_backfill_vo2max_from_fit,
+    _sync_vo2max_latest_from_index,
+)
 from progress.indexer import METRICS_VERSION, build_fingerprint, index_activity, recompute_daily_aggregates
-from progress.verify_index import _maybe_backfill_vo2max_from_fit, _sync_vo2max_latest_from_index
 from sqlalchemy.exc import OperationalError
 
 
@@ -86,10 +93,6 @@ class IndexationState:
 _lock = threading.Lock()
 _thread: threading.Thread | None = None
 _state = IndexationState()
-
-
-def _now_utc_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _snapshot_state_unlocked() -> IndexationState:
@@ -262,49 +265,6 @@ def _finalize_run_record(
         _commit_with_retry(session)
     finally:
         session.close()
-
-
-def _read_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _parse_iso(value: object) -> str | None:
-    if not isinstance(value, str) or not value:
-        return None
-    raw = value.strip()
-    if not raw:
-        return None
-    try:
-        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except Exception:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    dt = dt.astimezone(timezone.utc).replace(microsecond=0)
-    return dt.isoformat().replace("+00:00", "Z")
-
-
-def _find_original_path(activity_dir: Path) -> str | None:
-    try:
-        for p in activity_dir.iterdir():
-            if p.is_file() and p.name.startswith("original."):
-                return str(p.resolve())
-    except Exception:
-        return None
-    return None
-
-
-def _find_original_fit_path(activity_dir: Path) -> Path | None:
-    try:
-        for p in activity_dir.iterdir():
-            if not p.is_file():
-                continue
-            name = p.name.lower()
-            if name.startswith("original.") and name.endswith(".fit"):
-                return p
-    except Exception:
-        return None
-    return None
 
 
 def _write_rollup(activity_dir: Path, payload: dict) -> str:
@@ -577,7 +537,7 @@ def start_fast_indexation_in_background(db_session_factory, reason: str) -> Inde
         _state.running = True
         _state.mode = MODE_FAST
         _state.phase = PHASE_PREPARE
-        _state.started_at_utc = _now_utc_iso()
+        _state.started_at_utc = utc_now_iso()
         _state.finished_at_utc = None
         _state.progress_current = 0
         _state.progress_total = 0
@@ -699,7 +659,7 @@ def start_fast_indexation_in_background(db_session_factory, reason: str) -> Inde
                 _state.mode = None
                 _state.phase = None
                 _state.progress_current = int(max(_state.progress_current, _state.progress_total))
-                _state.finished_at_utc = _now_utc_iso()
+                _state.finished_at_utc = utc_now_iso()
 
     _thread = threading.Thread(target=_run, name="progress-index-fast", daemon=True)
     _thread.start()
@@ -728,7 +688,7 @@ def start_slow_indexation_in_background(
         _state.running = True
         _state.mode = MODE_SLOW
         _state.phase = PHASE_PREPARE
-        _state.started_at_utc = _now_utc_iso()
+        _state.started_at_utc = utc_now_iso()
         _state.finished_at_utc = None
         _state.progress_current = 0
         _state.progress_total = 0
@@ -798,7 +758,7 @@ def start_slow_indexation_in_background(
                 _state.mode = None
                 _state.phase = None
                 _state.progress_current = int(max(_state.progress_current, _state.progress_total))
-                _state.finished_at_utc = _now_utc_iso()
+                _state.finished_at_utc = utc_now_iso()
 
     _thread = threading.Thread(target=_run, name="progress-index-slow", daemon=True)
     _thread.start()

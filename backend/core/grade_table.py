@@ -75,12 +75,3 @@ def adjust_pace(pace_s_per_km: float, grade_percent: float) -> float:
 
     factor = grade_factor(grade_percent)
     return pace_s_per_km * factor
-
-
-def pace_to_mmss(pace_s_per_km: float) -> str:
-    """Convert s/km to 'M:SS' string (display helper)."""
-
-    total_seconds = int(round(pace_s_per_km))
-    minutes = total_seconds // 60
-    seconds = total_seconds % 60
-    return f"{minutes}:{seconds:02d}"

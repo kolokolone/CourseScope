@@ -12,6 +12,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from core._shared import compute_elevation_gain, compute_elevation_loss
+
 
 @dataclass(frozen=True)
 class BasicStats:
@@ -61,10 +63,7 @@ def _elevation_gain_loss(df: pd.DataFrame) -> tuple[float, float]:
     elev = pd.to_numeric(df["elevation"], errors="coerce").dropna().to_numpy(dtype=float)
     if elev.size < 2:
         return 0.0, 0.0
-    diffs = np.diff(elev)
-    gain = float(np.clip(diffs, 0, None).sum())
-    loss = float(np.abs(np.clip(diffs, None, 0)).sum())
-    return gain, loss
+    return compute_elevation_gain(elev), compute_elevation_loss(elev)
 
 
 def compute_basic_stats(df: pd.DataFrame, *, moving_mask: pd.Series | None = None) -> BasicStats:

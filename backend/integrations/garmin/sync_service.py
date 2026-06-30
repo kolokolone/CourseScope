@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import os
 import uuid
 import zipfile
@@ -11,6 +10,7 @@ from typing import Any, Iterable
 
 from db.repository import ActivityIndexRepository
 from services.analysis_service import load_activity
+from services.cache import sha256_bytes
 
 
 GARMIN_SOURCE = "garmin"
@@ -24,10 +24,6 @@ class GarminSyncResult:
     skipped_count: int
     cursor_time_utc: str | None
     error: str | None = None
-
-
-def _sha256_bytes(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
 
 
 def _parse_date(value: str) -> date:
@@ -287,7 +283,7 @@ class GarminSyncService:
 
             original_bytes = self._download_original(activity_id)
             fit_bytes = _extract_fit_bytes(original_bytes)
-            file_hash = _sha256_bytes(fit_bytes)
+            file_hash = sha256_bytes(fit_bytes)
 
             existing_by_hash = self._get_activity_id_by_hash(file_hash)
             if existing_by_hash is not None:

@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CourseScope API",
     description="Analytics pour traces GPX/FIT",
-    version="1.1.91",
+    version="1.1.92",
     lifespan=lifespan,
 )
 
@@ -184,44 +184,14 @@ app.include_router(goals_router, prefix="/api", include_in_schema=False)
 app.include_router(geo_router, prefix="/api", include_in_schema=False)
 
 
-def get_activity_storage():
-    return app.state.storage
-
-
-def get_series_registry():
-    return app.state.registry
-
-
 @app.get("/")
 async def root():
     return {
         "message": "CourseScope API",
-        "version": "1.1.91",
+        "version": "1.1.92",
         "docs": "/docs",
         "status": "operational",
     }
-
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    try:
-        logger = logging.getLogger("coursescope")
-        logger.info("health_check", extra={"request_id": "-"})
-        storage = get_activity_storage()
-        registry = get_series_registry()
-
-        result = {
-            "status": "healthy",
-            "storage": "operational",
-            "registry": "operational",
-        }
-        logger.info("health_ok", extra={"request_id": "-"})
-        return result
-    except Exception as e:
-        logger = logging.getLogger("coursescope")
-        logger.exception("health_failed", extra={"request_id": "-"})
-        raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
 
 
 if __name__ == "__main__":

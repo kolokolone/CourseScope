@@ -1,6 +1,6 @@
 # Audit base SQLite — CourseScope
 
-> Audit réalisé le 30 juin 2026. Version de CourseScope : `1.1.91`.
+> Audit réalisé le 30 juin 2026. Version de CourseScope : `1.1.92`.
 > Périmètre : tout le dépôt `C:\Users\domin\Documents\Python Scripts\CourseScope`.
 
 ## 1. Résumé exécutif

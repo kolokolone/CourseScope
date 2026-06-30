@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.92] - 2026-06-30
+
+### Changed
+- **Refactor** : extraction des fonctions dupliquées backend (`core/_shared.py`, `progress/_utils.py`, `api/_helpers.py`) — 16 doublons éliminés
+- **Refactor** : unification du pattern `temp_storage` fallback → `resolve_activity_df()` dans 10+ endpoints
+- **Suppression** : `api/compat.py`, `services/history_service.py`, `MemoryCache`/`DiskCache` (code mort), `pace_to_mmss` (grade_table.py)
+- **Suppression** : endpoints `/health`, `/progress/verify`, `/progress/verify-status`
+- **Suppression** : `progress/verify_index.py`, `progress/verify_runner.py`
+
 ## [1.1.91] - 2026-06-30
 
 ### Added

@@ -26,49 +26,15 @@ from db.models import (
 )
 from db.progress_repository import ProgressRepository
 from db.models import utc_now_iso
+from progress._utils import (
+    _parse_iso_datetime,
+    _to_utc,
+    _format_ts_utc,
+    _infer_started_at_utc_from_df,
+)
 
 
 METRICS_VERSION = 7
-
-
-def _parse_iso_datetime(value: object) -> datetime | None:
-    if not isinstance(value, str) or not value:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except Exception:
-        return None
-
-
-def _to_utc(dt: datetime) -> datetime:
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
-
-
-def _format_ts_utc(dt: datetime) -> str:
-    dt = _to_utc(dt).replace(microsecond=0)
-    return dt.isoformat().replace("+00:00", "Z")
-
-
-def _infer_started_at_utc_from_df(df: pd.DataFrame) -> str | None:
-    if df is None or df.empty:
-        return None
-    if "time" not in df.columns:
-        return None
-    try:
-        v = df["time"].min()
-        if v is None:
-            return None
-        if isinstance(v, pd.Timestamp):
-            dt = v.to_pydatetime()
-        elif isinstance(v, datetime):
-            dt = v
-        else:
-            dt = pd.to_datetime(v).to_pydatetime()
-        return _format_ts_utc(dt)
-    except Exception:
-        return None
 
 
 def build_fingerprint(meta: dict[str, Any], parquet_path: Path) -> str:

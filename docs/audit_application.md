@@ -248,7 +248,7 @@ CourseScope est une application web locale d'analyse de courses à pied, mature 
 |---|---|
 | Découpage de `core/real_run_analysis.py` | Risque de régression élevé — nécessite tests approfondis |
 | Découpage de `app/progress/page.tsx` | Complexe — préférer une PR dédiée par composant |
-| Extraction des fonctions dupliquées backend | Impacte 8+ fichiers — faire dans une PR séparée |
+| Extraction des fonctions dupliquées backend | ✅ Fait (PR refactor, v1.1.92) |
 | Suppression des endpoints non utilisés | Certains peuvent avoir une utilité future (debug, future UI) |
 | Suppression de la vue legacy `activities/[id]` | La vue beta est encore en cours de stabilisation |
 | Refacto des `get_*` globals en injection FastAPI | Impact systémique — nécessite planification |

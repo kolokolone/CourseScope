@@ -385,21 +385,6 @@ export interface ProgressActivitiesResponse {
   activities: ProgressActivity[];
 }
 
-export interface ProgressVerifyResult {
-  scanned: number;
-  indexed: number;
-  up_to_date: number;
-  errors: number;
-}
-
-export interface ProgressVerifyResponse {
-  running: boolean;
-  last_started_at_utc: string | null;
-  last_finished_at_utc: string | null;
-  last_error: string | null;
-  last_result: ProgressVerifyResult | null;
-}
-
 export type ProgressIndexationMode = 'fast' | 'slow' | null;
 export type ProgressIndexationPhase = 'prepare' | 'scan_fs' | 'sync_db' | 'recompute' | 'finalize' | null;
 export type ProgressIndexationStrategy = 'incremental' | 'backfill_missing' | 'backfill_full';

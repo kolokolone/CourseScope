@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query, HTTPException, Request
 from typing import Optional
 import pandas as pd
 
+from api._helpers import resolve_activity_df
 from api.schemas import ActivityMapResponse, MapMarker
 
 
@@ -85,17 +86,7 @@ async def get_activity_map(
 ):
     """Retourne les données cartographiques pour une activité"""
     try:
-        storage = request.app.state.storage
-        try:
-            df = storage.load_dataframe(activity_id)
-        except FileNotFoundError:
-            temp_storage = getattr(request.app.state, "temp_storage", None)
-            if temp_storage is None:
-                raise
-            df = temp_storage.load_dataframe(activity_id)
-
-        if df.empty:
-            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+        df = resolve_activity_df(request, activity_id)
 
         bbox = calculate_bounds(df)
         polyline = extract_polyline(df, downsample)

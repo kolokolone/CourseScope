@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+from core._shared import compute_elevation_gain
 from core.grade_table import grade_factor
 from core.transform_report import TransformReport
 from core.utils import seconds_to_mmss
@@ -177,7 +178,7 @@ def compute_theoretical_summary(df_theoretical: pd.DataFrame) -> Dict[str, float
     average_pace_s_per_km = total_time_s / total_distance_km if total_distance_km > 0 else math.nan
 
     elevation = df_theoretical["elevation_m"].dropna().to_numpy()
-    elevation_gain_m = float(np.clip(np.diff(elevation), 0, None).sum()) if len(elevation) > 1 else 0.0
+    elevation_gain_m = compute_elevation_gain(elevation)
 
     return {
         "total_time_s": total_time_s,

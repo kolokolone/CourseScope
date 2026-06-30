@@ -6,6 +6,7 @@ import logging
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header, Request
 from typing import Optional, Literal, cast
 
+from api._helpers import _model_to_dict, get_activity_storage
 from api.schemas import ActivityLoadResponse, SidebarStats, ActivityLimits
 from services.analysis_service import load_activity
 from storage.activity_store import LocalTempStorage
@@ -21,16 +22,6 @@ def _get_logger(request: Request) -> logging.Logger:
 
 def _get_request_id(request: Request) -> str:
     return getattr(getattr(request, "state", None), "request_id", "-")
-
-
-def get_activity_storage(request: Request) -> LocalTempStorage:
-    return request.app.state.storage
-
-
-def _model_to_dict(model):
-    if hasattr(model, "model_dump"):
-        return model.model_dump()
-    return model.dict()
 
 
 def check_dataframe_limits(df) -> ActivityLimits:

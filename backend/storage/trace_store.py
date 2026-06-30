@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from core._shared import compute_elevation_gain, compute_elevation_loss
+
 
 def compute_route_fingerprint(df: pd.DataFrame, *, sample_points: int = 200, decimals: int = 5) -> str | None:
     if df.empty or "lat" not in df.columns or "lon" not in df.columns:
@@ -55,9 +57,8 @@ def compute_trace_metrics(df: pd.DataFrame) -> dict[str, float | None]:
             elevation_min_m = float(np.min(elev))
             elevation_max_m = float(np.max(elev))
         if elev.size > 1:
-            diffs = np.diff(elev)
-            elevation_gain_m = float(np.clip(diffs, 0, None).sum())
-            elevation_loss_m = float(np.abs(np.clip(diffs, None, 0).sum()))
+            elevation_gain_m = compute_elevation_gain(elev)
+            elevation_loss_m = compute_elevation_loss(elev)
 
     return {
         "distance_km": distance_km,

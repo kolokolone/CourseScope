@@ -26,7 +26,6 @@ import {
   ProgressHrAtPaceResponse,
   ProgressPaceHrWaterfallResponse,
   ProgressPaceAtHrResponse,
-  ProgressVerifyResponse,
   ProgressIndexStatusResponse,
   ProgressIndexationStrategy,
   CalendarResponse,
@@ -358,10 +357,6 @@ export const mapApi = {
   },
 };
 
-export const healthApi = {
-  check: async () => apiRequest<{ status: string; storage: string; registry: string }>('/health'),
-};
-
 export const metaApi = {
   root: async () => apiRequest<{ message: string; version: string; docs: string; status: string }>('/'),
 };
@@ -380,10 +375,6 @@ export const progressApi = {
     }),
 
   indexStatus: async () => apiRequest<ProgressIndexStatusResponse>('/progress/index/status'),
-
-  verify: async () => apiRequest<ProgressVerifyResponse>('/progress/verify', { method: 'POST' }),
-
-  verifyStatus: async () => apiRequest<ProgressVerifyResponse>('/progress/verify-status'),
 
   hrAtPace: async (params: {
     paces_s_per_km?: number[];

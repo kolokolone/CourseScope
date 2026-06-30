@@ -6,6 +6,7 @@ from typing import Any, Dict
 import numpy as np
 import pandas as pd
 
+from core._shared import _weighted_mean
 from core.constants import MIN_DISTANCE_FOR_SPEED_M
 from core.stats.basic_stats import compute_basic_stats
 from core.utils import seconds_to_mmss
@@ -67,13 +68,6 @@ def _build_power_peak_durations(max_duration_s: float | int | None) -> list[int]
         durations.append(max_duration)
 
     return durations
-
-
-def _weighted_mean(values: np.ndarray, weights: np.ndarray) -> float:
-    mask = np.isfinite(values) & np.isfinite(weights) & (weights > 0)
-    if not mask.any():
-        return math.nan
-    return float(np.nansum(values[mask] * weights[mask]) / np.nansum(weights[mask]))
 
 
 def _build_zone_table(

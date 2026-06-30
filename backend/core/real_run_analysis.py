@@ -4,6 +4,7 @@ from typing import Dict, Iterable, List, Tuple
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from core._shared import _unique_xy, _weighted_mean, compute_elevation_gain
 from core.grade_table import grade_factor
 from core.ref_data import get_pro_pace_vs_grade_df
 from core.transform_report import TransformReport
@@ -59,20 +60,6 @@ def _weighted_quantile_step(values: np.ndarray, weights: np.ndarray, p: float) -
     idx = int(np.searchsorted(cw, threshold, side="left"))
     idx = min(max(idx, 0), int(x.size - 1))
     return float(x[idx])
-
-
-def _weighted_mean(values: np.ndarray, weights: np.ndarray) -> float:
-    x = np.asarray(values, dtype=float)
-    w = np.asarray(weights, dtype=float)
-    mask = np.isfinite(x) & np.isfinite(w) & (w > 0)
-    x = x[mask]
-    w = w[mask]
-    if x.size == 0:
-        return math.nan
-    total = float(w.sum())
-    if total <= 0:
-        return math.nan
-    return float((x * w).sum() / total)
 
 
 def _weighted_std(values: np.ndarray, weights: np.ndarray) -> float:
@@ -314,11 +301,6 @@ def compute_splits(df: pd.DataFrame, split_distance_km: float = 1.0) -> pd.DataF
     moving = (dt > 0) & (dd > 0.5)
     working["moving_time_s"] = dt.where(moving, 0.0).cumsum()
 
-    def _unique_xy(x: pd.Series, y: pd.Series) -> tuple[np.ndarray, np.ndarray]:
-        tmp = pd.DataFrame({"x": x.to_numpy(dtype=float), "y": y.to_numpy(dtype=float)})
-        tmp = tmp.dropna().groupby("x", as_index=False).last()
-        return tmp["x"].to_numpy(dtype=float), tmp["y"].to_numpy(dtype=float)
-
     dist_x, moving_y = _unique_xy(working["distance_m"], working["moving_time_s"])
     if dist_x.size == 0:
         return pd.DataFrame(columns=columns)
@@ -373,7 +355,7 @@ def compute_splits(df: pd.DataFrame, split_distance_km: float = 1.0) -> pd.DataF
                 elevations.extend(seg["elevation"].ffill().bfill().dropna().astype(float).tolist())
             elevations.append(e1)
             if len(elevations) > 1:
-                elevation_gain_m = float(np.clip(np.diff(np.array(elevations, dtype=float)), 0, None).sum())
+                elevation_gain_m = compute_elevation_gain(np.array(elevations, dtype=float))
 
         avg_hr_bpm = math.nan
         if "heart_rate" in working.columns and not working["heart_rate"].isna().all():
@@ -1233,11 +1215,6 @@ def compute_climbs(
     # Use grade_series if provided (already in %). Else compute robust grade from elevation.
     # For the detection, we always operate on the resampled grade (distance-windowed) for stability.
     base_grade = grade_series.reindex(df.index) if grade_series is not None else None
-
-    def _unique_xy(x: pd.Series, y: pd.Series) -> tuple[np.ndarray, np.ndarray]:
-        tmp = pd.DataFrame({"x": x.to_numpy(dtype=float), "y": y.to_numpy(dtype=float)})
-        tmp = tmp.dropna().groupby("x", as_index=False).last()
-        return tmp["x"].to_numpy(dtype=float), tmp["y"].to_numpy(dtype=float)
 
     dist_x, elev_y = _unique_xy(distance_m, elev)
     if dist_x.size < 2:

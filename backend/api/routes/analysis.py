@@ -5,10 +5,12 @@ from fastapi import APIRouter, HTTPException, Request
 import numpy as np
 import pandas as pd
 
+from core._shared import compute_elevation_gain, compute_elevation_loss
 from core.real_run_analysis import compute_derived_series, compute_pace_series, compute_pace_vs_grade_data, compute_summary_stats
 from core.ref_data import get_pro_pace_vs_grade_df
 from core.grade_table import grade_factor
 
+from api._helpers import get_series_registry, resolve_activity_df
 from api.schemas import (
     ActivityLimitsDetail,
     PaceVsGradeBin,
@@ -120,10 +122,6 @@ def _resolve_hr_max_effective(request: Request) -> float | None:
         return None
     finally:
         session.close()
-
-
-def get_series_registry(request: Request) -> SeriesRegistry:
-    return request.app.state.registry
 
 
 def _build_limits(df):
@@ -714,13 +712,8 @@ def prepare_theoretical_response(
     average_pace_s_per_km = (estimated_time_s / distance_km) if distance_km > 0 else target_pace_s
 
     elevation = pd.to_numeric(df_segments["elevation_m"], errors="coerce").dropna().to_numpy(dtype=float)
-    if elevation.size > 1:
-        diffs = np.diff(elevation)
-        elev_gain = float(np.clip(diffs, 0, None).sum())
-        elev_loss = float(np.abs(np.clip(diffs, None, 0).sum()))
-    else:
-        elev_gain = 0.0
-        elev_loss = 0.0
+    elev_gain = compute_elevation_gain(elevation)
+    elev_loss = compute_elevation_loss(elevation)
 
     summary = {
         "distance_km": distance_km,
@@ -797,34 +790,21 @@ async def get_real_activity(request: Request, activity_id: str):
         if cached is not None:
             return cached
 
-        storage = request.app.state.storage
+        df = resolve_activity_df(request, activity_id)
         activity_name: str | None = None
         try:
-            df = storage.load_dataframe(activity_id)
-            try:
-                loaded_name = storage.load(activity_id).name
-                if isinstance(loaded_name, str) and loaded_name.strip():
-                    activity_name = loaded_name.strip()
-                else:
-                    activity_name = None
-            except Exception:
-                activity_name = None
-        except FileNotFoundError:
+            loaded_name = request.app.state.storage.load(activity_id).name
+        except Exception:
             temp_storage = getattr(request.app.state, "temp_storage", None)
-            if temp_storage is None:
-                raise
-            df = temp_storage.load_dataframe(activity_id)
-            try:
-                loaded_name = temp_storage.load(activity_id).name
-                if isinstance(loaded_name, str) and loaded_name.strip():
-                    activity_name = loaded_name.strip()
-                else:
-                    activity_name = None
-            except Exception:
-                activity_name = None
-
-        if df.empty:
-            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+            if temp_storage is not None:
+                try:
+                    loaded_name = temp_storage.load(activity_id).name
+                except Exception:
+                    loaded_name = None
+            else:
+                loaded_name = None
+        if isinstance(loaded_name, str) and loaded_name.strip():
+            activity_name = loaded_name.strip()
 
         registry = get_series_registry(request)
         result = prepare_real_response(request, df, registry, activity_name=activity_name)
@@ -851,17 +831,7 @@ async def get_theoretical_activity(
 ):
     """Retourne les données d'analyse pour une activité théorique"""
     try:
-        storage = request.app.state.storage
-        try:
-            df = storage.load_dataframe(activity_id)
-        except FileNotFoundError:
-            temp_storage = getattr(request.app.state, "temp_storage", None)
-            if temp_storage is None:
-                raise
-            df = temp_storage.load_dataframe(activity_id)
-
-        if df.empty:
-            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+        df = resolve_activity_df(request, activity_id)
 
         registry = get_series_registry(request)
         return prepare_theoretical_response(
@@ -891,17 +861,7 @@ async def get_pace_vs_grade(
     """Returns binned pace vs grade data (backend-computed)."""
 
     try:
-        storage = request.app.state.storage
-        try:
-            df = storage.load_dataframe(activity_id)
-        except FileNotFoundError:
-            temp_storage = getattr(request.app.state, "temp_storage", None)
-            if temp_storage is None:
-                raise
-            df = temp_storage.load_dataframe(activity_id)
-
-        if df.empty:
-            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+        df = resolve_activity_df(request, activity_id)
 
         # Keep this endpoint consistent with the "real activity figures" defaults.
         derived = compute_derived_series(df)
@@ -1006,17 +966,7 @@ async def get_pace_vs_grade(
 @router.get("/activity/{activity_id}/real-bins", response_model=RealActivityBinsResponse)
 async def get_real_activity_bins(request: Request, activity_id: str):
     try:
-        storage = request.app.state.storage
-        try:
-            df = storage.load_dataframe(activity_id)
-        except FileNotFoundError:
-            temp_storage = getattr(request.app.state, "temp_storage", None)
-            if temp_storage is None:
-                raise
-            df = temp_storage.load_dataframe(activity_id)
-
-        if df.empty:
-            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+        df = resolve_activity_df(request, activity_id)
 
         return _build_real_activity_bins(df)
     except FileNotFoundError:
