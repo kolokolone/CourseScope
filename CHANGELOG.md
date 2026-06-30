@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.96] - 2026-07-01
+
+### Added
+- **KPI Session Taxonomy** : nouvelle section `ProgressSessionTaxonomy` sur la page Progression — bar chart horizontal par type de séance (easy, tempo, interval, long_run) + compteurs terrain/race markers (hook `useProgressSessionTaxonomy` existant)
+- **KPI Intensity Distribution** : nouvelle section `ProgressIntensityDistribution` — stacked bar chart hebdomadaire du temps par zone FC (Z1-Z5), endpoint `GET /progress/intensity-distribution`
+- **KPI Long Run Dose** : nouvelle section `ProgressLongRunDose` — combo chart distance/temps des sorties longues par semaine, endpoint `GET /progress/long-run-dose`
+- **KPI VAM Trend** : nouvelle section `ProgressVamTrend` — scatter plot + trend line du VAM max par activité, endpoint `GET /progress/vam-trend`
+- **Backend** : colonnes `z1_time_s` à `z5_time_s` dans `ProgressActivityIndex` et `ProgressDailyAggregate` pour l'agrégation rapide des zones HR
+- **Backend** : méthode `list_climb_max_vam` dans `ProgressRepository`
+- **Backend** : méthodes `compute_intensity_distribution`, `compute_long_run_dose`, `compute_vam_trend` dans `ProgressService`
+- **Frontend** : hooks `useProgressIntensityDistribution`, `useProgressLongRunDose`, `useProgressVamTrend`
+
 ## [1.1.95] - 2026-07-01
 
 ### Changed

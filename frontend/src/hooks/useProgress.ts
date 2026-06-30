@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { progressApi } from '@/lib/api';
 import type {
   CalendarResponse,
+  IntensityDistributionResponse,
+  LongRunDosePoint,
   ProgressActivitiesResponse,
   ProgressAgg,
   ProgressBestEffortKind,
@@ -17,6 +19,7 @@ import type {
   ProgressSeriesResponse,
   ProgressType,
   TrainingLoadResponse,
+  VamTrendPoint,
 } from '@/types/api';
 
 export const progressKeys = {
@@ -38,6 +41,12 @@ export const progressKeys = {
   calendar: (year: number) => [...progressKeys.all, 'calendar', year] as const,
   trainingLoad: () => [...progressKeys.all, 'training-load'] as const,
   trainingLoadQuery: (params: string) => [...progressKeys.trainingLoad(), params] as const,
+  intensityDistribution: () => [...progressKeys.all, 'intensity-distribution'] as const,
+  intensityDistributionQuery: (params: string) => [...progressKeys.intensityDistribution(), params] as const,
+  longRunDose: () => [...progressKeys.all, 'long-run-dose'] as const,
+  longRunDoseQuery: (params: string) => [...progressKeys.longRunDose(), params] as const,
+  vamTrend: () => [...progressKeys.all, 'vam-trend'] as const,
+  vamTrendQuery: (params: string) => [...progressKeys.vamTrend(), params] as const,
 };
 
 export function useProgressSeries(params: {
@@ -180,6 +189,49 @@ export function useTrainingLoad(params?: { from?: string; to?: string }) {
   return useQuery({
     queryKey: progressKeys.trainingLoadQuery(paramString),
     queryFn: (): Promise<TrainingLoadResponse> => progressApi.trainingLoad(params),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useProgressIntensityDistribution(params: {
+  from: string;
+  to: string;
+  type?: ProgressType;
+}) {
+  const paramString = JSON.stringify(params);
+
+  return useQuery({
+    queryKey: progressKeys.intensityDistributionQuery(paramString),
+    queryFn: (): Promise<IntensityDistributionResponse> => progressApi.intensityDistribution(params),
+    enabled: Boolean(params.from && params.to),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useProgressLongRunDose(params: {
+  from: string;
+  to: string;
+}) {
+  const paramString = JSON.stringify(params);
+
+  return useQuery({
+    queryKey: progressKeys.longRunDoseQuery(paramString),
+    queryFn: (): Promise<LongRunDosePoint[]> => progressApi.longRunDose(params),
+    enabled: Boolean(params.from && params.to),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useProgressVamTrend(params: {
+  from: string;
+  to: string;
+}) {
+  const paramString = JSON.stringify(params);
+
+  return useQuery({
+    queryKey: progressKeys.vamTrendQuery(paramString),
+    queryFn: (): Promise<VamTrendPoint[]> => progressApi.vamTrend(params),
+    enabled: Boolean(params.from && params.to),
     staleTime: 60 * 1000,
   });
 }

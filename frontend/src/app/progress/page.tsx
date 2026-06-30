@@ -24,6 +24,10 @@ import type {
 } from '@/types/api';
 import CalendarHeatmap from '@/components/features/progress/CalendarHeatmap';
 import TrainingLoadChart from '@/components/features/progress/TrainingLoadChart';
+import ProgressSessionTaxonomy from '@/components/features/progress/ProgressSessionTaxonomy';
+import ProgressIntensityDistribution from '@/components/features/progress/ProgressIntensityDistribution';
+import ProgressLongRunDose from '@/components/features/progress/ProgressLongRunDose';
+import ProgressVamTrend from '@/components/features/progress/ProgressVamTrend';
 import { ProgressIndexationBanner } from '@/components/features/progress/ProgressIndexationBanner';
 import { ProgressVolumeChart } from '@/components/features/progress/ProgressVolumeChart';
 import { ProgressTrimpChart } from '@/components/features/progress/ProgressTrimpChart';
@@ -423,6 +427,14 @@ export default function ProgressPage() {
       />
 
       <TrainingLoadChart />
+
+      <ProgressSessionTaxonomy from={from} to={to} />
+
+      <ProgressIntensityDistribution from={from} to={to} />
+
+      <ProgressLongRunDose from={from} to={to} />
+
+      <ProgressVamTrend from={from} to={to} />
 
       <ProgressBestEffortsChart
         data={bestData}

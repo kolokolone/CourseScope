@@ -1,612 +1,499 @@
 # Modifications à implémenter — CourseScope
 
-Date : 2026-06-30 18:00
+Date : 2026-07-01 11:00
 Source : agents/modifications.txt
 Produit par : agents/agent-brainstorm.md
 Statut : prêt pour agent-dev
 
 ## 1. Résumé exécutif
 
-L'utilisateur demande la correction/amélioration des monolithes frontend identifiés dans `docs/audit_application.md` (Section 5, Tableau « Frontend — composants > 300 lignes »).
+L'utilisateur demande d'incorporer les nouveaux KPI identifiés dans `docs/audit_application.md` section 9 (« Opportunités de nouveaux KPI »). L'audit a identifié 7 opportunités réparties en deux catégories : KPI déjà calculés mais non affichés, et KPI facilement calculables à partir des données existantes.
 
-**Contexte** : les extractions de fonctions dupliquées frontend (`lib/dateUtils.ts`, `lib/chartUtils.ts`, `lib/paceUtils.ts`) ont déjà été réalisées en v1.1.93. La suppression des composants inutilisés (HeroKpi, MetricTile, SidebarStats, activityStore) aussi. Le découpage des monolithes backend a été fait en v1.1.94.
+Après analyse du codebase, le bilan est le suivant :
 
-**Ce qui reste** : les 4 pages frontend monolithes à découper en composants réutilisables, plus l'optimisation `useMemo` du composant `ActivityCharts`.
-
-**Périmètre retenu** : découpage des 4 pages monolithes + optimisation ActivityCharts. Aucune modification backend, aucun changement de contrat API, aucun changement fonctionnel utilisateur.
+- **Monotony / Strain** : déjà implémenté et affiché dans `TrainingLoadChart.tsx`. Aucun travail nécessaire.
+- **Session taxonomy** : backend + endpoint + hook existent. Aucun composant UI ne les affiche. **Travail : frontend uniquement.**
+- **Terrain tags** : même situation que session taxonomy (même endpoint).
+- **Activity tagging (manual)** : endpoint `POST /progress/tags` existe. Aucune UI de tagging manuel. **Travail : frontend uniquement.**
+- **Intensity distribution** : aucune infrastructure n'existe. **Travail : backend + frontend.**
+- **Long run dose** : tag `long_run` auto-assigné par l'indexeur. Compté dans session taxonomy mais pas de visualisation dédiée. **Travail : frontend principalement, backend mineur si série temporelle.**
+- **VAM trend** : VAM calculé par montée, stocké dans `ProgressActivityClimb`, mais jamais agrégé ni visualisé en tendance. **Travail : backend + frontend.**
 
 **Priorisation** :
-- **P0** : `app/progress/page.tsx` (~1100 lignes) — page la plus complexe (8 queries, 9 sections de graphes)
-- **P0** : `app/goals/page.tsx` (~650 lignes) — composants internes extractibles proprement
-- **P1** : `app/activities/[id]/page.tsx` (~785 lignes) — page legacy, la vue beta existe déjà
-- **P1** : `app/traces/[id]/page.tsx` (~521 lignes) — le plus petit monolithe
-- **P1** : `components/charts/ActivityCharts.tsx` (~430 lignes) — optimisation useMemo + suppression doublons
-
-Au total : **~15 nouveaux composants** extraits, **2 nouveaux fichiers utilitaires**, **0 modification de comportement**.
+- **P1** : Session taxonomy UI + Intensity distribution — plus fort impact utilisateur, données immédiatement utiles
+- **P2** : Long run dose + VAM trend — enrichissement du dashboard
+- **P3** : Activity tagging UI — fonctionnalité de confort
 
 ## 2. Demandes utilisateur extraites
 
-### Demande 1 — Découpage des monolithes frontend
+### Demande 1 — Incorporer les nouveaux KPI de l'audit
 
-- **Texte source** : « corriger/améliorer les monolithes frontend, comme décrit dans docs\audit_application.md »
-- **Interprétation** : L'utilisateur veut appliquer les recommandations de l'audit concernant les 4 pages frontend > 300 lignes, en extrayant les sections en composants réutilisables.
+- **Texte source** : « incorporer les nouveaux KPI, comme décrit dans docs\audit_application.md dans la section 9. Opportunités de nouveaux KPI »
+- **Interprétation** : L'utilisateur veut que tous les KPI listés dans la section 9 de l'audit soient rendus visibles et exploitables dans l'interface, en priorité sur la page Progression.
 - **Statut** : retenue
-- **Justification** : La demande est explicite et s'appuie sur un audit existant. Les extractions déjà faites (v1.1.93) ont prouvé la viabilité de l'approche. Le découpage améliore la maintenabilité et la testabilité sans risque de régression fonctionnelle.
+- **Justification** : La demande est explicite, les données sont déjà disponibles pour la plupart des KPI, et l'architecture existante (hooks React Query, composants de progression, service backend ProgressService) fournit un cadre cohérent pour l'ajout.
 
 ## 3. Diagnostic de l'existant
 
 ### 3.1 Fichiers et zones lus
 
-- `docs/audit_application.md` — Section 5 (monolithes frontend), Section 4 (redondances), Section 10 (recommandations)
-- `CHANGELOG.md` — v1.1.93 (extraction utilitaires frontend), v1.1.94 (découpage backend)
-- `frontend/src/app/progress/page.tsx` — 1089 lignes, 9 sections de graphes, indexation polling
-- `frontend/src/app/activities/[id]/page.tsx` — 785 lignes, 6 onglets, KPI builder inline
-- `frontend/src/app/goals/page.tsx` — 652 lignes, composants Timeline et GoalsCalendar inline, formulaire inline
-- `frontend/src/app/traces/[id]/page.tsx` — 521 lignes, résolution de route, inputs pace/temps
-- `frontend/src/components/charts/ActivityCharts.tsx` — 430 lignes, smoothing recalculé à chaque render
-- `frontend/src/components/charts/` — 10 composants existants
-- `frontend/src/components/features/progress/` — CalendarHeatmap.tsx, TrainingLoadChart.tsx (existants)
-- `frontend/src/components/goals/` — GoalMiniCard.tsx, GoalsObjectivesMap.tsx, GoalsObjectivesMapLeaflet.tsx, GoalsTimelineFlow.tsx (existants)
-- `frontend/src/components/metrics/` — 11 composants existants (KpiHeader, MetricGrid, etc.)
-- `frontend/src/components/activity-beta/` — 17 composants (modèle de référence pour le découpage)
-- `frontend/src/lib/chartUtils.ts` — rollingMean, rollingMeanPoints, samplePoints, buildPoints
-- `frontend/src/lib/dateUtils.ts` — startOfDay, dateAtStart, formatDateLabel, isoDateUtc, etc.
-- `frontend/src/lib/paceUtils.ts` — parseFlexibleSeconds, formatPaceInputFromSeconds, formatTimeInputFromSeconds
-- `frontend/src/components/layout/page-metadata.tsx` — metadata des pages
-- `docs/style-frontend-ui.md` — guide UI normatif
+- `agents/modifications.txt`
+- `AGENTS.md`
+- `README.md`
+- `docs/audit_application.md` — Section 9 (KPI), Section 5 (monolithes), Section 8 (endpoints inutilisés)
+- `docs/metrics_catalog.md` — Catalogue complet des métriques API
+- `docs/style-frontend-ui.md` — Guide UI normatif
+- `docs/documentation_update_runbook.md` — Procédure de mise à jour docs
+- `backend/api/routes/progress.py` — 559 lignes, 15+ endpoints, dont training-load, session-taxonomy, tags
+- `backend/api/schemas.py` — 291 lignes, schémas Pydantic
+- `backend/services/progress_service.py` — 462 lignes : `compute_training_load`, `compute_session_taxonomy`, `build_activity_list`, `merge_tag`, `compute_calendar`, `annotate_prs`
+- `backend/progress/indexation_runner.py` — 777 lignes, logique d'indexation avec auto-tagging session/terrain
+- `backend/progress/indexer.py` — indexation activity + climbs + daily aggregates
+- `backend/db/models.py` — `ProgressActivityIndex` (pas de colonne VAM), `ProgressActivityClimb` (colonne `vam_m_h`), `ProgressDailyAggregate` (pas de VAM)
+- `frontend/src/app/progress/page.tsx` — 477 lignes, 10 sections de graphes
+- `frontend/src/components/features/progress/TrainingLoadChart.tsx` — 219 lignes, ACWR + monotony + strain
+- `frontend/src/hooks/useProgress.ts` — hooks React Query dont `useTrainingLoad()`, `useProgressSessionTaxonomy()` (inutilisé)
+- `frontend/src/lib/api.ts` — 542 lignes, client API complet
+- `frontend/src/types/api.ts` — types TypeScript complets, `TrainingLoadResponse`, `ProgressSessionTaxonomyResponse`
+- `frontend/src/lib/metricsRegistry.ts` — registre de métriques, VAM présent en per-activity uniquement
+- `frontend/src/components/features/progress/` — composants existants : CalendarHeatmap, TrainingLoadChart, ProgressVolumeChart, ProgressTrimpChart, ProgressBestEffortsChart, ProgressEfficiencyCharts, ProgressHrPaceCharts, ProgressVo2maxChart, ProgressWaterfallCard
 
 ### 3.2 Constats établis
 
-1. **`app/progress/page.tsx`** contient 9 sections de graphes distinctes, un système d'indexation polling, 8 queries React Query, et ~20 blocs `useMemo` de transformation de données. Les sections sont indépendantes et peuvent être extraites une par une.
-2. **`app/goals/page.tsx`** définit 2 composants internes (`Timeline`, `GoalsCalendar`) et un formulaire inline (`goalFormCard`). Ces composants sont déjà bien isolés dans le code mais définis dans le même fichier.
-3. **`app/activities/[id]/page.tsx`** (vue legacy) définit `buildActivityDetailSections` (7 sections A-G), `buildKpiItems`, `KPI_HELP` et `DETAIL_HELP`. La logique métier de construction des tiles est mélangée au rendu.
-4. **`app/traces/[id]/page.tsx`** a une section d'inputs pace/temps bien délimitée et une barre de titre éditable. Le reste est du rendu de tabs simple.
-5. **`ActivityCharts.tsx`** définit `smoothMovingAverage` (doublon partiel de `rollingMeanPoints` dans chartUtils) et `buildSeriesData` (doublon partiel de `buildPoints`). Le smoothing n'est pas memoizé, recalculé à chaque render.
-6. Les composants `activity-beta/` servent de modèle : chaque sous-section est un composant dédié avec des props typées, rendu par une page fine (`ActivityBetaPage.tsx` de 11 lignes).
-7. Les utilitaires extraits en v1.1.93 (`dateUtils.ts`, `chartUtils.ts`, `paceUtils.ts`) sont correctement importés par les pages.
-8. Aucun test unitaire frontend n'existe pour ces pages spécifiques. Les seuls tests frontend sont `metricsFormat.test.ts`, `metricsRegistry.test.ts`, `routes.test.ts`, `network-handling.test.ts`.
+1. **Monotony et Strain sont déjà affichés** dans `TrainingLoadChart.tsx` sous forme de KPI cards avec valeurs actuelles. La colonne vertébrale ACWR est également présente. Aucun travail nécessaire.
+2. **L'endpoint `GET /progress/session-taxonomy` est complet** : il retourne `session_counts[]`, `terrain_counts[]`, `race_markers`, `total_tagged`. Le hook `useProgressSessionTaxonomy()` existe dans `useProgress.ts` mais n'est jamais appelé depuis `page.tsx`.
+3. **Les tags `long_run` sont auto-assignés** par l'indexeur (`indexer.py:188`) quand `distance >= 18km` OU `moving_time >= 5400s`. Ces activités sont comptabilisées dans session-taxonomy.
+4. **Aucune infrastructure d'intensity distribution n'existe** : pas de méthode dans `ProgressService`, pas d'endpoint, pas de hook, pas de composant. Les zones HR/pace/power sont calculées par activité dans `core/metrics.py` (`compute_garmin_like_stats`) mais jamais agrégées par période.
+5. **VAM est stocké par montée** dans `ProgressActivityClimb` (colonne `vam_m_h`) mais n'est pas agrégé au niveau activité (`ProgressActivityIndex` n'a pas de colonne VAM) ni au niveau quotidien (`ProgressDailyAggregate` non plus). L'endpoint `/progress/series` ne liste pas VAM dans ses `allowed_metrics`.
+6. **L'endpoint `POST /progress/tags` existe** pour le tagging manuel, mais aucune UI ne permet de modifier les tags d'une activité depuis la page progression ou la liste d'activités.
+7. **La page progression** (`page.tsx`) rend 10 composants dans un `div.space-y-4`. Les composants sont tous auto-portants (fetch leurs propres données via hooks). Le pattern d'ajout est bien établi.
 
 ### 3.3 Hypothèses
 
-- Le découpage composant par composant ne cassera pas le comportement existant si chaque étape est vérifiée par `npm run build`.
-- Les nouveaux composants peuvent être placés dans `components/features/progress/` (pour progress), `components/goals/` (pour goals), `components/metrics/` (pour les tiles d'activité).
-- La page `progress/page.tsx` gardera la logique de queries et de transformation de données, mais déléguera le rendu à des sous-composants (pattern "container/presentational").
-- `ActivityCharts` peut être corrigé sans changer son interface publique.
+- Les tags automatiques (session/terrain) couvrent la majorité des activités réelles. Le tagging manuel viendrait en complément pour corriger ou annoter.
+- L'utilisateur consulte principalement la page Progression pour le suivi longitudinal. Les nouveaux KPI doivent donc s'intégrer dans cette page.
+- La distribution d'intensité la plus utile est par zone de fréquence cardiaque (car la FC est plus souvent disponible que la puissance).
 
 ### 3.4 Incertitudes
 
-- Impact sur les performances : le découpage en plus de composants peut introduire des re-renders supplémentaires si les props ne sont pas stables. Vérifier avec `React.memo` si nécessaire.
-- La page `activities/[id]` est la vue legacy — la vue beta existe. Faut-il investir dans son découpage ou attendre la migration complète vers la vue beta ? L'audit recommande le découpage en « moyen terme ». Je recommande de le faire quand même (P1 plutôt que P0) car la vue legacy est encore la vue par défaut.
-- Le fichier `ActivityCharts.tsx` a 430 lignes (pas 506 comme indiqué dans l'audit) — le fichier a peut-être déjà été réduit depuis.
+- **Performance de l'intensity distribution** : agréger les zones HR par période nécessite soit de lire les données d'activité une par une (lent si beaucoup d'activités), soit de pré-calculer et stocker dans l'index (modification du schéma DB). À trancher dans la spec.
+- **VAM trend** : faut-il agréger le VAM max par activité (meilleure performance de grimpe) ou le VAM moyen ? L'audit ne précise pas. Proposition : VAM max par activité (le plus parlant pour un coureur).
+- **Page overload** : la page progression a déjà 10 sections. Ajouter 3-4 nouvelles sections risque de la rendre trop longue. Solutions possibles : onglets, sections repliables, ou page dédiée.
 
 ## 4. Spécification fonctionnelle cible
 
-Aucun changement fonctionnel. L'objectif est purement structurel : extraire des composants sans modifier le comportement observable.
+### 4.1 Session Taxonomy — Répartition des types de séances
 
-**Contrat de non-régression** :
-- Toutes les pages affichent exactement les mêmes données qu'avant.
-- Les interactions utilisateur (clics, sélections, formulaires) fonctionnent à l'identique.
-- Le build `npm run build` passe sans erreur.
-- Les quelques tests frontend existants continuent de passer.
+**Comportement attendu** : Une nouvelle section sur la page Progression affiche la répartition des séances par type (easy, tempo, interval, long_run) et par terrain (flat, rolling, hilly), avec le nombre de courses (race_markers).
 
-**Comportement cible par page après découpage** :
+**États** :
+- **Loading** : skeleton card avec placeholder
+- **Empty** : message « Aucune activité taguée sur cette période »
+- **Error** : message d'erreur avec bouton retry
+- **Normal** : bar chart horizontal ou donut chart pour les sessions + petit tableau pour les terrains
 
-### Progress
-- La page principale gère les queries, l'état global (range, filtres), et le polling d'indexation.
-- Chaque section de graphe est un composant indépendant recevant ses données en props.
-- Les constantes et helpers sont dans des fichiers séparés.
+**Données affichées** :
+- Nombre de séances par tag (barres horizontales, triées par count décroissant)
+- Pourcentage par tag
+- Total comptabilisé
+- Compteur de race markers
+- Filtrage par plage de dates (utiliser le `range` selector existant de la page)
 
-### Goals
-- Le formulaire de création/édition est un composant `GoalForm` autonome.
-- Le calendrier est un composant `GoalsCalendar` dans `components/goals/`.
-- La timeline est un composant `GoalsTimelineCard` (wrapper Card autour de `GoalsTimelineFlow`).
-- La table de liste est un composant `GoalListTable`.
+**Règles d'arrondi** : counts en entiers, pourcentages arrondis à 1 décimale.
 
-### Activities (legacy)
-- Les sections de détail (A-G) sont rendues par un composant `ActivityDetailSections`.
-- Les insights sont rendus par `ActivityInsights`.
-- La barre de titre éditable est dans `ActivityTitleBar`.
-- Les helpers de construction de tiles sont déplacés dans `components/metrics/activityDetails.ts`.
+### 4.2 Intensity Distribution — Distribution du temps par zone
 
-### Traces (theoretical)
-- Le panneau d'inputs pace/temps est dans `TraceInputPanel`.
-- La barre de titre éditable est dans `TraceTitleBar`.
+**Comportement attendu** : Une nouvelle section affiche la distribution du temps passé dans chaque zone de fréquence cardiaque (Z1-Z5) agrégée par semaine.
 
-### ActivityCharts
-- Le smoothing est wrappé dans `useMemo`.
-- `smoothMovingAverage` remplacé par `rollingMeanPoints` (chartUtils).
-- `buildSeriesData` remplacé par `buildPoints` (chartUtils).
+**États** :
+- **Loading** : skeleton card
+- **Empty** : message « Aucune donnée de fréquence cardiaque disponible »
+- **Error** : message d'erreur
+- **Normal** : stacked bar chart par semaine ou stacked area chart
+
+**Données affichées** :
+- Pour chaque semaine : temps (en minutes ou %) passé en Z1, Z2, Z3, Z4, Z5
+- Légende avec les plages de FC correspondantes (basées sur FC max effective)
+- Total indiqué
+
+**Règles** :
+- Activités sans HR exclues silencieusement
+- Zones calculées avec FC max effective (celle des settings)
+- Temps en minutes, arrondi à l'entier
+
+### 4.3 Long Run Dose — Dose de sorties longues
+
+**Comportement attendu** : Une section dédiée affiche l'évolution de la distance et du temps des sorties longues (tag `long_run`) par semaine.
+
+**États** :
+- **Loading** : skeleton card
+- **Empty** : message « Aucune sortie longue détectée sur cette période »
+- **Error** : message d'erreur
+- **Normal** : bar chart distance par semaine + line chart temps par semaine (ou combo chart)
+
+**Données affichées** :
+- Distance totale en sortie longue par semaine (km)
+- Temps total en sortie longue par semaine (heures)
+- Compteur du nombre de sorties longues sur la période
+- Optionnel : distance de la plus longue sortie de la semaine
+
+**Règles** :
+- Une « sortie longue » est définie par le tag `long_run` (distance ≥ 18km ou temps ≥ 90 min)
+- Distance en km, arrondie à 1 décimale
+- Temps en heures, arrondi à 1 décimale
+
+### 4.4 VAM Trend — Tendance de vitesse ascensionnelle
+
+**Comportement attendu** : Une section affiche l'évolution du meilleur VAM par activité au fil du temps.
+
+**États** :
+- **Loading** : skeleton card
+- **Empty** : message « Aucune montée détectée sur cette période »
+- **Error** : message d'erreur
+- **Normal** : scatter plot (points par activité) + trend line (moyenne glissante)
+
+**Données affichées** :
+- VAM max (m/h) par activité contenant au moins une montée
+- Moyenne glissante sur 4-6 semaines
+- Unité : m/h
+
+**Règles** :
+- Activités sans montée exclues silencieusement
+- VAM max = valeur la plus élevée parmi les montées de l'activité
+- Arrondi à l'entier
 
 ## 5. Spécification technique proposée
 
-### 5.1 Frontend — Découpage de `app/progress/page.tsx`
+### 5.1 Frontend
 
-#### 5.1.1 Nouveaux fichiers à créer
+#### Pages à modifier
+- `frontend/src/app/progress/page.tsx` — ajouter 4 nouveaux composants dans le layout existant `div.space-y-4`
 
-| Fichier | Contenu | Lignes estimées |
-|---|---|---|
-| `components/features/progress/constants.ts` | `VOLUME_METRICS`, `HR_AT_PACE_REFS`, `PACE_AT_HR_REFS`, `SERIES_COLORS`, `SESSION_FILTER_OPTIONS`, `TERRAIN_FILTER_OPTIONS` | ~60 |
-| `components/features/progress/utils.ts` | `parseBucketStartMs`, `formatBucketLabel`, `finiteNumber`, `quantile`, `paddedDomain` | ~60 |
-| `components/features/progress/ProgressVolumeChart.tsx` | Volume chart card (AreaChart) avec sélecteurs intervalle/métrique | ~100 |
-| `components/features/progress/ProgressTrimpChart.tsx` | TRIMP chart card (ComposedChart bar+line) | ~70 |
-| `components/features/progress/ProgressBestEffortsChart.tsx` | Best efforts chart card (AreaChart) avec sélecteur durée | ~100 |
-| `components/features/progress/ProgressEfficiencyCharts.tsx` | Grille 2 colonnes : EF + Decoupling (ComposedChart scatter+line) | ~180 |
-| `components/features/progress/ProgressHrPaceCharts.tsx` | Grille 2 colonnes : HR@pace + Pace@HR (ComposedChart multi-lines) | ~200 |
-| `components/features/progress/ProgressVo2maxChart.tsx` | VO2max trend chart (3 derniers mois) | ~70 |
-| `components/features/progress/ProgressWaterfallCard.tsx` | Waterfall 3D card avec filtres (session, terrain, bin step, limit, endurance) | ~80 |
-| `components/features/progress/ProgressIndexationBanner.tsx` | Bannière indexation en cours / erreur | ~50 |
+#### Composants à créer
 
-#### 5.1.2 Page résiduelle
+1. **`frontend/src/components/features/progress/ProgressSessionTaxonomy.tsx`** (nouveau)
+   - Récupère les données via `useProgressSessionTaxonomy()`
+   - Affiche bar chart horizontal pour session_counts
+   - Affiche petit tableau pour terrain_counts
+   - Props : `from`, `to` (dates), `activityType` (optionnel)
+   - Utilise Recharts `BarChart` / `Bar` (horizontal)
+   - Suit le pattern visuel de `TrainingLoadChart.tsx` : Card wrapper, titre, contenu
 
-La page `app/progress/page.tsx` après extraction contiendra (~300 lignes) :
-- L'état global (`range`, `volumeMetric`, `bestDuration`, filtres waterfall)
-- Le `useEffect` d'indexation polling
-- Les 8 queries React Query
-- Les `useMemo` de transformation de données
-- L'assemblage des sous-composants
+2. **`frontend/src/components/features/progress/ProgressIntensityDistribution.tsx`** (nouveau)
+   - Récupère les données via un nouveau hook `useProgressIntensityDistribution()`
+   - Affiche stacked bar chart par semaine (Z1-Z5)
+   - Props : `from`, `to` (dates), `activityType` (optionnel)
+   - Utilise Recharts `BarChart` avec `stackId` pour les zones
+   - Couleurs : dégradé de vert à rouge pour Z1→Z5
 
-**Props de chaque sous-composant** :
+3. **`frontend/src/components/features/progress/ProgressLongRunDose.tsx`** (nouveau)
+   - Récupère les données via un nouveau hook `useProgressLongRunDose()`
+   - Affiche combo chart (barres = distance, ligne = temps)
+   - Props : `from`, `to` (dates)
+   - Utilise Recharts `ComposedChart`
 
-```typescript
-// ProgressVolumeChart
-type ProgressVolumeChartProps = {
-  data: Array<{ bucket_start: string; weekStartMs: number; value: number | null }>;
-  isLoading: boolean;
-  error: Error | null;
-  range: HistoryRange;
-  volumeMetric: ProgressSeriesMetric;
-  volumeSpec: VolumeMetricSpec;
-  currentWeekBucketStart: string;
-  onRangeChange: (range: HistoryRange) => void;
-  onVolumeMetricChange: (metric: ProgressSeriesMetric) => void;
-  indexationRunning: boolean;
-};
+4. **`frontend/src/components/features/progress/ProgressVamTrend.tsx`** (nouveau)
+   - Récupère les données via un nouveau hook `useProgressVamTrend()`
+   - Affiche scatter plot + trend line
+   - Props : `from`, `to` (dates)
+   - Utilise Recharts `ScatterChart` + `Line` pour la tendance
 
-// ProgressTrimpChart
-type ProgressTrimpChartProps = {
-  data: Array<{ bucket_start: string; weekStartMs: number; trimp: number | null; acute: number | null; chronic: number | null }>;
-  isLoading: boolean;
-  error: Error | null;
-};
+#### Hooks à créer
 
-// ProgressBestEffortsChart
-type ProgressBestEffortsChartProps = {
-  data: Array<{ start_ts_utc: string; value: number; is_pr: boolean; dateMs: number }>;
-  isLoading: boolean;
-  error: Error | null;
-  bestDuration: number;
-  bestYAxisDomain: [number, number];
-  onDurationChange: (duration: number) => void;
-};
+1. **`useProgressIntensityDistribution(from, to, activityType?)`** — dans `useProgress.ts`
+   - Appelle un nouvel endpoint `GET /progress/intensity-distribution`
+   - Retourne `{ data, isLoading, error }` avec le type approprié
 
-// ProgressEfficiencyCharts
-type ProgressEfficiencyChartsProps = {
-  efData: Array<{ dateMs: number; ef: number; trend: number | null }>;
-  decouplingData: Array<{ dateMs: number; dec: number; trend: number | null }>;
-  isLoading: boolean;
-  error: Error | null;
-  efDomain: [number, number];
-  decouplingDomain: [number, number];
-};
+2. **`useProgressLongRunDose(from, to)`** — dans `useProgress.ts`
+   - Appelle un nouvel endpoint `GET /progress/long-run-dose` (ou réutilise `/progress/series` filtré)
 
-// ProgressHrPaceCharts
-type ProgressHrPaceChartsProps = {
-  hrAtPaceData: Array<Record<string, number>>;
-  hrAtPaceMeta: Array<{ key: string; label: string }>;
-  paceAtHrData: Array<Record<string, number>>;
-  paceAtHrMeta: Array<{ key: string; label: string }>;
-  isLoadingHr: boolean;
-  isLoadingPace: boolean;
-  errorHr: Error | null;
-  errorPace: Error | null;
-  hrAtPaceDomain: [number, number];
-  paceAtHrDomain: [number, number];
-};
+3. **`useProgressVamTrend(from, to)`** — dans `useProgress.ts`
+   - Appelle un nouvel endpoint `GET /progress/vam-trend`
 
-// ProgressVo2maxChart
-type ProgressVo2maxChartProps = {
-  data: Array<{ dateMs: number; vo2max: number }>;
-  domain: [number, number];
-};
-
-// ProgressWaterfallCard
-type ProgressWaterfallCardProps = {
-  activities: WaterfallActivity[];
-  isLoading: boolean;
-  error: Error | null;
-  waterfallLimit: 10 | 30 | 60;
-  waterfallBinStep: 5 | 10;
-  waterfallSessionTag: 'all' | ProgressSessionTag;
-  waterfallTerrainTag: 'all' | ProgressTerrainTag;
-  waterfallEnduranceOnly: boolean;
-  onLimitChange: (limit: 10 | 30 | 60) => void;
-  onBinStepChange: (step: 5 | 10) => void;
-  onSessionTagChange: (tag: 'all' | ProgressSessionTag) => void;
-  onTerrainTagChange: (tag: 'all' | ProgressTerrainTag) => void;
-  onEnduranceOnlyChange: (value: boolean) => void;
-};
-
-// ProgressIndexationBanner
-type ProgressIndexationBannerProps = {
-  state: ProgressIndexStatusResponse | null;
-};
-```
-
-### 5.2 Frontend — Découpage de `app/goals/page.tsx`
-
-#### 5.2.1 Nouveaux fichiers à créer
-
-| Fichier | Contenu | Lignes estimées |
-|---|---|---|
-| `components/goals/utils.ts` | `addDays`, `addWeeks`, `isoDayKey`, `mondayStartOfWeek`, `goalDaysDeltaFromToday`, `goalCountdownLabel`, `monthWarmth`, `monthBackgroundStyle`, `goalObjectiveLabel`, `compareGoals` | ~100 |
-| `components/goals/GoalsCalendar.tsx` | Composant calendrier (extrait du inner component `GoalsCalendar`) | ~120 |
-| `components/goals/GoalsTimelineCard.tsx` | Card wrapper autour de `GoalsTimelineFlow` (extrait du inner component `Timeline`) | ~20 |
-| `components/goals/GoalForm.tsx` | Formulaire création/édition d'objectif | ~200 |
-| `components/goals/GoalListTable.tsx` | Table triable des objectifs | ~100 |
-
-#### 5.2.2 Page résiduelle
-
-La page `app/goals/page.tsx` après extraction contiendra (~150 lignes) :
-- Les queries (`useGoalsList`, `useCreateGoal`, etc.)
-- L'état du formulaire (`isFormOpen`, `editingGoalId`)
-- L'état de tri (`sortKey`, `sortDir`)
-- La logique `onSubmit`
-- L'assemblage des sous-composants
-
-#### 5.2.3 Props des nouveaux composants
+#### Types à ajouter (dans `types/api.ts`)
 
 ```typescript
-// GoalForm
-type GoalFormProps = {
-  isOpen: boolean;
-  editingGoal: GoalItem | null;
-  isSubmitting: boolean;
-  onClose: () => void;
-  onSubmit: (payload: GoalCreateRequest | GoalUpdateRequest) => Promise<void>;
-};
+// Intensity Distribution
+interface IntensityDistributionPoint {
+  bucket_start: string;       // "YYYY-MM-DD"
+  z1_time_min: number;        // minutes
+  z2_time_min: number;
+  z3_time_min: number;
+  z4_time_min: number;
+  z5_time_min: number;
+  total_time_min: number;
+}
+interface IntensityDistributionResponse {
+  points: IntensityDistributionPoint[];
+  zone_thresholds_bpm: { z1: number; z2: number; z3: number; z4: number; z5: number };
+}
 
-// GoalsCalendar
-type GoalsCalendarProps = {
-  goals: GoalItem[];
-};
+// Long Run Dose
+interface LongRunDosePoint {
+  bucket_start: string;
+  distance_km: number;
+  moving_time_h: number;
+  activity_count: number;
+  max_distance_km: number;
+}
 
-// GoalsTimelineCard
-type GoalsTimelineCardProps = {
-  goals: GoalItem[];
-  countdownByGoalId: Record<string, string>;
-};
-
-// GoalListTable
-type GoalListTableProps = {
-  goals: GoalItem[];
-  isLoading: boolean;
-  sortKey: SortKey;
-  sortDir: SortDir;
-  today: Date;
-  countdownByGoalId: Record<string, string>;
-  onSort: (key: SortKey) => void;
-  onEdit: (goal: GoalItem) => void;
-  onDelete: (goalId: string) => Promise<void>;
-  isDeleting: boolean;
-  onAdd: () => void;
-};
+// VAM Trend
+interface VamTrendPoint {
+  activity_id: string;
+  start_ts_utc: string;
+  vam_max_m_h: number;
+}
 ```
 
-### 5.3 Frontend — Découpage de `app/activities/[id]/page.tsx`
+#### Contraintes UI à respecter
+- Suivre `docs/style-frontend-ui.md` : pas de header local, utiliser `Card`, tokens Tailwind existants
+- Cohérence avec les composants existants : même rythme `space-y-4`, même style de Card
+- Responsive : `grid-cols-1 md:grid-cols-2` pour les paires de charts si pertinent
+- Couleurs de zones : utiliser un schéma lisible et accessible (contraste suffisant)
+- États loading/error/empty pour chaque composant
 
-#### 5.3.1 Nouveaux fichiers à créer
+### 5.2 Backend
 
-| Fichier | Contenu | Lignes estimées |
-|---|---|---|
-| `components/metrics/activityDetails.ts` | `KPI_HELP`, `DETAIL_HELP`, `detailHelpText`, `DetailTile`/`DetailSection` types, `hasRenderableValue`, `firstAvailable`, `tile`, `buildActivityDetailSections`, `buildKpiItems`, `formatRaceDate` | ~200 |
-| `components/activity/ActivityDetailSections.tsx` | Rendu des 7 sections de détail A-G avec tiles | ~120 |
-| `components/activity/ActivityInsights.tsx` | Cartes d'insights (dérive cardio, relief, rythme) | ~80 |
-| `components/activity/ActivityTitleBar.tsx` | Barre de titre éditable + bouton vue bêta + ID activité | ~80 |
-| `components/activity/ActivityKpiBar.tsx` | Barre de KPIs primaires (pills) + KPIs secondaires (grille) | ~100 |
+#### Nouveaux endpoints
 
-#### 5.3.2 Page résiduelle
+1. **`GET /progress/intensity-distribution`** (nouveau)
+   - Routeur : `progress.py`
+   - Query params : `from`, `to` (dates), `activity_type` (optionnel)
+   - Logique : pour chaque activité entre `from` et `to` avec HR, agréger le temps par zone (Z1-Z5) par semaine
+   - Schéma de zone : `<60%`, `60-70%`, `70-80%`, `80-90%`, `>90%` de FC max effective
+   - Utiliser FC max effective depuis settings (ou fallback 220-age)
+   - Méthode : `ProgressService.compute_intensity_distribution(rows, hr_max)`
 
-La page `app/activities/[id]/page.tsx` après extraction contiendra (~200 lignes) :
-- La query principale (`useRealActivity`, `useRealActivityBins`, `useMapData`)
-- L'état des tabs
-- La logique de rename
-- Le rendu par tab (overview, splits, climbs, charts, map, details)
+2. **`GET /progress/long-run-dose`** (nouveau)
+   - Routeur : `progress.py`
+   - Query params : `from`, `to` (dates)
+   - Logique : filtrer les activités avec `session_tag == 'long_run'`, agréger distance et temps par semaine
+   - Méthode : `ProgressService.compute_long_run_dose(rows)`
+   - Alternative si léger : réutiliser `/progress/activities?session_tag=long_run` et agréger côté frontend. **Recommandation : endpoint dédié pour la propreté.**
 
-### 5.4 Frontend — Découpage de `app/traces/[id]/page.tsx`
+3. **`GET /progress/vam-trend`** (nouveau)
+   - Routeur : `progress.py`
+   - Query params : `from`, `to` (dates)
+   - Logique : pour chaque activité, lire `ProgressActivityClimb` et prendre le `MAX(vam_m_h)`, retourner les points triés par date
+   - Méthode : nouvelle query dans `ProgressRepository` + `ProgressService.compute_vam_trend(rows)`
+   - Ajouter `vam_max_m_h` aux `allowed_metrics` de `/progress/series` si on veut aussi le graphique existant (optionnel P2)
 
-#### 5.4.1 Nouveaux fichiers à créer
+#### Méthodes à ajouter dans `ProgressService`
 
-| Fichier | Contenu | Lignes estimées |
-|---|---|---|
-| `components/traces/TraceInputPanel.tsx` | Panneau mode pace/time + inputs + bouton Appliquer + VMA info | ~120 |
-| `components/traces/TraceTitleBar.tsx` | Barre titre éditable + bouton Save/Star + statut trace | ~100 |
-| `components/traces/utils.ts` | `computeDefaultPaceFromVma` | ~25 |
+```python
+# backend/services/progress_service.py
 
-#### 5.4.2 Page résiduelle
+@staticmethod
+def compute_intensity_distribution(rows, hr_max: float) -> dict:
+    """Agrège le temps par zone HR par semaine."""
+    # rows = liste d'objets avec .start_ts_utc, .z1_time_s, .z2_time_s... ou lit depuis les bins
+    
+@staticmethod
+def compute_long_run_dose(rows) -> dict:
+    """Agrège distance/temps des long runs par semaine."""
 
-La page `app/traces/[id]/page.tsx` après extraction contiendra (~120 lignes) :
-- La résolution de route (trace → activity)
-- Les queries
-- L'état des tabs
-- Le rendu par tab (overview, charts, map)
+@staticmethod
+def compute_vam_trend(rows) -> dict:
+    """Formate les points VAM max par activité."""
+```
 
-### 5.5 Frontend — Optimisation `ActivityCharts.tsx`
+#### Approche données pour l'intensity distribution
 
-#### 5.5.1 Modifications
+Deux options :
+- **Option A (recommandée)** : Ajouter les colonnes `z1_time_s` à `z5_time_s` dans `ProgressActivityIndex` lors de l'indexation (comme le TRIMP). Stocker le temps passé dans chaque zone HR par activité. L'agrégation par semaine devient un simple SUM groupé.
+- **Option B** : Calculer à la volée en lisant les données parquet de chaque activité. Plus lent mais sans modification du schéma DB.
 
-| Changement | Détail |
-|---|---|
-| Supprimer `smoothMovingAverage` (l. 44-70) | Remplacer par `rollingMeanPoints` de `lib/chartUtils.ts`. Note : `rollingMeanPoints` est une rolling mean causale (forward-only), tandis que `smoothMovingAverage` est centrée. **Conserver `smoothMovingAverage` dans `chartUtils.ts` comme `rollingMeanCentered` pour ne pas changer le comportement.** |
-| Supprimer `buildSeriesData` (l. 32-42) | Remplacer par `buildPoints` de `lib/chartUtils.ts` (interface identique) |
-| Wrapper smoothing dans `useMemo` | Les calculs `smoothMovingAverage` pour chaque série HR doivent être wrappés dans `React.useMemo` dépendant des données brutes et de la fenêtre de lissage |
+**Recommandation : Option A**, car :
+- Cohérent avec l'approche existante (TRIMP, EF, etc. sont déjà dans l'index)
+- Performant pour les requêtes dashboard
+- La modification du schéma DB est minime (ajout de 5 colonnes float)
+- Nécessite une réindexation slow après migration
 
-#### 5.5.2 Fichiers impactés
+#### Modifications DB (Option A)
 
-- `components/charts/ActivityCharts.tsx` — suppression doublons + ajout useMemo
-- `lib/chartUtils.ts` — ajout optionnel de `rollingMeanCentered` si nécessaire
+- **`ProgressActivityIndex`** (`backend/db/models.py` vers ligne 175) : ajouter 5 colonnes :
+  ```python
+  z1_time_s = Column(Float)
+  z2_time_s = Column(Float)
+  z3_time_s = Column(Float)
+  z4_time_s = Column(Float)
+  z5_time_s = Column(Float)
+  ```
+- **`indexer.py`** : dans `index_activity()`, après le calcul des zones HR, stocker le temps par zone dans l'index
+- **`recompute_daily_aggregates()`** (`indexer.py:669`) : ajouter les sommes par zone
 
-### 5.6 Documentation
 
-- Mettre à jour `CHANGELOG.md` avec entrée « Refactor: découpage des 4 monolithes frontend »
-- Mettre à jour `docs/audit_application.md` §5 : marquer les monolithes frontend ✅
+#### Modifications DB (VAM)
+
+- **Option simple** : Nouvel endpoint qui lit `ProgressActivityClimb` directement (pas de modification DB nécessaire)
+- **Repo** : Ajouter une méthode `list_climb_max_vam(session, from_ts, to_ts)` dans `ProgressRepository`
+
+### 5.3 Données et métriques
+
+| Métrique | Unité | Source | Fallback si absent |
+|---|---|---|---|
+| Session counts | nombre entier | `ProgressActivityTag.session_tag` | "unknown" |
+| Terrain counts | nombre entier | `ProgressActivityTag.terrain_tag` | "unknown" |
+| Zone HR time | minutes | Zones calculées depuis HR + FC max | Série vide (activité sans HR exclue) |
+| Long run distance | km | `ProgressActivityIndex.distance_m / 1000` filtré `long_run` | 0 |
+| Long run time | heures | `ProgressActivityIndex.moving_time_s / 3600` filtré `long_run` | 0 |
+| VAM max | m/h | `MAX(ProgressActivityClimb.vam_m_h)` par activité | null (activité sans montée exclue) |
+
+### 5.4 Documentation
+
+- **`docs/metrics_catalog.md`** : ajouter les 3 nouveaux endpoints (intensity-distribution, long-run-dose, vam-trend) avec leurs métriques, types et unités
+- **`CHANGELOG.md`** : ajouter entrée v1.1.96 mentionnant les nouveaux KPI
 
 ## 6. Plan d'implémentation pour agent-dev
 
-### Étape 1 — P0 : Extraire les constantes et helpers de progress
+### Étape 1 — Session Taxonomy UI (frontend only)
 
-- **Objectif** : Créer `components/features/progress/constants.ts` et `components/features/progress/utils.ts`
-- **Fichiers** :
-  - `components/features/progress/constants.ts` (création) — `VOLUME_METRICS`, `HR_AT_PACE_REFS`, `PACE_AT_HR_REFS`, `SERIES_COLORS`, `SESSION_FILTER_OPTIONS`, `TERRAIN_FILTER_OPTIONS`
-  - `components/features/progress/utils.ts` (création) — `parseBucketStartMs`, `formatBucketLabel`, `finiteNumber`, `quantile`, `paddedDomain`
-  - `app/progress/page.tsx` — remplacer définitions par imports
-- **Tests** : `npm run build`
-- **Risques** : Aucun — simple déplacement de code
+- **Objectif** : Afficher la répartition des types de séances sur la page Progression
+- **Fichiers probables** :
+  - `frontend/src/components/features/progress/ProgressSessionTaxonomy.tsx` (créer)
+  - `frontend/src/app/progress/page.tsx` (modifier : import + rendu)
+- **Détails d'implémentation** :
+  1. Créer `ProgressSessionTaxonomy.tsx` : Card avec bar chart horizontal (Recharts `BarChart` layout="vertical")
+  2. Utiliser `useProgressSessionTaxonomy(from, to)` (hook existant)
+  3. Afficher barres pour `session_counts` (easy, tempo, interval, long_run, unknown)
+  4. Sous-section compacte pour `terrain_counts` et `race_markers`
+  5. Ajouter dans `page.tsx` après `TrainingLoadChart` (ou après `ProgressTrimpChart`)
+- **Tests à prévoir** : test unitaire du composant (mock du hook)
+- **Risques** : faibles — hook déjà testé, composant purement visuel
 
-### Étape 2 — P0 : Extraire ProgressIndexationBanner
+### Étape 2 — Intensity Distribution (backend + frontend)
 
-- **Objectif** : Isoler la bannière d'indexation dans un composant dédié
-- **Fichiers** :
-  - `components/features/progress/ProgressIndexationBanner.tsx` (création)
-  - `app/progress/page.tsx` — remplacer JSX inline par `<ProgressIndexationBanner>`
-- **Tests** : `npm run build`
-- **Risques** : Aucun — composant purement présentatif
+- **Objectif** : Afficher l'évolution du temps passé par zone HR par semaine
+- **Fichiers probables** :
+  - `backend/db/models.py` (modifier : ajout colonnes z1-z5 sur ProgressActivityIndex)
+  - `backend/progress/indexer.py` (modifier : stocker temps par zone dans l'index)
+  - `backend/services/progress_service.py` (modifier : ajouter `compute_intensity_distribution`)
+  - `backend/api/routes/progress.py` (modifier : ajouter endpoint)
+  - `frontend/src/types/api.ts` (modifier : ajouter types)
+  - `frontend/src/lib/api.ts` (modifier : ajouter méthode `intensityDistribution()`)
+  - `frontend/src/hooks/useProgress.ts` (modifier : ajouter hook)
+  - `frontend/src/components/features/progress/ProgressIntensityDistribution.tsx` (créer)
+  - `frontend/src/app/progress/page.tsx` (modifier)
+- **Détails d'implémentation** :
+  1. Ajouter `z1_time_s` à `z5_time_s` (Float, nullable) dans `ProgressActivityIndex`
+  2. Dans `indexer.py:index_activity()` : après appel à `compute_garmin_like_stats()` qui retourne les zones HR, calculer le temps par zone et le stocker
+  3. Dans `ProgressService` : `compute_intensity_distribution(rows)` agrégeant par semaine
+  4. Endpoint `GET /progress/intensity-distribution` : query params `from`, `to`, `activity_type`, appelle le service
+  5. Frontend : hook → composant stacked bar chart → ajout au `page.tsx`
+- **Tests à prévoir** : test unitaire du service, test du endpoint, test composant frontend
+- **Risques** :
+  - Modification du schéma DB → nécessite réindexation slow. **Garde-fou** : les colonnes sont nullable, l'app est rétrocompatible sans réindexation immédiate.
+  - Le calcul des zones HR dépend de `hr_max` dans settings → **Garde-fou** : utiliser `hr_max_effective_bpm` si disponible, sinon fallback 220-age.
 
-### Étape 3 — P0 : Extraire ProgressVolumeChart
+### Étape 3 — Long Run Dose (backend mineur + frontend)
 
-- **Objectif** : Isoler le graphe de volume dans un composant dédié
-- **Fichiers** :
-  - `components/features/progress/ProgressVolumeChart.tsx` (création)
-  - `app/progress/page.tsx` — remplacer JSX inline par `<ProgressVolumeChart>`
-- **Tests** : `npm run build`
-- **Risques** : Vérifier que le `renderVolumeDot` callback fonctionne correctement après extraction (dépend de `currentWeekBucketStart` dans la closure)
+- **Objectif** : Afficher la progression des sorties longues
+- **Fichiers probables** :
+  - `backend/services/progress_service.py` (modifier)
+  - `backend/api/routes/progress.py` (modifier)
+  - `frontend/src/types/api.ts` (modifier)
+  - `frontend/src/lib/api.ts` (modifier)
+  - `frontend/src/hooks/useProgress.ts` (modifier)
+  - `frontend/src/components/features/progress/ProgressLongRunDose.tsx` (créer)
+  - `frontend/src/app/progress/page.tsx` (modifier)
+- **Détails d'implémentation** :
+  1. Backend : endpoint `GET /progress/long-run-dose` filtre `session_tag == 'long_run'` et agrège distance/temps par semaine
+  2. Frontend : hook → composant combo chart → ajout au `page.tsx`
+- **Tests à prévoir** : test service, test composant
+- **Risques** : faibles — données déjà taguées, pas de modification DB
 
-### Étape 4 — P0 : Extraire ProgressTrimpChart
+### Étape 4 — VAM Trend (backend + frontend)
 
-- **Objectif** : Isoler le graphe TRIMP
-- **Fichiers** : `components/features/progress/ProgressTrimpChart.tsx` (création), `app/progress/page.tsx`
-- **Tests** : `npm run build`
+- **Objectif** : Afficher la tendance de VAM max par activité
+- **Fichiers probables** :
+  - `backend/db/progress_repository.py` (modifier : ajouter query climbs)
+  - `backend/services/progress_service.py` (modifier)
+  - `backend/api/routes/progress.py` (modifier)
+  - `frontend/src/types/api.ts` (modifier)
+  - `frontend/src/lib/api.ts` (modifier)
+  - `frontend/src/hooks/useProgress.ts` (modifier)
+  - `frontend/src/components/features/progress/ProgressVamTrend.tsx` (créer)
+  - `frontend/src/app/progress/page.tsx` (modifier)
+- **Détails d'implémentation** :
+  1. `ProgressRepository.list_climb_max_vam(session, from_ts, to_ts)` : `SELECT activity_id, start_ts_utc, MAX(vam_m_h) FROM progress_activity_climbs JOIN ... GROUP BY activity_id`
+  2. `ProgressService.compute_vam_trend(rows)` : formate en `[{activity_id, start_ts_utc, vam_max_m_h}]`
+  3. Endpoint `GET /progress/vam-trend` avec `from`/`to`
+  4. Frontend : hook → scatter plot + trend line → ajout au `page.tsx`
+- **Tests à prévoir** : test repository, test service, test composant
+- **Risques** :
+  - Performances si beaucoup de climbs → **Garde-fou** : `GROUP BY` SQL natif, pas de boucle Python
 
-### Étape 5 — P0 : Extraire ProgressBestEffortsChart
+### Étape 5 — Mise à jour documentation
 
-- **Objectif** : Isoler le graphe best efforts
-- **Fichiers** : `components/features/progress/ProgressBestEffortsChart.tsx` (création), `app/progress/page.tsx`
-- **Tests** : `npm run build`
-- **Risques** : `bestDot` callback dépend du payload `is_pr` — vérifier après extraction
-
-### Étape 6 — P0 : Extraire ProgressEfficiencyCharts
-
-- **Objectif** : Isoler la grille EF + Decoupling
-- **Fichiers** : `components/features/progress/ProgressEfficiencyCharts.tsx` (création), `app/progress/page.tsx`
-- **Tests** : `npm run build`
-
-### Étape 7 — P0 : Extraire ProgressHrPaceCharts
-
-- **Objectif** : Isoler la grille HR@pace + Pace@HR
-- **Fichiers** : `components/features/progress/ProgressHrPaceCharts.tsx` (création), `app/progress/page.tsx`
-- **Tests** : `npm run build`
-- **Risques** : Ce composant est le plus complexe (multi-lines, légende dynamique)
-
-### Étape 8 — P0 : Extraire ProgressVo2maxChart
-
-- **Objectif** : Isoler le graphe VO2max
-- **Fichiers** : `components/features/progress/ProgressVo2maxChart.tsx` (création), `app/progress/page.tsx`
-- **Tests** : `npm run build`
-
-### Étape 9 — P0 : Extraire ProgressWaterfallCard
-
-- **Objectif** : Isoler le waterfall 3D avec ses filtres
-- **Fichiers** : `components/features/progress/ProgressWaterfallCard.tsx` (création), `app/progress/page.tsx`
-- **Tests** : `npm run build`
-
-### Étape 10 — P0 : Extraire les helpers de goals
-
-- **Objectif** : Créer `components/goals/utils.ts`
-- **Fichiers** :
-  - `components/goals/utils.ts` (création) — 10 fonctions helper
-  - `app/goals/page.tsx` — remplacer définitions par imports
-  - `components/goals/GoalsCalendar.tsx` — importer depuis utils.ts au lieu de définitions inline
-  - `components/goals/GoalsTimelineCard.tsx` — idem
-- **Tests** : `npm run build`
-
-### Étape 11 — P0 : Extraire GoalsCalendar et GoalsTimelineCard
-
-- **Objectif** : Déplacer les inner components vers `components/goals/`
-- **Fichiers** :
-  - `components/goals/GoalsCalendar.tsx` (création, basé sur le inner component l.125-226)
-  - `components/goals/GoalsTimelineCard.tsx` (création, basé sur le inner component l.112-123)
-  - `app/goals/page.tsx` — remplacer par imports
-- **Tests** : `npm run build`
-
-### Étape 12 — P0 : Extraire GoalForm
-
-- **Objectif** : Extraire le formulaire CRUD dans un composant autonome
-- **Fichiers** :
-  - `components/goals/GoalForm.tsx` (création)
-  - `app/goals/page.tsx` — remplacer JSX inline par `<GoalForm>`
-- **Tests** : `npm run build`
-- **Risques** : Le formulaire gère à la fois la création et l'édition. Props d'initialisation à bien définir.
-
-### Étape 13 — P0 : Extraire GoalListTable
-
-- **Objectif** : Extraire la table triable dans un composant
-- **Fichiers** :
-  - `components/goals/GoalListTable.tsx` (création)
-  - `app/goals/page.tsx` — remplacer JSX inline par `<GoalListTable>`
-- **Tests** : `npm run build`
-
-### Étape 14 — P1 : Extraire les helpers d'activité
-
-- **Objectif** : Créer `components/metrics/activityDetails.ts`
-- **Fichiers** :
-  - `components/metrics/activityDetails.ts` (création) — `KPI_HELP`, `DETAIL_HELP`, `detailHelpText`, types, `buildActivityDetailSections`, `buildKpiItems`, `formatRaceDate`
-  - `app/activities/[id]/page.tsx` — remplacer définitions par imports
-- **Tests** : `npm run build`
-
-### Étape 15 — P1 : Extraire ActivityTitleBar et ActivityKpiBar
-
-- **Objectif** : Isoler la barre de titre et la barre de KPIs
-- **Fichiers** :
-  - `components/activity/ActivityTitleBar.tsx` (création)
-  - `components/activity/ActivityKpiBar.tsx` (création)
-  - `app/activities/[id]/page.tsx` — remplacer JSX inline
-- **Tests** : `npm run build`
-- **Risques** : La logique de rename (`handleRenameActivity`, `isEditingTitle`) doit être passée en props
-
-### Étape 16 — P1 : Extraire ActivityDetailSections et ActivityInsights
-
-- **Objectif** : Isoler les sections de détail et les insights
-- **Fichiers** :
-  - `components/activity/ActivityDetailSections.tsx` (création)
-  - `components/activity/ActivityInsights.tsx` (création)
-  - `app/activities/[id]/page.tsx` — remplacer JSX inline
-- **Tests** : `npm run build`
-
-### Étape 17 — P1 : Extraire les helpers de traces
-
-- **Objectif** : Créer `components/traces/utils.ts`
-- **Fichiers** :
-  - `components/traces/utils.ts` (création) — `computeDefaultPaceFromVma`
-  - `app/traces/[id]/page.tsx` — remplacer par import
-
-### Étape 18 — P1 : Extraire TraceTitleBar et TraceInputPanel
-
-- **Objectif** : Isoler la barre de titre et le panneau d'inputs
-- **Fichiers** :
-  - `components/traces/TraceTitleBar.tsx` (création)
-  - `components/traces/TraceInputPanel.tsx` (création)
-  - `app/traces/[id]/page.tsx` — remplacer JSX inline
-- **Tests** : `npm run build`
-
-### Étape 19 — P1 : Optimiser ActivityCharts
-
-- **Objectif** : Supprimer les doublons et ajouter useMemo
-- **Fichiers** :
-  - `components/charts/ActivityCharts.tsx` — wrapper smoothing dans `useMemo`, remplacer `buildSeriesData` par `buildPoints`
-  - `lib/chartUtils.ts` — ajouter `rollingMeanCentered` si nécessaire (si `rollingMeanPoints` ne donne pas le même résultat que `smoothMovingAverage`)
-- **Vérification** : Comparer visuellement le rendu avant/après ou vérifier que les données produites sont identiques
-- **Risques** : `smoothMovingAverage` est centrée, `rollingMeanPoints` est causale. Si le comportement doit être préservé, extraire `smoothMovingAverage` dans `chartUtils.ts` sous le nom `rollingMeanCentered`.
-
-### Étape 20 — Vérification globale
-
-- **Commandes** :
-  ```bash
-  cd frontend
-  npm test
-  npm run build
-  ```
-- **Contrôle manuel** : naviguer sur les 4 pages, vérifier que tous les graphes s'affichent, que les interactions fonctionnent.
-
-### Étape 21 — Documentation
-
-- **Fichiers** : `CHANGELOG.md`, `docs/audit_application.md` §5
-- **Action** : Ajouter entrée refactor, marquer ✅ les monolithes frontend
+- **Objectif** : Ajouter les nouveaux endpoints au catalogue de métriques
+- **Fichiers probables** : `docs/metrics_catalog.md`, `CHANGELOG.md`
+- **Détails** : suivre `docs/documentation_update_runbook.md`
 
 ## 7. Tests et vérifications attendus
 
-Frontend :
+### Backend
+
+```bash
+python -m compileall backend
+python -m pytest tests/unit/ -q
+python -m pytest tests/pytest/ -q
+```
+
+### Frontend
+
 ```bash
 cd frontend
 npm test
 npm run build
 ```
 
-Vérifications manuelles :
-- Page `/progress` : tous les graphes s'affichent, les sélecteurs fonctionnent, la bannière d'indexation apparaît
-- Page `/goals` : formulaire création/édition fonctionnel, calendrier affiché, table triable
-- Page `/activities/[id]` : KPI header, onglets, sections de détail, charts, map
-- Page `/traces/[id]` : résolution de trace, inputs pace/temps, graphes, map
-- `ActivityCharts` : les courbes de séries s'affichent correctement (pas de changement visuel)
+### Vérifications manuelles
+- [ ] Page Progression : les 4 nouvelles sections s'affichent sans erreur
+- [ ] Session Taxonomy : les compteurs correspondent aux tags dans la DB
+- [ ] Intensity Distribution : les zones sont correctement réparties (vérifier avec une activité connue)
+- [ ] Long Run Dose : les long runs sont correctement filtrés
+- [ ] VAM Trend : les points correspondent aux VAM des montées
+- [ ] Responsive mobile : pas de débordement horizontal
+- [ ] États vides : message approprié quand pas de données
+- [ ] Pas de régression sur les sections existantes
 
 ## 8. Critères d'acceptation
 
-- [ ] `components/features/progress/constants.ts` existe avec toutes les constantes
-- [ ] `components/features/progress/utils.ts` existe avec les 5 helpers
-- [ ] Les 8 composants progress extraits existent et sont importés par la page
-- [ ] `app/progress/page.tsx` < 400 lignes
-- [ ] `components/goals/utils.ts` existe avec les 10 helpers
-- [ ] `components/goals/GoalsCalendar.tsx` existe
-- [ ] `components/goals/GoalsTimelineCard.tsx` existe
-- [ ] `components/goals/GoalForm.tsx` existe
-- [ ] `components/goals/GoalListTable.tsx` existe
-- [ ] `app/goals/page.tsx` < 200 lignes
-- [ ] `components/metrics/activityDetails.ts` existe
-- [ ] `components/activity/ActivityDetailSections.tsx` existe
-- [ ] `components/activity/ActivityInsights.tsx` existe
-- [ ] `components/activity/ActivityTitleBar.tsx` existe
-- [ ] `app/activities/[id]/page.tsx` < 400 lignes
-- [ ] `components/traces/TraceInputPanel.tsx` existe
-- [ ] `components/traces/TraceTitleBar.tsx` existe
-- [ ] `app/traces/[id]/page.tsx` < 300 lignes
-- [ ] `ActivityCharts.tsx` : `smoothMovingAverage` supprimé (ou déplacé dans chartUtils)
-- [ ] `ActivityCharts.tsx` : `buildSeriesData` remplacé par `buildPoints`
-- [ ] `ActivityCharts.tsx` : smoothing wrappé dans `useMemo`
-- [ ] `cd frontend && npm test` passe
-- [ ] `cd frontend && npm run build` passe
-- [ ] Aucune régression fonctionnelle sur les 4 pages
+1. **Session Taxonomy** : la section affiche un bar chart avec les 5 types de session, les compteurs sont corrects
+2. **Intensity Distribution** : le stacked bar chart montre l'évolution hebdomadaire du temps par zone HR
+3. **Long Run Dose** : le combo chart affiche distance et temps des long runs par semaine
+4. **VAM Trend** : le scatter plot montre les points VAM par activité avec une trend line lissée
+5. Tous les nouveaux endpoints sont documentés dans `metrics_catalog.md`
+6. `npm run build` passe sans erreur
+7. `python -m pytest -q` passe sans régression
+8. La page Progression reste navigable et performante (< 2s de chargement initial)
+9. Aucun anti-pattern UI : pas de header local, pas de container racine dupliqué, utilisation des tokens Tailwind
 
 ## 9. Risques et garde-fous
 
-1. **Régressions silencieuses** — le découpage peut introduire des bugs subtils (props manquantes, closures cassées).
-   - **Garde-fou** : build après chaque étape, test manuel des pages concernées.
-
-2. **Performances après découpage** — plus de composants = plus de re-renders potentiels.
-   - **Garde-fou** : utiliser `React.memo` sur les composants extraits si nécessaire. Les props sont pour la plupart des primitives ou des tableaux stables via `useMemo`.
-
-3. **`smoothMovingAverage` vs `rollingMeanPoints`** — comportement différent (centré vs causal).
-   - **Garde-fou** : ne pas remplacer dans ActivityCharts. Déplacer `smoothMovingAverage` dans `chartUtils.ts` sous le nom `rollingMeanCentered` puis l'importer.
-
-4. **`renderVolumeDot` et `bestDot` callbacks** — ces callbacks Recharts capturent `currentWeekBucketStart` via closure.
-   - **Garde-fou** : passer ces callbacks en props ou les reconstruire dans le composant enfant avec ses propres dépendances.
-
-5. **Dossiers `components/activity/` et `components/traces/` inexistants** — ces dossiers n'existent pas encore.
-   - **Garde-fou** : créer les dossiers avant d'y placer des fichiers. Alternative : placer dans `components/metrics/` (pour activity) et `components/features/traces/` (pour traces).
-
-6. **Vue legacy vs beta** — la page `activities/[id]` est la vue legacy. Ne pas casser la compatibilité avec la vue beta.
-   - **Garde-fou** : les fichiers extraits sont nouveaux. La page legacy importe les nouveaux composants. La vue beta n'est pas impactée.
-
-7. **Tests frontend inexistants pour ces pages** — aucun test unitaire ne couvre ces pages.
-   - **Garde-fou** : le build et les tests manuels sont la seule vérification. Ajouter des tests n'est pas dans le scope.
+- **Risque 1 — Surcharge de la page Progression** : 4 nouvelles sections ajoutées à une page qui en a déjà 10. **Garde-fou** : les composants sont légers (pas de calculs lourds côté frontend). Si la page devient trop longue, proposer dans une itération future de grouper les sections en onglets.
+- **Risque 2 — Réindexation nécessaire pour intensity distribution** : l'ajout de colonnes z1-z5 dans `ProgressActivityIndex` nécessite une réindexation slow pour les activités existantes. **Garde-fou** : les colonnes sont `nullable`. Les activités non réindexées auront `NULL` → le frontend les exclut du calcul. Pas de données erronées.
+- **Risque 3 — Performance des queries climbs pour VAM trend** : si beaucoup d'activités avec montées, la query pourrait être lente. **Garde-fou** : la query utilise un `GROUP BY` SQL natif avec index sur `activity_id`. Limiter le range par défaut à 6 mois.
+- **Risque 4 — FC max non configurée** : l'intensity distribution nécessite la FC max pour calculer les zones. **Garde-fou** : si `hr_max_effective_bpm` est null, utiliser `hr_max_detected_bpm`, puis fallback 220-30=190. Si toujours pas de FC max, l'endpoint retourne une liste vide avec un message.
 
 ## 10. Décisions prises par agent-brainstorm
 
-1. **Périmètre frontend uniquement** — le backend a déjà été traité en v1.1.92 et v1.1.94.
-2. **Extraction « container/presentational »** — les pages gardent la logique métier (queries, état, transformations) et délèguent le rendu à des sous-composants.
-3. **Pas de nouvelle dépendance** — tous les composants utilisent React, Recharts, et les primitives UI existantes.
-4. **Dossiers de destination** : `components/features/progress/` pour progress, `components/goals/` pour goals, `components/activity/` (nouveau) pour la vue legacy activity, `components/traces/` (nouveau) pour traces.
-5. **Conservation du comportement exact** — pas de refactor fonctionnel, pas de changement d'UI.
-6. **Ordre d'implémentation** : progress d'abord (le plus critique), puis goals, puis activities, puis traces, puis ActivityCharts.
-7. **Pas d'extraction des fonctions `hasAnyChartSeries` ni de la logique de sélection de tab** — ces fonctions sont triviales et liées au contexte de la page.
-8. **`ActivityCharts`** : ne pas remplacer `smoothMovingAverage` par `rollingMeanPoints` à cause du comportement différent. Déplacer dans `chartUtils.ts` comme `rollingMeanCentered`.
+1. **Monotony/Strain ignorés** : déjà implémentés et affichés. Inutile de les refaire.
+2. **Intensity distribution = zones HR uniquement** : les zones pace et power sont optionnelles (données pas toujours disponibles). La FC est la métrique la plus universelle pour le running. Ajouter pace/power plus tard si demandé.
+3. **Option A pour l'intensity distribution** : ajouter colonnes dans `ProgressActivityIndex` plutôt que calcul à la volée. Plus performant et cohérent avec l'architecture d'indexation existante.
+4. **VAM max par activité** plutôt que VAM moyen : le VAM max (meilleure performance de grimpe) est plus parlant pour suivre la progression en montée.
+5. **Pas d'onglets pour l'instant** : ajouter les sections dans le flux existant de la page Progression. Réévaluer la nécessité d'onglets après usage.
+6. **Long run dose = endpoint dédié** : plutôt que de réutiliser `/progress/activities?session_tag=long_run` et agréger côté frontend, un endpoint dédié est plus propre et plus performant.
+7. **Tagging manuel UI repoussé en P3** : complexité UI plus élevée (modale ou formulaire inline, sélection d'activité, etc.). Non prioritaire pour cette itération.
 
 ## 11. Points à ne pas faire
 
-- ❌ Ne pas modifier le backend
-- ❌ Ne pas modifier les contrats API
-- ❌ Ne pas changer le comportement fonctionnel des pages
-- ❌ Ne pas supprimer la vue legacy `activities/[id]` (la migration beta n'est pas terminée)
-- ❌ Ne pas modifier les composants `activity-beta/` (ils servent de référence)
-- ❌ Ne pas modifier `page-metadata.tsx`, `nav.ts`, `AppShell.tsx`
-- ❌ Ne pas ajouter de nouvelle dépendance npm
-- ❌ Ne pas modifier les tests existants
-- ❌ Ne pas créer de documentation supplémentaire (le minimum : CHANGELOG + mise à jour audit)
-- ❌ Ne pas committer ni pousser
+- **Ne pas modifier `compute_training_load`** : la méthode est complète et fonctionnelle
+- **Ne pas refactorer `page.tsx` au-delà de l'ajout des composants** : le découpage a déjà été fait
+- **Ne pas toucher aux endpoints existants** : tous les nouveaux endpoints sont des ajouts, pas des modifications
+- **Ne pas modifier les contrats API existants** : rétrocompatibilité obligatoire
+- **Ne pas créer de nouvelle page** : tout s'intègre dans la page Progression existante
+- **Ne pas ajouter de dépendance npm ou pip**
+- **Ne pas modifier `docs/style-frontend-ui.md`** sauf si une décision UI le justifie
+- **Ne pas modifier `TrainingLoadChart.tsx`** : monotony/strain y sont déjà
+- **Ne pas supprimer les endpoints inutilisés (`/progress/verify`, etc.)** : cf. audit section 8, décision de les garder

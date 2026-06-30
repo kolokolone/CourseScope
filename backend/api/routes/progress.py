@@ -7,6 +7,7 @@ from starlette.responses import JSONResponse
 
 from db.models import ProgressActivityTag, utc_now_iso
 from db.progress_repository import ProgressRepository
+from db.settings_repository import SettingsRepository
 from progress.indexation_runner import (
     get_indexation_state,
     start_fast_indexation_in_background,
@@ -528,6 +529,123 @@ async def get_training_load(
         session.close()
 
     return ProgressService.compute_training_load(rows)
+
+
+@router.get("/progress/intensity-distribution")
+async def get_intensity_distribution(
+    request: Request,
+    from_ts: str | None = Query(None, alias="from"),
+    to_ts: str | None = Query(None, alias="to"),
+    activity_type: str | None = Query(None, alias="type"),
+):
+    """Temps passé par zone de fréquence cardiaque (Z1-Z5) agrégé par semaine."""
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+
+    if activity_type is not None and activity_type not in {"real", "theoretical"}:
+        raise HTTPException(status_code=400, detail="Invalid type")
+
+    from_ts_utc = _parse_ts_utc(from_ts, is_end=False)
+    to_ts_utc = _parse_ts_utc(to_ts, is_end=True)
+
+    repo = ProgressRepository()
+    session = db_session_factory()
+    try:
+        rows = repo.list_activity_rows(
+            session,
+            from_ts_utc=from_ts_utc,
+            to_ts_utc=to_ts_utc,
+            activity_type=activity_type or "real",
+            limit=None,
+        )
+    finally:
+        session.close()
+
+    points = ProgressService.compute_intensity_distribution(rows)
+
+    # Fetch HR max for zone thresholds
+    hr_max: float | None = None
+    try:
+        from services.analysis_service import AnalysisService
+        hr_max = AnalysisService.resolve_hr_max_effective(request)
+    except Exception:
+        pass
+
+    zone_thresholds = None
+    if hr_max is not None and hr_max > 0:
+        zone_thresholds = {
+            "z1": round(hr_max * 0.50, 0),
+            "z2": round(hr_max * 0.60, 0),
+            "z3": round(hr_max * 0.70, 0),
+            "z4": round(hr_max * 0.80, 0),
+            "z5": round(hr_max * 0.90, 0),
+        }
+
+    return {"points": points, "zone_thresholds_bpm": zone_thresholds}
+
+
+@router.get("/progress/long-run-dose")
+async def get_long_run_dose(
+    request: Request,
+    from_ts: str | None = Query(None, alias="from"),
+    to_ts: str | None = Query(None, alias="to"),
+):
+    """Distance et temps des sorties longues (tag long_run) agrégés par semaine."""
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+
+    from_ts_utc = _parse_ts_utc(from_ts, is_end=False)
+    to_ts_utc = _parse_ts_utc(to_ts, is_end=True)
+
+    repo = ProgressRepository()
+    session = db_session_factory()
+    try:
+        rows = repo.list_activity_rows(
+            session,
+            from_ts_utc=from_ts_utc,
+            to_ts_utc=to_ts_utc,
+            activity_type="real",
+            limit=None,
+        )
+        activity_ids = [str(r.activity_id) for r in rows]
+        tags_map = repo.get_activity_tags_map(session, activity_ids=activity_ids)
+
+        # Filter to long_run only
+        long_run_rows = [r for r in rows if tags_map.get(str(r.activity_id)) and tags_map[str(r.activity_id)].session_tag == "long_run"]
+    finally:
+        session.close()
+
+    return ProgressService.compute_long_run_dose(long_run_rows)
+
+
+@router.get("/progress/vam-trend")
+async def get_vam_trend(
+    request: Request,
+    from_ts: str | None = Query(None, alias="from"),
+    to_ts: str | None = Query(None, alias="to"),
+):
+    """Tendance de VAM max (m/h) par activité contenant des montées."""
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+
+    from_ts_utc = _parse_ts_utc(from_ts, is_end=False)
+    to_ts_utc = _parse_ts_utc(to_ts, is_end=True)
+
+    repo = ProgressRepository()
+    session = db_session_factory()
+    try:
+        rows = repo.list_climb_max_vam(
+            session,
+            from_ts_utc=from_ts_utc,
+            to_ts_utc=to_ts_utc,
+        )
+    finally:
+        session.close()
+
+    return ProgressService.compute_vam_trend(rows)
 
 
 @router.get("/progress/calendar")

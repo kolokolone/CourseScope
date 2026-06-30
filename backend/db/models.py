@@ -170,6 +170,13 @@ class ProgressActivityIndex(Base):
     has_cadence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     data_points: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # HR zone time columns (P1 — intensity distribution)
+    z1_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    z2_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    z3_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    z4_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    z5_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     # New columns (P2 — audit SQLite)
     elevation_loss_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     pace_first_half_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -326,4 +333,9 @@ class ProgressDailyAggregate(Base):
     elevation_gain_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     trimp: Mapped[float | None] = mapped_column(Float, nullable=True)
     activity_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    z1_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    z2_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    z3_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    z4_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    z5_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
     computed_at_utc: Mapped[str] = mapped_column(Text, nullable=False)

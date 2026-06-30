@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from .models import (
@@ -32,6 +32,13 @@ class ProgressPaceHrRow:
     time_s_bin: float
     hr_mean_w_bpm: float | None
     hr_q50_w_bpm: float | None
+
+
+@dataclass(frozen=True)
+class ProgressVamTrendRow:
+    activity_id: str
+    start_ts_utc: str
+    vam_max_m_h: float | None
 
 
 @dataclass(frozen=True)
@@ -361,4 +368,38 @@ class ProgressRepository:
                     hr_q50_w_bpm=(float(hr_q50_w_bpm) if hr_q50_w_bpm is not None else None),
                 )
             )
+        return out
+
+    def list_climb_max_vam(
+        self,
+        session: Session,
+        *,
+        from_ts_utc: str | None,
+        to_ts_utc: str | None,
+    ) -> list[ProgressVamTrendRow]:
+        stmt = (
+            select(
+                ProgressActivityClimb.activity_id,
+                ProgressActivityIndex.start_ts_utc,
+                func.max(ProgressActivityClimb.vam_m_h).label("vam_max_m_h"),
+            )
+            .select_from(ProgressActivityClimb)
+            .join(ProgressActivityIndex, ProgressActivityIndex.activity_id == ProgressActivityClimb.activity_id)
+            .where(ProgressActivityIndex.activity_type == "real")
+            .group_by(ProgressActivityClimb.activity_id)
+            .order_by(ProgressActivityIndex.start_ts_utc.asc())
+        )
+        if from_ts_utc is not None:
+            stmt = stmt.where(ProgressActivityIndex.start_ts_utc >= from_ts_utc)
+        if to_ts_utc is not None:
+            stmt = stmt.where(ProgressActivityIndex.start_ts_utc <= to_ts_utc)
+        rows = session.execute(stmt).all()
+        out: list[ProgressVamTrendRow] = []
+        for activity_id, start_ts_utc, vam_max_m_h in rows:
+            vam = float(vam_max_m_h) if vam_max_m_h is not None and vam_max_m_h == vam_max_m_h else None
+            out.append(ProgressVamTrendRow(
+                activity_id=str(activity_id),
+                start_ts_utc=str(start_ts_utc),
+                vam_max_m_h=vam,
+            ))
         return out

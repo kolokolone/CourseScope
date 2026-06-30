@@ -30,6 +30,10 @@ import {
   ProgressIndexationStrategy,
   CalendarResponse,
   TrainingLoadResponse,
+  IntensityDistributionResponse,
+  IntensityDistributionPoint,
+  LongRunDosePoint,
+  VamTrendPoint,
   GoalItem,
   GoalsListResponse,
   GeoCitiesResponse,
@@ -529,5 +533,37 @@ export const progressApi = {
     if (params?.to) sp.append('to', params.to);
     const suffix = sp.toString();
     return apiRequest<TrainingLoadResponse>(`/progress/training-load${suffix ? `?${suffix}` : ''}`);
+  },
+
+  intensityDistribution: async (params: {
+    from: string;
+    to: string;
+    type?: ProgressType;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.append('from', params.from);
+    sp.append('to', params.to);
+    sp.append('type', params.type ?? 'real');
+    return apiRequest<IntensityDistributionResponse>(`/progress/intensity-distribution?${sp.toString()}`);
+  },
+
+  longRunDose: async (params: {
+    from: string;
+    to: string;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.append('from', params.from);
+    sp.append('to', params.to);
+    return apiRequest<LongRunDosePoint[]>(`/progress/long-run-dose?${sp.toString()}`);
+  },
+
+  vamTrend: async (params: {
+    from: string;
+    to: string;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.append('from', params.from);
+    sp.append('to', params.to);
+    return apiRequest<VamTrendPoint[]>(`/progress/vam-trend?${sp.toString()}`);
   },
 };

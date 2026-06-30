@@ -460,3 +460,128 @@ class ProgressService:
                 }
             )
         return out
+
+    # ------------------------------------------------------------------
+    # (j) Intensity Distribution — HR zone time by week
+    # ------------------------------------------------------------------
+    @staticmethod
+    def compute_intensity_distribution(rows) -> list[dict]:
+        """Aggregate HR zone time (Z1-Z5) by week.
+
+        Each row must expose ``.start_ts_utc``, ``.z1_time_s`` … ``.z5_time_s``.
+        Rows with no HR zone data (all z columns NULL) are silently excluded.
+        Returns a list of dicts with bucket_start and z1_time_min … z5_time_min.
+        """
+        from core.utils import bucket_start as _bucket_start
+
+        weeks: dict[str, dict[str, float]] = {}
+        for r in rows:
+            z_vals = [
+                getattr(r, 'z1_time_s', None),
+                getattr(r, 'z2_time_s', None),
+                getattr(r, 'z3_time_s', None),
+                getattr(r, 'z4_time_s', None),
+                getattr(r, 'z5_time_s', None),
+            ]
+            if all(z is None or not math.isfinite(float(z)) for z in z_vals):
+                continue
+
+            try:
+                dt = datetime.fromisoformat(str(r.start_ts_utc).replace("Z", "+00:00"))
+            except Exception:
+                continue
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            b = _bucket_start(dt, "week")
+            key = b.date().isoformat()
+
+            if key not in weeks:
+                weeks[key] = {"z1": 0.0, "z2": 0.0, "z3": 0.0, "z4": 0.0, "z5": 0.0, "total": 0.0}
+            for i, zone_key in enumerate(["z1", "z2", "z3", "z4", "z5"]):
+                v = z_vals[i]
+                if v is not None and math.isfinite(float(v)):
+                    weeks[key][zone_key] += float(v)
+                    weeks[key]["total"] += float(v)
+
+        out = []
+        for key in sorted(weeks.keys()):
+            w = weeks[key]
+            out.append({
+                "bucket_start": key,
+                "z1_time_min": round(w["z1"] / 60.0, 1),
+                "z2_time_min": round(w["z2"] / 60.0, 1),
+                "z3_time_min": round(w["z3"] / 60.0, 1),
+                "z4_time_min": round(w["z4"] / 60.0, 1),
+                "z5_time_min": round(w["z5"] / 60.0, 1),
+                "total_time_min": round(w["total"] / 60.0, 1),
+            })
+        return out
+
+    # ------------------------------------------------------------------
+    # (k) Long Run Dose — distance/time of long runs by week
+    # ------------------------------------------------------------------
+    @staticmethod
+    def compute_long_run_dose(rows) -> list[dict]:
+        """Aggregate distance and time of long-run activities by week.
+
+        Each row must expose ``.start_ts_utc``, ``.distance_m``,
+        ``.moving_time_s``, ``.activity_id``.
+        Rows are assumed to be pre-filtered to session_tag == 'long_run'.
+        """
+        from core.utils import bucket_start as _bucket_start
+
+        weeks: dict[str, dict] = {}
+        for r in rows:
+            try:
+                dt = datetime.fromisoformat(str(r.start_ts_utc).replace("Z", "+00:00"))
+            except Exception:
+                continue
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            b = _bucket_start(dt, "week")
+            key = b.date().isoformat()
+
+            dist = float(r.distance_m or 0)
+            time_s = float(r.moving_time_s or 0)
+            if key not in weeks:
+                weeks[key] = {"distance_m": 0.0, "moving_time_s": 0.0, "count": 0, "max_distance_m": 0.0}
+            weeks[key]["distance_m"] += dist
+            weeks[key]["moving_time_s"] += time_s
+            weeks[key]["count"] += 1
+            if dist > weeks[key]["max_distance_m"]:
+                weeks[key]["max_distance_m"] = dist
+
+        out = []
+        for key in sorted(weeks.keys()):
+            w = weeks[key]
+            out.append({
+                "bucket_start": key,
+                "distance_km": round(w["distance_m"] / 1000.0, 1),
+                "moving_time_h": round(w["moving_time_s"] / 3600.0, 1),
+                "activity_count": w["count"],
+                "max_distance_km": round(w["max_distance_m"] / 1000.0, 1),
+            })
+        return out
+
+    # ------------------------------------------------------------------
+    # (l) VAM Trend — best VAM per activity over time
+    # ------------------------------------------------------------------
+    @staticmethod
+    def compute_vam_trend(rows) -> list[dict]:
+        """Format VAM trend rows into API response.
+
+        Each row must expose ``.activity_id``, ``.start_ts_utc``,
+        ``.vam_max_m_h``.
+        Rows with NULL vam_max_m_h are silently excluded.
+        """
+        out = []
+        for r in rows:
+            vam = getattr(r, 'vam_max_m_h', None)
+            if vam is None or not math.isfinite(float(vam)):
+                continue
+            out.append({
+                "activity_id": r.activity_id,
+                "start_ts_utc": r.start_ts_utc,
+                "vam_max_m_h": round(float(vam), 0),
+            })
+        return out

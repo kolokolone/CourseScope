@@ -506,3 +506,35 @@ export interface TrainingLoadResponse {
   current_strain: number | null;
   risk_zone: 'low' | 'moderate' | 'high' | null;
 }
+
+// Intensity Distribution
+export interface IntensityDistributionPoint {
+  bucket_start: string;
+  z1_time_min: number;
+  z2_time_min: number;
+  z3_time_min: number;
+  z4_time_min: number;
+  z5_time_min: number;
+  total_time_min: number;
+}
+
+export interface IntensityDistributionResponse {
+  points: IntensityDistributionPoint[];
+  zone_thresholds_bpm: { z1: number; z2: number; z3: number; z4: number; z5: number } | null;
+}
+
+// Long Run Dose
+export interface LongRunDosePoint {
+  bucket_start: string;
+  distance_km: number;
+  moving_time_h: number;
+  activity_count: number;
+  max_distance_km: number;
+}
+
+// VAM Trend
+export interface VamTrendPoint {
+  activity_id: string;
+  start_ts_utc: string;
+  vam_max_m_h: number;
+}

@@ -363,6 +363,28 @@ def index_activity(
     training_load = garmin.get("training_load") if isinstance(garmin, dict) else None
     training_load = training_load if isinstance(training_load, dict) else {}
 
+    # Extract HR zone times for intensity distribution (P1)
+    z1_time_s: float | None = None
+    z2_time_s: float | None = None
+    z3_time_s: float | None = None
+    z4_time_s: float | None = None
+    z5_time_s: float | None = None
+    hr_zones_df = hr.get("zones") if isinstance(hr, dict) else None
+    if hr_zones_df is not None and hasattr(hr_zones_df, "iterrows") and not hr_zones_df.empty:
+        for _, zrow in hr_zones_df.iterrows():
+            zone_name = str(zrow.get("zone") or "")
+            time_s = float(zrow.get("time_s") or 0)
+            if zone_name == "Z1":
+                z1_time_s = time_s if math.isfinite(time_s) else None
+            elif zone_name == "Z2":
+                z2_time_s = time_s if math.isfinite(time_s) else None
+            elif zone_name == "Z3":
+                z3_time_s = time_s if math.isfinite(time_s) else None
+            elif zone_name == "Z4":
+                z4_time_s = time_s if math.isfinite(time_s) else None
+            elif zone_name == "Z5":
+                z5_time_s = time_s if math.isfinite(time_s) else None
+
     avg_pace_s_per_km = _finite_or_none(summary.get("average_pace_s_per_km"))
     best_pace_s_per_km = _finite_or_none(summary.get("best_pace_s_per_km"))
     pace_threshold_s_per_km = _finite_or_none(pacing.get("pace_threshold_s_per_km"))
@@ -445,6 +467,11 @@ def index_activity(
         has_power=has_power,
         has_cadence=has_cadence,
         data_points=data_points,
+        z1_time_s=z1_time_s,
+        z2_time_s=z2_time_s,
+        z3_time_s=z3_time_s,
+        z4_time_s=z4_time_s,
+        z5_time_s=z5_time_s,
         elevation_loss_m=elevation_loss_m,
         pace_first_half_s_per_km=pace_first_half,
         pace_second_half_s_per_km=pace_second_half,
@@ -678,6 +705,11 @@ def recompute_daily_aggregates(session: Session) -> None:
             func.sum(ProgressActivityIndex.elevation_gain_m).label("elevation_gain_m"),
             func.sum(ProgressActivityIndex.trimp).label("trimp"),
             func.count(ProgressActivityIndex.activity_id).label("activity_count"),
+            func.sum(ProgressActivityIndex.z1_time_s).label("z1_time_s"),
+            func.sum(ProgressActivityIndex.z2_time_s).label("z2_time_s"),
+            func.sum(ProgressActivityIndex.z3_time_s).label("z3_time_s"),
+            func.sum(ProgressActivityIndex.z4_time_s).label("z4_time_s"),
+            func.sum(ProgressActivityIndex.z5_time_s).label("z5_time_s"),
         )
         .where(ProgressActivityIndex.activity_type == "real")
         .group_by(func.substr(ProgressActivityIndex.start_ts_utc, 1, 10))
@@ -693,5 +725,10 @@ def recompute_daily_aggregates(session: Session) -> None:
             elevation_gain_m=float(r.elevation_gain_m) if r.elevation_gain_m else None,
             trimp=float(r.trimp) if r.trimp else None,
             activity_count=int(r.activity_count or 0),
+            z1_time_s=float(r.z1_time_s) if r.z1_time_s else None,
+            z2_time_s=float(r.z2_time_s) if r.z2_time_s else None,
+            z3_time_s=float(r.z3_time_s) if r.z3_time_s else None,
+            z4_time_s=float(r.z4_time_s) if r.z4_time_s else None,
+            z5_time_s=float(r.z5_time_s) if r.z5_time_s else None,
             computed_at_utc=now,
         ))
