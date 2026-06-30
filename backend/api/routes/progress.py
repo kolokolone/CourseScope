@@ -842,3 +842,233 @@ async def get_progress_pace_hr_waterfall(
     if len(activities) > int(limit):
         activities = activities[-int(limit):]
     return {"activities": activities}
+
+
+@router.get("/progress/training-load")
+async def get_training_load(
+    request: Request,
+    from_ts: str | None = Query(None, alias="from"),
+    to_ts: str | None = Query(None, alias="to"),
+):
+    """ACWR, monotonie d'entraînement, et strain à partir de la série TRIMP."""
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+
+    from_ts_utc = _parse_ts_utc(from_ts, is_end=False)
+    to_ts_utc = _parse_ts_utc(to_ts, is_end=True)
+
+    repo = ProgressRepository()
+    session = db_session_factory()
+    try:
+        rows = repo.list_series_rows(
+            session,
+            metric="trimp",
+            from_ts_utc=from_ts_utc,
+            to_ts_utc=to_ts_utc,
+            activity_type="real",
+        )
+    finally:
+        session.close()
+
+    # Bucket TRIMP per day
+    daily_trimp: dict[str, float] = {}
+    for r in rows:
+        if r.value is None or not math.isfinite(r.value):
+            continue
+        day = r.start_ts_utc[:10]
+        daily_trimp[day] = daily_trimp.get(day, 0.0) + r.value
+
+    if not daily_trimp:
+        return {
+            "points": [],
+            "current_acwr": None,
+            "current_monotony": None,
+            "current_strain": None,
+            "risk_zone": None,
+        }
+
+    sorted_days = sorted(daily_trimp.keys())
+
+    points: list[dict] = []
+    for i, day in enumerate(sorted_days):
+        # Acute load: 7-day rolling
+        acute_sum = 0.0
+        acute_count = 0
+        for j in range(max(0, i - 6), i + 1):
+            acute_sum += daily_trimp[sorted_days[j]]
+            acute_count += 1
+        acute_load = acute_sum / 7.0
+
+        # Chronic load: 42-day rolling
+        chronic_sum = 0.0
+        chronic_count = 0
+        for j in range(max(0, i - 41), i + 1):
+            chronic_sum += daily_trimp[sorted_days[j]]
+            chronic_count += 1
+        chronic_load = chronic_sum / 42.0 if chronic_count >= 7 else None
+
+        # ACWR
+        acwr = acute_load / chronic_load if (chronic_load is not None and chronic_load > 0) else None
+
+        # Monotony (on acute window)
+        monotony = None
+        if acute_count >= 3:
+            mean_val = acute_sum / acute_count
+            variance = 0.0
+            for j in range(max(0, i - 6), i + 1):
+                v = daily_trimp[sorted_days[j]]
+                variance += (v - mean_val) ** 2
+            variance /= acute_count
+            std_val = math.sqrt(variance)
+            if std_val > 0:
+                monotony = mean_val / std_val
+
+        # Strain
+        strain = acute_sum * monotony if monotony is not None else None
+
+        points.append({
+            "bucket_start": day,
+            "acute_load_7d": round(acute_load, 1),
+            "chronic_load_42d": round(chronic_load, 1) if chronic_load is not None else None,
+            "acwr": round(acwr, 2) if acwr is not None else None,
+            "monotony_7d": round(monotony, 2) if monotony is not None else None,
+            "strain_7d": round(strain, 1) if strain is not None else None,
+        })
+
+    last = points[-1] if points else None
+    risk_zone = None
+    current_acwr = None
+    current_monotony = None
+    current_strain = None
+
+    if last is not None:
+        current_acwr = last["acwr"]
+        current_monotony = last["monotony_7d"]
+        current_strain = last["strain_7d"]
+
+        if current_acwr is not None:
+            if current_acwr < 0.8:
+                risk_zone = "low"
+            elif current_acwr < 1.3:
+                risk_zone = "moderate"
+            else:
+                risk_zone = "high"
+
+    return {
+        "points": points,
+        "current_acwr": current_acwr,
+        "current_monotony": current_monotony,
+        "current_strain": current_strain,
+        "risk_zone": risk_zone,
+    }
+
+
+def _compute_streaks(active_dates: set[str], reference_date: str) -> tuple[int, int]:
+    if not active_dates:
+        return (0, 0)
+
+    parsed: set = set()
+    for d in active_dates:
+        try:
+            parsed.add(datetime.strptime(str(d), "%Y-%m-%d").date())
+        except ValueError:
+            continue
+
+    if not parsed:
+        return (0, 0)
+
+    sorted_dates = sorted(parsed)
+
+    longest_streak = 1
+    current_run = 1
+    for i in range(1, len(sorted_dates)):
+        if (sorted_dates[i] - sorted_dates[i - 1]).days == 1:
+            current_run += 1
+        else:
+            current_run = 1
+        if current_run > longest_streak:
+            longest_streak = current_run
+
+    current_streak = 0
+    try:
+        ref_date = datetime.strptime(reference_date, "%Y-%m-%d").date()
+    except ValueError:
+        return (longest_streak, 0)
+
+    check_date = ref_date
+    while check_date in parsed:
+        current_streak += 1
+        check_date = check_date - timedelta(days=1)
+
+    return (longest_streak, current_streak)
+
+
+@router.get("/progress/calendar")
+async def get_calendar(
+    request: Request,
+    year: int = Query(..., ge=2000, le=2100),
+):
+    """Données de heatmap calendrier pour une année donnée."""
+    db_session_factory = getattr(request.app.state, "db_session_factory", None)
+    if db_session_factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+
+    from_ts = f"{year}-01-01T00:00:00Z"
+    to_ts = f"{year}-12-31T23:59:59Z"
+
+    repo = ProgressRepository()
+    session = db_session_factory()
+    try:
+        rows = repo.list_activity_rows(
+            session,
+            from_ts_utc=from_ts,
+            to_ts_utc=to_ts,
+            activity_type="real",
+            limit=None,
+        )
+    finally:
+        session.close()
+
+    by_day: dict[str, dict] = {}
+    active_dates: set[str] = set()
+
+    for r in rows:
+        if r.start_ts_utc is None:
+            continue
+        day_key = str(r.start_ts_utc)[:10]
+        active_dates.add(day_key)
+
+        if day_key not in by_day:
+            by_day[day_key] = {"distance_km": 0.0, "moving_time_s": 0.0, "activity_count": 0}
+
+        entry = by_day[day_key]
+        entry["activity_count"] += 1
+
+        if r.distance_m is not None and math.isfinite(r.distance_m):
+            entry["distance_km"] += r.distance_m / 1000.0
+
+        if r.moving_time_s is not None and math.isfinite(r.moving_time_s):
+            entry["moving_time_s"] += r.moving_time_s
+
+    days = []
+    for day_key in sorted(by_day.keys()):
+        entry = by_day[day_key]
+        days.append({
+            "date": day_key,
+            "has_activity": True,
+            "distance_km": round(entry["distance_km"], 3),
+            "moving_time_s": round(entry["moving_time_s"], 1),
+            "activity_count": entry["activity_count"],
+        })
+
+    today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    longest_streak, current_streak = _compute_streaks(active_dates, today_iso)
+
+    return {
+        "days": days,
+        "year": year,
+        "total_active_days": len(active_dates),
+        "longest_streak": longest_streak,
+        "current_streak": current_streak,
+    }
