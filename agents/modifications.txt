@@ -1,1 +1,1 @@
-- modification de la redondance backend, comme décrit dans docs\audit_application.md
+- incorporer les nouveaux KPI, comme décrit dans docs\audit_application.md dans la section 9. Opportunités de nouveaux KPI

@@ -16,7 +16,7 @@ import { useMultipleSeries } from '@/hooks/useActivity';
 import { useUiPrefsStore } from '@/store/uiPrefsStore';
 import { formatDurationSeconds, formatMetricValue, formatNumber, type MetricFormat } from '@/lib/metricsFormat';
 import { CHART_SERIES, CATEGORY_COLORS } from '@/lib/metricsRegistry';
-import { samplePoints, rollingMeanPoints } from '@/lib/chartUtils';
+import { samplePoints, rollingMeanPoints, buildPoints, rollingMeanCentered } from '@/lib/chartUtils';
 import type { SeriesInfo, SeriesResponse } from '@/types/api';
 
 const SERIES_COLORS = ['#0072B2', '#E69F00', '#009E73', '#D55E00', '#56B4E9', '#CC79A7', '#F0E442'];
@@ -28,46 +28,6 @@ const HR_TREND_WINDOW_SLOW = 300;
 type ChartPoint = { x: number; y: number | null };
 
 const CHARTS_SYNC_ID = 'activity-charts';
-
-function buildSeriesData(series: SeriesResponse): ChartPoint[] {
-  const points: ChartPoint[] = [];
-  const len = Math.min(series.x.length, series.y.length);
-  for (let i = 0; i < len; i += 1) {
-    const x = series.x[i];
-    const yRaw = series.y[i];
-    const y = typeof yRaw === 'number' ? yRaw : null;
-    points.push({ x, y: Number.isFinite(y) ? y : null });
-  }
-  return points;
-}
-
-function smoothMovingAverage(points: ChartPoint[], windowSize: number) {
-  const w = Math.max(1, Math.floor(windowSize));
-  if (w <= 1 || points.length === 0) return points;
-
-  const half = Math.floor(w / 2);
-  const out: ChartPoint[] = [];
-
-  for (let i = 0; i < points.length; i += 1) {
-    let sum = 0;
-    let count = 0;
-
-    const start = Math.max(0, i - half);
-    const end = Math.min(points.length - 1, i + half);
-
-    for (let j = start; j <= end; j += 1) {
-      const y = points[j]?.y;
-      if (typeof y !== 'number' || !Number.isFinite(y)) continue;
-      sum += y;
-      count += 1;
-    }
-
-    // Preserve x sampling even across missing-value gaps.
-    out.push({ x: points[i].x, y: count === 0 ? null : sum / count });
-  }
-
-  return out;
-}
 
 function clampInt(value: number, min: number, max: number) {
   const n = Math.round(value);
@@ -148,14 +108,14 @@ function SeriesChart({
   trendSlow?: ChartPoint[];
   smoothWindow?: number;
 }) {
-  const data = React.useMemo(() => buildSeriesData(series), [series]);
+  const data = React.useMemo(() => buildPoints(series), [series]);
   const tooManyPoints = data.length > MAX_POINTS;
   const rendered = React.useMemo(() => samplePoints(data, RENDER_POINTS), [data]);
 
   const chartData = React.useMemo(() => {
     const w = typeof smoothWindow === 'number' && Number.isFinite(smoothWindow) ? smoothWindow : 1;
     if (w <= 1) return rendered;
-    return smoothMovingAverage(rendered, w);
+    return rollingMeanCentered(rendered, w);
   }, [rendered, smoothWindow]);
 
   const distanceScale = React.useMemo(() => {
@@ -363,52 +323,56 @@ export function ActivityCharts({
 
   const queries = useMultipleSeries(activityId, seriesNames, { x_axis: axis });
 
-  const charts = queries
-    .map((query, idx) => {
-      if (!query.data) return null;
-      const def = seriesDefs[idx];
-      if (!def) return null;
-      const color = def.name === 'heart_rate' ? '#dc2626' : SERIES_COLORS[idx % SERIES_COLORS.length];
+  const charts = React.useMemo(
+    () =>
+      queries
+        .map((query, idx) => {
+          if (!query.data) return null;
+          const def = seriesDefs[idx];
+          if (!def) return null;
+          const color = def.name === 'heart_rate' ? '#dc2626' : SERIES_COLORS[idx % SERIES_COLORS.length];
 
-      const points = buildSeriesData(query.data);
-      const hrBase = def.name === 'heart_rate' ? samplePoints(points, RENDER_POINTS) : null;
-      const trend = hrBase ? rollingMeanPoints(hrBase, HR_TREND_WINDOW) : undefined;
-      const trendSlow = hrBase ? rollingMeanPoints(hrBase, HR_TREND_WINDOW_SLOW) : undefined;
+          const points = buildPoints(query.data);
+          const hrBase = def.name === 'heart_rate' ? samplePoints(points, RENDER_POINTS) : null;
+          const trend = hrBase ? rollingMeanPoints(hrBase, HR_TREND_WINDOW) : undefined;
+          const trendSlow = hrBase ? rollingMeanPoints(hrBase, HR_TREND_WINDOW_SLOW) : undefined;
 
-      const yDomain: [number, number] | undefined = (() => {
-        if (def.name !== 'heart_rate') return undefined;
-        const ys = points
-          .map((p) => p.y)
-          .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-        if (ys.length < 2) return undefined;
-        let min = ys[0];
-        let max = ys[0];
-        for (const v of ys) {
-          min = Math.min(min, v);
-          max = Math.max(max, v);
-        }
-        const pad = Math.max(5, (max - min) * 0.05);
-        return [Math.floor(min - pad), Math.ceil(max + pad)];
-      })();
+          const yDomain: [number, number] | undefined = (() => {
+            if (def.name !== 'heart_rate') return undefined;
+            const ys = points
+              .map((p) => p.y)
+              .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+            if (ys.length < 2) return undefined;
+            let min = ys[0];
+            let max = ys[0];
+            for (const v of ys) {
+              min = Math.min(min, v);
+              max = Math.max(max, v);
+            }
+            const pad = Math.max(5, (max - min) * 0.05);
+            return [Math.floor(min - pad), Math.ceil(max + pad)];
+          })();
 
-      return (
-        <SeriesChart
-          key={`${def.name}-${axis}`}
-          series={query.data}
-          label={def.label}
-          color={color}
-          axis={axis}
-          format={def.format}
-          unit={def.unit}
-          yAxisReversed={def.name === 'pace'}
-          yDomain={yDomain}
-          trend={trend}
-          trendSlow={trendSlow}
-          smoothWindow={smoothWindowClamped}
-        />
-      );
-    })
-    .filter(Boolean);
+          return (
+            <SeriesChart
+              key={`${def.name}-${axis}`}
+              series={query.data}
+              label={def.label}
+              color={color}
+              axis={axis}
+              format={def.format}
+              unit={def.unit}
+              yAxisReversed={def.name === 'pace'}
+              yDomain={yDomain}
+              trend={trend}
+              trendSlow={trendSlow}
+              smoothWindow={smoothWindowClamped}
+            />
+          );
+        })
+        .filter(Boolean),
+    [queries, seriesDefs, axis, smoothWindowClamped]
+  );
 
   const isLoading = queries.some((q) => q.isLoading);
   const failedQueries = queries.filter((q) => q.error);

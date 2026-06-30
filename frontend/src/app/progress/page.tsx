@@ -4,22 +4,6 @@ import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import {
-  Area,
-  AreaChart,
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  Legend,
-  ResponsiveContainer,
-  Scatter,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
   useProgressActivities,
   useProgressBestEfforts,
   useProgressHrAtPace,
@@ -38,116 +22,23 @@ import type {
   ProgressSessionTag,
   ProgressTerrainTag,
 } from '@/types/api';
-import { PaceHr3DChart } from '@/components/charts/PaceHr3DChart';
 import CalendarHeatmap from '@/components/features/progress/CalendarHeatmap';
 import TrainingLoadChart from '@/components/features/progress/TrainingLoadChart';
-import { TrendingUp } from 'lucide-react';
-
-function parseBucketStartMs(bucketStart: string) {
-  const t = new Date(`${bucketStart}T00:00:00Z`).getTime();
-  return Number.isFinite(t) ? t : 0;
-}
-
-function formatBucketLabel(bucketStart: string) {
-  const d = new Date(`${bucketStart}T00:00:00Z`);
-  if (!Number.isFinite(d.getTime())) return bucketStart;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function finiteNumber(value: unknown): number | null {
-  const n = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function quantile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return NaN;
-  if (sorted.length === 1) return sorted[0];
-  const pos = Math.min(sorted.length - 1, Math.max(0, q * (sorted.length - 1)));
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  if (lo === hi) return sorted[lo];
-  const t = pos - lo;
-  return sorted[lo] * (1 - t) + sorted[hi] * t;
-}
-
-function paddedDomain(
-  values: number[],
-  opts?: { paddingRatio?: number; robustQuantiles?: [number, number] }
-): [number, number] {
-  const valid = values.filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
-  if (valid.length === 0) return [0, 1];
-
-  let min = valid[0];
-  let max = valid[valid.length - 1];
-  const robust = opts?.robustQuantiles;
-  if (robust) {
-    const [qLow, qHigh] = robust;
-    const lo = quantile(valid, qLow);
-    const hi = quantile(valid, qHigh);
-    if (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo) {
-      min = lo;
-      max = hi;
-    }
-  }
-
-  const ratio = opts?.paddingRatio ?? 0.05;
-  const span = max - min;
-  const pad = span > 0 ? span * ratio : Math.max(1, Math.abs(max || 1) * ratio);
-  return [min - pad, max + pad];
-}
-
-type VolumeMetricSpec = {
-  metric: ProgressSeriesMetric;
-  label: string;
-  unit: string;
-  convert: (raw: number) => number;
-  decimals: number;
-};
-
-const VOLUME_METRICS: VolumeMetricSpec[] = [
-  {
-    metric: 'distance_m',
-    label: 'Volume hebdo',
-    unit: 'km',
-    convert: (raw) => raw / 1000,
-    decimals: 1,
-  },
-  {
-    metric: 'moving_time_s',
-    label: 'Temps en mouvement',
-    unit: 'h',
-    convert: (raw) => raw / 3600,
-    decimals: 1,
-  },
-  {
-    metric: 'elevation_gain_m',
-    label: 'Denivele positif',
-    unit: 'm',
-    convert: (raw) => raw,
-    decimals: 0,
-  },
-];
-
-const HR_AT_PACE_REFS = [300, 330, 360] as const;
-const PACE_AT_HR_REFS = [140, 150, 160] as const;
-const SERIES_COLORS = ['#0f172a', '#334155', '#64748b', '#93c5fd', '#16a34a'];
-
-const SESSION_FILTER_OPTIONS: Array<{ value: 'all' | ProgressSessionTag; label: string }> = [
-  { value: 'all', label: 'Toutes' },
-  { value: 'easy', label: 'Easy' },
-  { value: 'tempo', label: 'Tempo' },
-  { value: 'interval', label: 'Interval' },
-  { value: 'long_run', label: 'Long run' },
-  { value: 'unknown', label: 'Unknown' },
-];
-
-const TERRAIN_FILTER_OPTIONS: Array<{ value: 'all' | ProgressTerrainTag; label: string }> = [
-  { value: 'all', label: 'Tous terrains' },
-  { value: 'flat', label: 'Flat' },
-  { value: 'rolling', label: 'Rolling' },
-  { value: 'hilly', label: 'Hilly/Trail' },
-  { value: 'unknown', label: 'Unknown' },
-];
+import { ProgressIndexationBanner } from '@/components/features/progress/ProgressIndexationBanner';
+import { ProgressVolumeChart } from '@/components/features/progress/ProgressVolumeChart';
+import { ProgressTrimpChart } from '@/components/features/progress/ProgressTrimpChart';
+import { ProgressBestEffortsChart } from '@/components/features/progress/ProgressBestEffortsChart';
+import { ProgressEfficiencyCharts } from '@/components/features/progress/ProgressEfficiencyCharts';
+import { ProgressHrPaceCharts } from '@/components/features/progress/ProgressHrPaceCharts';
+import { ProgressVo2maxChart } from '@/components/features/progress/ProgressVo2maxChart';
+import { ProgressWaterfallCard } from '@/components/features/progress/ProgressWaterfallCard';
+import {
+  VOLUME_METRICS,
+  HR_AT_PACE_REFS,
+  PACE_AT_HR_REFS,
+  type VolumeMetricSpec,
+} from '@/components/features/progress/constants';
+import { parseBucketStartMs, finiteNumber, paddedDomain } from '@/components/features/progress/utils';
 
 export default function ProgressPage() {
   const queryClient = useQueryClient();
@@ -309,32 +200,6 @@ export default function ProgressPage() {
   }, [volumeQuery.data, volumeSpec]);
 
   const currentWeekBucketStart = React.useMemo(() => isoDateUtc(weekStartUtc(new Date())), []);
-
-  const renderVolumeDot = React.useCallback(
-    (props: any) => {
-      const cx = props?.cx;
-      const cy = props?.cy;
-      const payload = props?.payload;
-      if (typeof cx !== 'number' || typeof cy !== 'number' || !payload) return null;
-
-      const value = payload?.value;
-      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-
-      const key = String(payload.bucket_start ?? '');
-      const isCurrent = key === currentWeekBucketStart;
-      if (isCurrent) {
-        return (
-          <g>
-            <circle cx={cx} cy={cy} r={10} fill="rgba(147,197,253,0.6)" />
-            <circle cx={cx} cy={cy} r={5} fill="#93c5fd" stroke="#ffffff" strokeWidth={2} />
-          </g>
-        );
-      }
-
-      return <circle cx={cx} cy={cy} r={4} fill="#ffffff" stroke="#93c5fd" strokeWidth={2} />;
-    },
-    [currentWeekBucketStart]
-  );
 
   const trimpData = React.useMemo(() => {
     const items = trimpQuery.data ?? [];
@@ -532,629 +397,81 @@ export default function ProgressPage() {
     return [0, top];
   }, [vo2maxData]);
 
-  const bestDot = React.useCallback((props: any) => {
-    const cx = props?.cx;
-    const cy = props?.cy;
-    const payload = props?.payload as { is_pr?: boolean } | undefined;
-    if (typeof cx !== 'number' || typeof cy !== 'number' || !payload) return null;
-    const isPr = Boolean(payload.is_pr);
-    if (!isPr) return <circle cx={cx} cy={cy} r={3} fill="#94a3b8" />;
-    return <circle cx={cx} cy={cy} r={5} fill="#0f172a" stroke="#ffffff" strokeWidth={2} />;
-  }, []);
-
   return (
     <div className="space-y-4">
-      {indexationState?.running ? (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Indexation {indexationState?.mode === 'slow' ? 'complete' : 'rapide'} en cours: les graphes peuvent etre incomplets pendant quelques secondes.
-        </div>
-      ) : null}
+      <ProgressIndexationBanner state={indexationState} />
 
-      {!indexationState?.running && indexationState?.last_error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          Echec de l indexation: {indexationState.last_error}
-        </div>
-      ) : null}
-
-      <Card>
-          <CardHeader className="py-3 px-4">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                {volumeSpec.label}
-              </CardTitle>
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-muted-foreground flex items-center gap-2">
-                  Intervalle
-                  <select
-                    className="h-8 rounded-md border bg-background px-2 text-sm"
-                    value={range}
-                    onChange={(e) => setRange(e.target.value as HistoryRange)}
-                  >
-                    <option value="3m">3 mois</option>
-                    <option value="6m">6 mois</option>
-                    <option value="1y">1 an</option>
-                    <option value="all">Tout</option>
-                  </select>
-                </label>
-                <label className="text-sm text-muted-foreground flex items-center gap-2">
-                  Metrique
-                  <select
-                    className="h-8 rounded-md border bg-background px-2 text-sm"
-                    value={volumeMetric}
-                    onChange={(e) => setVolumeMetric(e.target.value as ProgressSeriesMetric)}
-                  >
-                    {VOLUME_METRICS.map((m) => (
-                      <option key={m.metric} value={m.metric}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            {volumeQuery.isLoading ? (
-              <div className="text-muted-foreground">Chargement...</div>
-            ) : volumeQuery.error ? (
-              <div className="text-sm text-red-600">Erreur de chargement.</div>
-            ) : volumeData.length === 0 ? (
-              <div className="text-muted-foreground">
-                {indexationState?.running
-                  ? 'Indexation automatique en cours. Les donnees vont apparaitre des la fin du calcul.'
-                  : 'Aucune donnee indexee pour le moment. La page lance automatiquement une indexation rapide a l ouverture.'}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={volumeData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis
-                    dataKey="bucket_start"
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v: any) => formatBucketLabel(String(v))}
-                    minTickGap={16}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v: any) => formatNumber(Number(v), { decimals: volumeSpec.decimals })}
-                  />
-                  <Tooltip
-                    formatter={(value: any) => {
-                      const n = finiteNumber(value);
-                      if (n === null) return ['—', volumeSpec.unit];
-                      return [`${formatNumber(n, { decimals: volumeSpec.decimals })} ${volumeSpec.unit}`, volumeSpec.unit];
-                    }}
-                    labelFormatter={(label: any) => `Semaine du ${String(label)}`}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#93c5fd"
-                    strokeWidth={2}
-                    fill="rgba(147,197,253,0.4)"
-                    dot={renderVolumeDot}
-                    isAnimationActive={false}
-                    connectNulls
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+      <ProgressVolumeChart
+        data={volumeData}
+        isLoading={volumeQuery.isLoading}
+        error={volumeQuery.error ? (volumeQuery.error as Error) : null}
+        range={range}
+        volumeMetric={volumeMetric}
+        volumeSpec={volumeSpec}
+        currentWeekBucketStart={currentWeekBucketStart}
+        indexationRunning={Boolean(indexationState?.running)}
+        onRangeChange={setRange}
+        onVolumeMetricChange={setVolumeMetric}
+      />
 
       <CalendarHeatmap />
 
-      <Card>
-          <CardHeader className="py-3 px-4">
-            <CardTitle className="text-base">Charge (TRIMP) par semaine</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            {trimpQuery.isLoading ? (
-              <div className="text-muted-foreground">Chargement...</div>
-            ) : trimpQuery.error ? (
-              <div className="text-sm text-red-600">Erreur de chargement.</div>
-            ) : trimpData.length === 0 ? (
-              <div className="text-muted-foreground">Aucune donnee TRIMP.</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <ComposedChart data={trimpData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis
-                    dataKey="bucket_start"
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v: any) => formatBucketLabel(String(v))}
-                    minTickGap={16}
-                  />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip
-                    formatter={(value: any, name: any) => {
-                      const n = finiteNumber(value);
-                      if (n === null) return ['—', String(name)];
-                      return [formatNumber(n, { decimals: 1 }), String(name)];
-                    }}
-                    labelFormatter={(label: any) => `Semaine du ${String(label)}`}
-                  />
-                  <Bar dataKey="trimp" fill="rgba(15,23,42,0.22)" stroke="#0f172a" isAnimationActive={false} />
-                  <Line type="monotone" dataKey="acute" stroke="#0f172a" strokeWidth={2} dot={false} isAnimationActive={false} />
-                  <Line type="monotone" dataKey="chronic" stroke="#64748b" strokeWidth={2} dot={false} isAnimationActive={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+      <ProgressTrimpChart
+        data={trimpData}
+        isLoading={trimpQuery.isLoading}
+        error={trimpQuery.error ? (trimpQuery.error as Error) : null}
+      />
 
       <TrainingLoadChart />
 
-      <Card>
-          <CardHeader className="py-3 px-4">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-base">Best effort (allure) dans le temps</CardTitle>
-              <label className="text-sm text-muted-foreground flex items-center gap-2">
-                Duree
-                <select
-                  className="h-8 rounded-md border bg-background px-2 text-sm"
-                  value={bestDuration}
-                  onChange={(e) => setBestDuration(Number(e.target.value))}
-                >
-                  <option value={60}>1 min</option>
-                  <option value={180}>3 min</option>
-                  <option value={300}>5 min</option>
-                  <option value={720}>12 min</option>
-                  <option value={1200}>20 min</option>
-                  <option value={1800}>30 min</option>
-                  <option value={3600}>60 min</option>
-                </select>
-              </label>
-            </div>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            {bestQuery.isLoading ? (
-              <div className="text-muted-foreground">Chargement...</div>
-            ) : bestQuery.error ? (
-              <div className="text-sm text-red-600">Erreur de chargement.</div>
-            ) : bestData.length === 0 ? (
-              <div className="text-muted-foreground">Aucun best-effort disponible.</div>
-            ) : (
-              <>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={bestData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis
-                      dataKey="dateMs"
-                      type="number"
-                      domain={['dataMin', 'dataMax']}
-                      tick={{ fontSize: 11 }}
-                      tickFormatter={(v: any) => {
-                        const ms = Number(v);
-                        return Number.isFinite(ms) ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
-                      }}
-                      minTickGap={16}
-                    />
-                    <YAxis
-                      domain={bestYAxisDomain}
-                      tick={{ fontSize: 11 }}
-                      reversed
-                      tickFormatter={(v: any) => formatPaceSecondsPerKm(Number(v))}
-                    />
-                    <Tooltip
-                      formatter={(value: any) => {
-                        const n = finiteNumber(value);
-                        return [n === null ? '—' : `${formatPaceSecondsPerKm(n)} / km`, 'Allure'];
-                      }}
-                      labelFormatter={(label: any) => formatDateLabel(Number(label))}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#0f172a"
-                      strokeWidth={2}
-                      fill="rgba(15,23,42,0.14)"
-                      baseValue="dataMax"
-                      dot={bestDot}
-                      isAnimationActive={false}
-                      connectNulls
-                    />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Axe Y dynamique: plage robuste (P10-P90) avec marge +/-10% pour limiter l impact des valeurs extremes.
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+      <ProgressBestEffortsChart
+        data={bestData}
+        isLoading={bestQuery.isLoading}
+        error={bestQuery.error ? (bestQuery.error as Error) : null}
+        bestDuration={bestDuration}
+        bestYAxisDomain={bestYAxisDomain}
+        onDurationChange={setBestDuration}
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-base">Efficacite aerobique (EF)</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              {activitiesQuery.isLoading ? (
-                <div className="text-muted-foreground">Chargement...</div>
-              ) : activitiesQuery.error ? (
-                <div className="text-sm text-red-600">Erreur de chargement.</div>
-              ) : efPoints.length === 0 ? (
-                <div className="text-muted-foreground">Aucun point EF.</div>
-              ) : (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={efDataWithTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                      <XAxis
-                        dataKey="dateMs"
-                        type="number"
-                        domain={['dataMin', 'dataMax']}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v: any) => {
-                          const ms = Number(v);
-                          return Number.isFinite(ms) ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
-                        }}
-                        minTickGap={16}
-                      />
-                      <YAxis
-                        dataKey="ef"
-                        domain={efDomain}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v: any) => formatNumber(Number(v), { decimals: 3 })}
-                      />
-                      <Tooltip
-                        formatter={(value: any) => {
-                          const n = finiteNumber(value);
-                          return [n === null ? '—' : formatNumber(n, { decimals: 3 }), 'Valeur'];
-                        }}
-                        labelFormatter={(label: any) => formatDateLabel(Number(label))}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="trend"
-                        stroke="#000000"
-                        strokeWidth={1}
-                        dot={false}
-                        isAnimationActive={false}
-                        connectNulls
-                      />
-                      <Scatter dataKey="ef" fill="#0f172a" opacity={0.7} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+      <ProgressEfficiencyCharts
+        efData={efDataWithTrend}
+        decouplingData={decouplingDataWithTrend}
+        isLoading={activitiesQuery.isLoading}
+        error={activitiesQuery.error ? (activitiesQuery.error as Error) : null}
+        efDomain={efDomain}
+        decouplingDomain={decouplingDomain}
+      />
 
-          <Card>
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-base">Decoupling / drift cardio</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              {activitiesQuery.isLoading ? (
-                <div className="text-muted-foreground">Chargement...</div>
-              ) : activitiesQuery.error ? (
-                <div className="text-sm text-red-600">Erreur de chargement.</div>
-              ) : decouplingPoints.length === 0 ? (
-                <div className="text-muted-foreground">Aucun point drift.</div>
-              ) : (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={decouplingDataWithTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                      <XAxis
-                        dataKey="dateMs"
-                        type="number"
-                        domain={['dataMin', 'dataMax']}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v: any) => {
-                          const ms = Number(v);
-                          return Number.isFinite(ms) ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
-                        }}
-                        minTickGap={16}
-                      />
-                      <YAxis
-                        dataKey="dec"
-                        domain={decouplingDomain}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v: any) => `${formatNumber(Number(v), { decimals: 1 })}%`}
-                      />
-                      <Tooltip
-                        formatter={(value: any) => {
-                          const n = finiteNumber(value);
-                          return [n === null ? '—' : `${formatNumber(n, { decimals: 1 })}%`, 'Valeur'];
-                        }}
-                        labelFormatter={(label: any) => formatDateLabel(Number(label))}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="trend"
-                        stroke="#000000"
-                        strokeWidth={1}
-                        dot={false}
-                        isAnimationActive={false}
-                        connectNulls
-                      />
-                      <Scatter dataKey="dec" fill="#64748b" opacity={0.7} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+      <ProgressHrPaceCharts
+        hrAtPaceData={hrAtPaceData}
+        hrAtPaceMeta={hrAtPaceMeta}
+        paceAtHrData={paceAtHrData}
+        paceAtHrMeta={paceAtHrMeta}
+        isLoadingHr={hrAtPaceQuery.isLoading}
+        isLoadingPace={paceAtHrQuery.isLoading}
+        errorHr={hrAtPaceQuery.error ? (hrAtPaceQuery.error as Error) : null}
+        errorPace={paceAtHrQuery.error ? (paceAtHrQuery.error as Error) : null}
+        hrAtPaceDomain={hrAtPaceDomain}
+        paceAtHrDomain={paceAtHrDomain}
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-base">HR @ allure de reference</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              {hrAtPaceQuery.isLoading ? (
-                <div className="text-muted-foreground">Chargement...</div>
-              ) : hrAtPaceQuery.error ? (
-                <div className="text-sm text-red-600">Erreur de chargement.</div>
-              ) : hrAtPaceData.length === 0 || hrAtPaceMeta.length === 0 ? (
-                <div className="text-muted-foreground">Aucun point HR@pace.</div>
-              ) : (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={hrAtPaceData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                      <XAxis
-                        dataKey="dateMs"
-                        type="number"
-                        domain={['dataMin', 'dataMax']}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v: any) => {
-                          const ms = Number(v);
-                          return Number.isFinite(ms) ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
-                        }}
-                        minTickGap={16}
-                      />
-                      <YAxis
-                        domain={hrAtPaceDomain}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v: any) => formatNumber(Number(v), { integer: true })}
-                      />
-                      <Legend verticalAlign="top" align="right" iconType="line" wrapperStyle={{ fontSize: 11 }} />
-                      <Tooltip
-                        formatter={(value: any, name: any) => {
-                          const n = finiteNumber(value);
-                          const meta = hrAtPaceMeta.find((m) => m.key === String(name));
-                          return [n === null ? '—' : `${formatNumber(n, { integer: true })} bpm`, meta?.label ?? String(name)];
-                        }}
-                        labelFormatter={(label: any) => formatDateLabel(Number(label))}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="mean_trend"
-                        name="Moyenne lissee"
-                        stroke="#000000"
-                        strokeWidth={1}
-                        dot={false}
-                        isAnimationActive={false}
-                        connectNulls
-                      />
-                      {hrAtPaceMeta.map((m, idx) => (
-                        <Line
-                          key={m.key}
-                          type="monotone"
-                          dataKey={m.key}
-                          name={m.label}
-                          stroke={SERIES_COLORS[idx % SERIES_COLORS.length]}
-                          strokeWidth={2}
-                          dot={false}
-                          isAnimationActive={false}
-                          connectNulls
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+      <ProgressVo2maxChart data={vo2maxData} domain={vo2maxDomain} />
 
-          <Card>
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-base">Allure @ FC de reference</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              {paceAtHrQuery.isLoading ? (
-                <div className="text-muted-foreground">Chargement...</div>
-              ) : paceAtHrQuery.error ? (
-                <div className="text-sm text-red-600">Erreur de chargement.</div>
-              ) : paceAtHrData.length === 0 || paceAtHrMeta.length === 0 ? (
-                <div className="text-muted-foreground">Aucun point pace@HR.</div>
-              ) : (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={paceAtHrData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                      <XAxis
-                        dataKey="dateMs"
-                        type="number"
-                        domain={['dataMin', 'dataMax']}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v: any) => {
-                          const ms = Number(v);
-                          return Number.isFinite(ms) ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
-                        }}
-                        minTickGap={16}
-                      />
-                      <YAxis
-                        domain={paceAtHrDomain}
-                        reversed
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v: any) => formatPaceSecondsPerKm(Number(v))}
-                      />
-                      <Legend verticalAlign="top" align="right" iconType="line" wrapperStyle={{ fontSize: 11 }} />
-                      <Tooltip
-                        formatter={(value: any, name: any) => {
-                          const n = finiteNumber(value);
-                          const meta = paceAtHrMeta.find((m) => m.key === String(name));
-                          return [n === null ? '—' : `${formatPaceSecondsPerKm(n)} / km`, meta?.label ?? String(name)];
-                        }}
-                        labelFormatter={(label: any) => formatDateLabel(Number(label))}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="mean_trend"
-                        name="Moyenne lissee"
-                        stroke="#000000"
-                        strokeWidth={1}
-                        dot={false}
-                        isAnimationActive={false}
-                        connectNulls
-                      />
-                      {paceAtHrMeta.map((m, idx) => (
-                        <Line
-                          key={m.key}
-                          type="monotone"
-                          dataKey={m.key}
-                          name={m.label}
-                          stroke={SERIES_COLORS[idx % SERIES_COLORS.length]}
-                          strokeWidth={2}
-                          dot={false}
-                          isAnimationActive={false}
-                          connectNulls
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {vo2maxData.length > 0 ? (
-            <Card>
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="text-base">VO2max (3 derniers mois)</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={vo2maxData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                      <XAxis
-                        dataKey="dateMs"
-                        type="number"
-                        domain={['dataMin', 'dataMax']}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v: any) => {
-                          const ms = Number(v);
-                          return Number.isFinite(ms) ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
-                        }}
-                        minTickGap={16}
-                      />
-                      <YAxis
-                        domain={vo2maxDomain}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v: any) => formatNumber(Number(v), { decimals: 1 })}
-                      />
-                      <Tooltip
-                        formatter={(value: any) => {
-                          const n = finiteNumber(value);
-                          return [n === null ? '—' : `${formatNumber(n, { decimals: 1 })} ml/min/kg`, 'VO2max'];
-                        }}
-                        labelFormatter={(label: any) => formatDateLabel(Number(label))}
-                      />
-                      <Line type="monotone" dataKey="vo2max" stroke="#93c5fd" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
-        </div>
-
-      <Card>
-          <CardHeader className="py-3 px-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <CardTitle className="text-base">Pace-HR Waterfall 3D</CardTitle>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                <label className="flex items-center gap-2">
-                  Limit
-                  <select
-                    className="h-8 rounded-md border bg-background px-2 text-sm"
-                    value={waterfallLimit}
-                    onChange={(e) => setWaterfallLimit(Number(e.target.value) as 10 | 30 | 60)}
-                  >
-                    <option value={10}>10</option>
-                    <option value={30}>30</option>
-                    <option value={60}>60</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  Bin step
-                  <select
-                    className="h-8 rounded-md border bg-background px-2 text-sm"
-                    value={waterfallBinStep}
-                    onChange={(e) => setWaterfallBinStep(Number(e.target.value) as 5 | 10)}
-                  >
-                    <option value={5}>5s</option>
-                    <option value={10}>10s</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  Session
-                  <select
-                    className="h-8 rounded-md border bg-background px-2 text-sm"
-                    value={waterfallSessionTag}
-                    onChange={(e) => setWaterfallSessionTag(e.target.value as 'all' | ProgressSessionTag)}
-                  >
-                    {SESSION_FILTER_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  Terrain
-                  <select
-                    className="h-8 rounded-md border bg-background px-2 text-sm"
-                    value={waterfallTerrainTag}
-                    onChange={(e) => setWaterfallTerrainTag(e.target.value as 'all' | ProgressTerrainTag)}
-                  >
-                    {TERRAIN_FILTER_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={waterfallEnduranceOnly}
-                    onChange={(e) => setWaterfallEnduranceOnly(e.target.checked)}
-                  />
-                  Endurance only
-                </label>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            {waterfallQuery.isLoading ? (
-              <div className="text-muted-foreground">Chargement...</div>
-            ) : waterfallQuery.error ? (
-              <div className="text-sm text-red-600">Erreur de chargement.</div>
-            ) : (waterfallQuery.data?.activities?.length ?? 0) === 0 ? (
-              <div className="text-muted-foreground">Pas assez de donnees pour afficher le waterfall 3D avec les filtres actuels.</div>
-            ) : (
-              <>
-                <PaceHr3DChart activities={waterfallQuery.data?.activities ?? []} />
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Les courbes sont ordonnees de l ancien au recent (gris vers rouge). A allure equivalente, une FC plus basse indique une progression.
-                </div>
-              </>
-            )}
-          </CardContent>
-      </Card>
+      <ProgressWaterfallCard
+        activities={waterfallQuery.data?.activities ?? []}
+        isLoading={waterfallQuery.isLoading}
+        error={waterfallQuery.error ? (waterfallQuery.error as Error) : null}
+        waterfallLimit={waterfallLimit}
+        waterfallBinStep={waterfallBinStep}
+        waterfallSessionTag={waterfallSessionTag}
+        waterfallTerrainTag={waterfallTerrainTag}
+        waterfallEnduranceOnly={waterfallEnduranceOnly}
+        onLimitChange={setWaterfallLimit}
+        onBinStepChange={setWaterfallBinStep}
+        onSessionTagChange={setWaterfallSessionTag}
+        onTerrainTagChange={setWaterfallTerrainTag}
+        onEnduranceOnlyChange={setWaterfallEnduranceOnly}
+      />
     </div>
   );
 }

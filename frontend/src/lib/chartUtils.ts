@@ -60,3 +60,31 @@ export function buildPoints(series: { x: number[]; y: Array<number | null> }): C
   }
   return points;
 }
+
+/** Centered moving average (symmetric window). Preserves x values even across gaps. */
+export function rollingMeanCentered(points: ChartPoint[], windowSize: number): ChartPoint[] {
+  const w = Math.max(1, Math.floor(windowSize));
+  if (w <= 1 || points.length === 0) return points;
+
+  const half = Math.floor(w / 2);
+  const out: ChartPoint[] = [];
+
+  for (let i = 0; i < points.length; i += 1) {
+    let sum = 0;
+    let count = 0;
+
+    const start = Math.max(0, i - half);
+    const end = Math.min(points.length - 1, i + half);
+
+    for (let j = start; j <= end; j += 1) {
+      const y = points[j]?.y;
+      if (typeof y !== 'number' || !Number.isFinite(y)) continue;
+      sum += y;
+      count += 1;
+    }
+
+    out.push({ x: points[i].x, y: count === 0 ? null : sum / count });
+  }
+
+  return out;
+}

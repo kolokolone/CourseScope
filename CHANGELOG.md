@@ -4,7 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
-## [1.1.94] - 2026-06-30
+## [1.1.95] - 2026-07-01
+
+### Changed
+- **Refactor** : découpage de `app/progress/page.tsx` (1089→~380 lignes) — extraction de 10 composants dans `components/features/progress/` (constants, utils, IndexationBanner, VolumeChart, TrimpChart, BestEffortsChart, EfficiencyCharts, HrPaceCharts, Vo2maxChart, WaterfallCard)
+- **Refactor** : découpage de `app/goals/page.tsx` (652→~165 lignes) — extraction de 5 composants dans `components/goals/` (utils, GoalsCalendar, GoalsTimelineCard, GoalForm, GoalListTable)
+- **Refactor** : extraction des helpers d'activité dans `components/metrics/activityDetails.ts` (KPI_HELP, DETAIL_HELP, buildActivityDetailSections, buildKpiItems)
+- **Refactor** : création de `components/activity/ActivityTitleBar.tsx` et `components/activity/ActivityKpiBar.tsx`
+- **Refactor** : extraction de `components/traces/utils.ts`, `TraceTitleBar.tsx`
+- **Optimisation** : `ActivityCharts.tsx` — suppression du doublon `buildSeriesData` (remplacé par `buildPoints`), extraction de `smoothMovingAverage` → `rollingMeanCentered` dans `chartUtils.ts`, wrapper `useMemo` sur le rendu des charts
+- **Correction** : mock `useCalendar` + `useTrainingLoad` manquants dans `progress/page.test.tsx`
 
 ### Changed
 - **Refactor** : découpage des 3 monolithes backend (`real_run_analysis.py` 1528→6 modules, `progress.py` 1042→570 lignes, `analysis.py` 977→250 lignes)

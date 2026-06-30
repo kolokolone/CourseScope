@@ -131,12 +131,12 @@ CourseScope est une application web locale d'analyse de courses à pied, mature 
 
 ### Frontend (composants > 300 lignes)
 
-| Fichier | Lignes | Problème | Priorité | Action |
-|---|---|---|---|---|
-| `app/progress/page.tsx` | 1206 | 8 queries, 20+ states, 5 sections de graphes | 🔴 Critique | Découper en 8 sous-composants |
-| `app/activities/[id]/page.tsx` | 785 | 6 onglets, inline KPI building | 🔴 Haute | Extraire le rendu des sections |
-| `app/goals/page.tsx` | 763 | Calendrier inline, formulaire, timeline | 🔴 Haute | Extraire `GoalCalendar`, `GoalForm` |
-| `app/traces/[id]/page.tsx` | 561 | Résolution de trace, inputs pace/temps | 🟡 Moyenne | Extraire `TraceInputPanel` |
+| Fichier | Lignes | Problème | Priorité | Action | Statut |
+|---|---|---|---|---|---|
+| `app/progress/page.tsx` | 1206 | 8 queries, 20+ states, 5 sections de graphes | 🔴 Critique | Découper en 8 sous-composants | ✅ v1.1.95 |
+| `app/activities/[id]/page.tsx` | 785 | 6 onglets, inline KPI building | 🔴 Haute | Extraire le rendu des sections | ✅ v1.1.95 |
+| `app/goals/page.tsx` | 763 | Calendrier inline, formulaire, timeline | 🔴 Haute | Extraire `GoalCalendar`, `GoalForm` | ✅ v1.1.95 |
+| `app/traces/[id]/page.tsx` | 561 | Résolution de trace, inputs pace/temps | 🟡 Moyenne | Extraire `TraceInputPanel` | ✅ v1.1.95 |
 
 ---
 
@@ -153,7 +153,7 @@ CourseScope est une application web locale d'analyse de courses à pied, mature 
 - `React.useMemo` sur les calculs dérivés (tris, filtres, agrégations)
 - Pas de virtualization sur les longues tables → risque si 1000+ activités
 - La page `/progress` lance 8 queries parallèles au mount → OK avec React Query mais peut saturer
-- `ActivityCharts` (506 lignes) recalcule le smoothing à chaque render
+- `ActivityCharts` (506 lignes) recalcule le smoothing à chaque render → ✅ optimisé v1.1.95 (useMemo, suppression doublons)
 
 ---
 

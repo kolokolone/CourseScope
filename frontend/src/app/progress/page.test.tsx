@@ -47,6 +47,8 @@ vi.mock('@/hooks/useProgress', () => ({
   useProgressPaceAtHr: () => ({ data: { series: [] }, isLoading: false, error: null }),
   useProgressSessionTaxonomy: () => ({ data: { session_counts: [], terrain_counts: [], race_markers: 0, total_tagged: 0 }, isLoading: false, error: null }),
   useProgressPaceHrWaterfall: () => ({ data: { activities: [] }, isLoading: false, error: null }),
+  useCalendar: () => ({ data: { days: [] }, isLoading: false, isError: false }),
+  useTrainingLoad: () => ({ data: null, isLoading: false, isError: false }),
 }));
 
 describe('ProgressPage', () => {
