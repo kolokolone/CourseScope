@@ -106,6 +106,17 @@ def init_db(engine: Engine) -> None:
                     conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN cadence_mean_spm REAL"))
                 if "cadence_max_spm" not in progress_cols:
                     conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN cadence_max_spm REAL"))
+                # P1: HR zone time columns for intensity distribution
+                if "z1_time_s" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN z1_time_s REAL"))
+                if "z2_time_s" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN z2_time_s REAL"))
+                if "z3_time_s" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN z3_time_s REAL"))
+                if "z4_time_s" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN z4_time_s REAL"))
+                if "z5_time_s" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN z5_time_s REAL"))
                 # P1: drop redundant column cardiac_drift_pct
                 try:
                     conn.execute(text("ALTER TABLE progress_activity_index DROP COLUMN cardiac_drift_pct"))
@@ -116,6 +127,22 @@ def init_db(engine: Engine) -> None:
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_activity_sources_activity_id ON activity_sources(activity_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_progress_activity_type ON progress_activity_index(activity_type)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_progress_tags_source ON progress_activity_tags(source)"))
+
+                # P1: HR zone time columns in daily aggregates
+                daily_cols = [
+                    str(row[1])
+                    for row in conn.execute(text("PRAGMA table_info(progress_daily_aggregates)"))
+                ]
+                if "z1_time_s" not in daily_cols:
+                    conn.execute(text("ALTER TABLE progress_daily_aggregates ADD COLUMN z1_time_s REAL"))
+                if "z2_time_s" not in daily_cols:
+                    conn.execute(text("ALTER TABLE progress_daily_aggregates ADD COLUMN z2_time_s REAL"))
+                if "z3_time_s" not in daily_cols:
+                    conn.execute(text("ALTER TABLE progress_daily_aggregates ADD COLUMN z3_time_s REAL"))
+                if "z4_time_s" not in daily_cols:
+                    conn.execute(text("ALTER TABLE progress_daily_aggregates ADD COLUMN z4_time_s REAL"))
+                if "z5_time_s" not in daily_cols:
+                    conn.execute(text("ALTER TABLE progress_daily_aggregates ADD COLUMN z5_time_s REAL"))
     except Exception:
         # Best-effort: app should stay usable even if migrations fail.
         pass
