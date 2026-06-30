@@ -44,7 +44,6 @@ class TestSettingsRepository(unittest.TestCase):
                     trimp=50.0,
                     training_load_method='edwards',
                     decoupling_pct=2.0,
-                    cardiac_drift_pct=2.0,
                     stability_cv=0.1,
                     stability_iqr_ratio=0.1,
                     aerobic_efficiency_m_s_per_bpm=0.02,

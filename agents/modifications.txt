@@ -1,14 +1,1 @@
-## Dans "/progress" :
-je veux implémenter deux fonctions dans mon application :
-- un Calendrier (docs/calendrier-implementation.md) qui sera positionné sous le graphique "Volume hebdo"
-- un graphique de charge (docs/charge-entrainement-implementation.md) qui sera positionné sous le graphique "Charge (TRIMP) par semaine"
-
-
-## concernant l'application globale :
-- je veux réduire la barre latérale de 15% de largeur, 
-- ajouter une petite mention de la version à la suite du titre "CourseScope" et avec la meme taille de police que le texte "Analyse d'activites de course",
-
-## Sur la page principale "/" : 
-- concernant la carte "VO2 max actuelle" : 
-    - revoir le mecanisme du petit point qui doit se positionner correctement en fonction du chiffre de la vo2max, en ce moment il est toujours positionné au maximum de la jauge
-    
+- modification de la redondance backend, comme décrit dans docs\audit_application.md

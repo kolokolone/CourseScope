@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.91] - 2026-06-30
+
+### Added
+- **Persistance analytique** : nouvelles tables `progress_activity_zones`, `progress_activity_splits`, `progress_activity_climbs` — les zones, splits et montées ne sont plus recalculés à chaque consultation
+- **Best efforts** : support des efforts FC (`hr_bpm`) et puissance (`power_w`) dans `progress_best_effort_points`
+- **Agrégats journaliers** : table `progress_daily_aggregates` pour accélérer `/progress/series` et `/progress/training-load`
+- **Cache** : `InMemoryCache` TTL 60s pour `GET /activity/{id}/real`
+- **Nouvelles métriques** : pacing, puissance avancée (NP/IF/TSS), cadence, dénivelé négatif dans `progress_activity_index`
+- **Extraction FIT** : `extract_fit_laps()` pour parser les messages `lap` Garmin
+- **Documentation** : ~30 endpoints ajoutés dans `metrics_catalog.md` ; `base-sqlite.md` mis à jour avec le nouveau schéma
+
+### Changed
+- `METRICS_VERSION` : 6 → 7 (force indexation lente complète au prochain passage)
+- **Suppression** : colonne `cardiac_drift_pct` (redondante avec `decoupling_pct`)
+
+### Fixed
+- **Index** : ajout d'index sur `activity_sources.activity_id`, `progress_activity_index.activity_type`, `progress_activity_tags.source`
+
 ## [1.1.90] - 2026-06-30
 
 ### Changed

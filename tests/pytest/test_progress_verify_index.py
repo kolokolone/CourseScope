@@ -141,7 +141,7 @@ def test_verify_progress_index_backfills_vo2max_from_fit_when_row_is_current(tmp
             tz=None, fingerprint=build_fingerprint(meta, parquet_path), metrics_version=int(METRICS_VERSION), indexed_at_ts="2026-02-03T10:00:00Z",
             distance_m=5000.0, moving_time_s=1500.0, elapsed_time_s=1600.0, elevation_gain_m=50.0, avg_pace_s_per_km=300.0,
             best_pace_s_per_km=250.0, pace_threshold_s_per_km=310.0, avg_hr_bpm=140.0, max_hr_bpm=175.0, trimp=40.0,
-            training_load_method="edwards", decoupling_pct=4.0, cardiac_drift_pct=4.0, stability_cv=0.08, stability_iqr_ratio=0.12,
+            training_load_method="edwards", decoupling_pct=4.0, stability_cv=0.08, stability_iqr_ratio=0.12,
             aerobic_efficiency_m_s_per_bpm=0.09, vo2max=None, has_hr=1, has_power=0, has_cadence=0, data_points=1234
         ))
         session.commit()
@@ -209,7 +209,7 @@ def test_verify_progress_index_backfill_keeps_fit_stream_open(tmp_path, monkeypa
             tz=None, fingerprint=build_fingerprint(meta, parquet_path), metrics_version=int(METRICS_VERSION), indexed_at_ts="2026-02-03T10:00:00Z",
             distance_m=5000.0, moving_time_s=1500.0, elapsed_time_s=1600.0, elevation_gain_m=50.0, avg_pace_s_per_km=300.0,
             best_pace_s_per_km=250.0, pace_threshold_s_per_km=310.0, avg_hr_bpm=140.0, max_hr_bpm=175.0, trimp=40.0,
-            training_load_method="edwards", decoupling_pct=4.0, cardiac_drift_pct=4.0, stability_cv=0.08, stability_iqr_ratio=0.12,
+            training_load_method="edwards", decoupling_pct=4.0, stability_cv=0.08, stability_iqr_ratio=0.12,
             aerobic_efficiency_m_s_per_bpm=0.09, vo2max=None, has_hr=1, has_power=0, has_cadence=0, data_points=1234
         ))
         session.commit()
@@ -364,7 +364,6 @@ def test_verify_progress_index_syncs_settings_vo2max_latest_from_most_recent_act
                 trimp=40.0,
                 training_load_method="edwards",
                 decoupling_pct=4.0,
-                cardiac_drift_pct=4.0,
                 stability_cv=0.08,
                 stability_iqr_ratio=0.12,
                 aerobic_efficiency_m_s_per_bpm=0.09,
@@ -397,7 +396,6 @@ def test_verify_progress_index_syncs_settings_vo2max_latest_from_most_recent_act
                 trimp=55.0,
                 training_load_method="edwards",
                 decoupling_pct=3.0,
-                cardiac_drift_pct=3.0,
                 stability_cv=0.07,
                 stability_iqr_ratio=0.11,
                 aerobic_efficiency_m_s_per_bpm=0.1,
@@ -528,7 +526,6 @@ def test_verify_progress_index_deletes_orphan_activity_rows_when_files_missing(t
                 trimp=70.0,
                 training_load_method="edwards",
                 decoupling_pct=4.0,
-                cardiac_drift_pct=4.0,
                 stability_cv=0.08,
                 stability_iqr_ratio=0.12,
                 aerobic_efficiency_m_s_per_bpm=0.08,

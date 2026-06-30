@@ -36,6 +36,7 @@ class ActivitySource(Base):
     __tablename__ = "activity_sources"
     __table_args__ = (
         UniqueConstraint("source", "source_activity_id", name="uq_activity_source_external"),
+        Index("ix_activity_sources_activity_id", "activity_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -158,7 +159,6 @@ class ProgressActivityIndex(Base):
     training_load_method: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     decoupling_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
-    cardiac_drift_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     stability_cv: Mapped[float | None] = mapped_column(Float, nullable=True)
     stability_iqr_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
 
@@ -170,9 +170,20 @@ class ProgressActivityIndex(Base):
     has_cadence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     data_points: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # New columns (P2 — audit SQLite)
+    elevation_loss_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pace_first_half_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pace_second_half_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    power_normalized_w: Mapped[float | None] = mapped_column(Float, nullable=True)
+    power_intensity_factor: Mapped[float | None] = mapped_column(Float, nullable=True)
+    power_tss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cadence_mean_spm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cadence_max_spm: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     __table_args__ = (
         Index("ix_progress_activity_start_ts", "start_ts_utc"),
         Index("ix_progress_activity_type_start_ts", "activity_type", "start_ts_utc"),
+        Index("ix_progress_activity_type", "activity_type"),
     )
 
 
@@ -221,6 +232,7 @@ class ProgressActivityTag(Base):
         Index("ix_progress_tags_session", "session_tag"),
         Index("ix_progress_tags_terrain", "terrain_tag"),
         Index("ix_progress_tags_race", "race_marker"),
+        Index("ix_progress_tags_source", "source"),
     )
 
     activity_id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -250,3 +262,68 @@ class ProgressIndexationRun(Base):
     progress_done: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+# ---- New tables (P1-P2 — audit SQLite) ----
+
+
+class ProgressActivityZone(Base):
+    __tablename__ = "progress_activity_zones"
+    __table_args__ = (
+        Index("ix_zones_activity_type", "activity_id", "zone_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    activity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    zone_type: Mapped[str] = mapped_column(String(32), nullable=False)  # 'heart_rate', 'pace', 'power'
+    zone_name: Mapped[str] = mapped_column(String(16), nullable=False)  # 'Z1', 'Z2', ...
+    range_low: Mapped[float | None] = mapped_column(Float, nullable=True)
+    range_high: Mapped[float | None] = mapped_column(Float, nullable=True)
+    time_s: Mapped[float] = mapped_column(Float, nullable=False)
+    time_pct: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class ProgressActivitySplit(Base):
+    __tablename__ = "progress_activity_splits"
+    __table_args__ = (
+        Index("ix_splits_activity", "activity_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    activity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    split_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False)
+    time_s: Mapped[float] = mapped_column(Float, nullable=False)
+    pace_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    elevation_gain_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class ProgressActivityClimb(Base):
+    __tablename__ = "progress_activity_climbs"
+    __table_args__ = (
+        Index("ix_climbs_activity", "activity_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    activity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False)
+    elevation_gain_m: Mapped[float] = mapped_column(Float, nullable=False)
+    avg_grade_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pace_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    vam_m_h: Mapped[float | None] = mapped_column(Float, nullable=True)
+    start_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    end_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class ProgressDailyAggregate(Base):
+    __tablename__ = "progress_daily_aggregates"
+
+    date_utc: Mapped[str] = mapped_column(String(16), primary_key=True)  # YYYY-MM-DD
+    distance_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    moving_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    elapsed_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    elevation_gain_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trimp: Mapped[float | None] = mapped_column(Float, nullable=True)
+    activity_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    computed_at_utc: Mapped[str] = mapped_column(Text, nullable=False)

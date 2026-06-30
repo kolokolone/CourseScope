@@ -531,3 +531,89 @@ def detect_fit_type(df: pd.DataFrame) -> Dict[str, Any]:
     from core.gpx_loader import detect_gpx_type
 
     return detect_gpx_type(df)
+
+
+def extract_fit_laps(fitfile: FitFile) -> list[dict[str, Any]]:
+    """Extract lap-level metrics from FIT file messages.
+
+    Returns a list of dicts with Garmin lap summary fields.
+    Returns empty list if no lap messages are found.
+    """
+    laps: list[dict[str, Any]] = []
+    for lap_msg in fitfile.get_messages("lap"):
+        lookup = _build_field_lookup(lap_msg)
+        lap_data: dict[str, Any] = {}
+
+        # Timing
+        start_time = _get_value(lap_msg, "start_time", lookup)
+        if start_time is not None:
+            lap_data["start_time"] = start_time
+        elapsed = _get_value(lap_msg, "total_elapsed_time", lookup)
+        if elapsed is not None:
+            lap_data["elapsed_time_s"] = float(elapsed)
+        timer = _get_value(lap_msg, "total_timer_time", lookup)
+        if timer is not None:
+            lap_data["timer_time_s"] = float(timer)
+
+        # Distance
+        distance = _get_value(lap_msg, "total_distance", lookup)
+        if distance is not None and math.isfinite(float(distance)):
+            lap_data["distance_m"] = float(distance)
+
+        # Speed
+        avg_speed = _first_value_and_units(lap_msg, ["enhanced_avg_speed", "avg_speed"], lookup=lookup)[0]
+        if avg_speed is not None and math.isfinite(float(avg_speed)):
+            lap_data["avg_speed_m_s"] = float(avg_speed)
+        max_speed = _first_value_and_units(lap_msg, ["enhanced_max_speed", "max_speed"], lookup=lookup)[0]
+        if max_speed is not None and math.isfinite(float(max_speed)):
+            lap_data["max_speed_m_s"] = float(max_speed)
+
+        # Heart rate
+        avg_hr = _get_value(lap_msg, "avg_heart_rate", lookup)
+        if avg_hr is not None and math.isfinite(float(avg_hr)):
+            lap_data["avg_hr_bpm"] = float(avg_hr)
+        max_hr = _get_value(lap_msg, "max_heart_rate", lookup)
+        if max_hr is not None and math.isfinite(float(max_hr)):
+            lap_data["max_hr_bpm"] = float(max_hr)
+
+        # Cadence
+        avg_cad = _get_value(lap_msg, "avg_cadence", lookup)
+        if avg_cad is not None and math.isfinite(float(avg_cad)):
+            lap_data["avg_cadence_spm"] = float(avg_cad)
+        max_cad = _get_value(lap_msg, "max_cadence", lookup)
+        if max_cad is not None and math.isfinite(float(max_cad)):
+            lap_data["max_cadence_spm"] = float(max_cad)
+
+        # Power
+        avg_pwr = _get_value(lap_msg, "avg_power", lookup)
+        if avg_pwr is not None and math.isfinite(float(avg_pwr)):
+            lap_data["avg_power_w"] = float(avg_pwr)
+        max_pwr = _get_value(lap_msg, "max_power", lookup)
+        if max_pwr is not None and math.isfinite(float(max_pwr)):
+            lap_data["max_power_w"] = float(max_pwr)
+        np_val = _get_value(lap_msg, "normalized_power", lookup)
+        if np_val is not None and math.isfinite(float(np_val)):
+            lap_data["normalized_power_w"] = float(np_val)
+
+        # Elevation
+        ascent = _get_value(lap_msg, "total_ascent", lookup)
+        if ascent is not None and math.isfinite(float(ascent)):
+            lap_data["ascent_m"] = float(ascent)
+        descent = _get_value(lap_msg, "total_descent", lookup)
+        if descent is not None and math.isfinite(float(descent)):
+            lap_data["descent_m"] = float(descent)
+
+        # Calories
+        calories = _get_value(lap_msg, "total_calories", lookup)
+        if calories is not None and math.isfinite(float(calories)):
+            lap_data["calories_kcal"] = float(calories)
+
+        # Lap number
+        lap_num = _get_value(lap_msg, "lap_trigger", lookup)
+        if lap_num is not None:
+            lap_data["lap_trigger"] = str(lap_num)
+
+        if lap_data:  # At least start_time or some metric
+            laps.append(lap_data)
+
+    return laps

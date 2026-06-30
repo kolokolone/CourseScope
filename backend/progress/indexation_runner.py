@@ -25,7 +25,7 @@ from db.models import (
     ProgressPaceHrBin,
     utc_now_iso,
 )
-from progress.indexer import METRICS_VERSION, build_fingerprint, index_activity
+from progress.indexer import METRICS_VERSION, build_fingerprint, index_activity, recompute_daily_aggregates
 from progress.verify_index import _maybe_backfill_vo2max_from_fit, _sync_vo2max_latest_from_index
 from sqlalchemy.exc import OperationalError
 
@@ -554,6 +554,7 @@ def _run_slow_indexation_once(
         _set_progress(progress_current=idx, progress_total=max(1, total))
 
     _sync_vo2max_latest_from_index(session)
+    recompute_daily_aggregates(session)
     _commit_with_retry(session)
     return IndexationResult(
         scanned=scanned,

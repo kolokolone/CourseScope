@@ -23,12 +23,16 @@ from registry.series_registry import SeriesRegistry
 from services import real_activity_service
 from services.serialization import df_to_records, to_jsonable
 from services.models import RealRunParams, RealRunViewParams
+from services.cache import InMemoryCache, make_cache_key
 from db.settings_repository import SettingsRepository
 from db.trace_repository import TraceRepository
 from storage.trace_store import compute_route_fingerprint
 
 
 router = APIRouter()
+
+real_activity_cache = InMemoryCache(max_items=256)
+REAL_ACTIVITY_CACHE_VERSION = "2"
 
 
 def _interp_pro_pace_s_per_km(grade: float, pro_ref_rows: list[dict[str, float]]) -> float | None:
@@ -782,6 +786,17 @@ def prepare_theoretical_response(
 async def get_real_activity(request: Request, activity_id: str):
     """Retourne les données d'analyse pour une activité réelle"""
     try:
+        # Cache lookup
+        hr_max_effective = _resolve_hr_max_effective(request)
+        cache_key = make_cache_key(
+            namespace="real_activity",
+            version=REAL_ACTIVITY_CACHE_VERSION,
+            payload={"activity_id": activity_id, "hr_max": hr_max_effective},
+        )
+        cached = real_activity_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         storage = request.app.state.storage
         activity_name: str | None = None
         try:
@@ -812,7 +827,9 @@ async def get_real_activity(request: Request, activity_id: str):
             raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
 
         registry = get_series_registry(request)
-        return prepare_real_response(request, df, registry, activity_name=activity_name)
+        result = prepare_real_response(request, df, registry, activity_name=activity_name)
+        real_activity_cache.set(cache_key, result, ttl_s=60)
+        return result
 
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")

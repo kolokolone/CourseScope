@@ -1,449 +1,663 @@
 # Modifications à implémenter — CourseScope
 
-Date : 2026-06-30 14:10
-Source : agents/modifications.txt
+Date : 2026-06-30 17:30
+Source : agents/modifications.txt (30 juin 2026)
 Produit par : agents/agent-brainstorm.md
 Statut : prêt pour agent-dev
 
 ## 1. Résumé exécutif
 
-Trois axes de modifications demandés :
-1. **Page `/progress`** : ajout de deux nouveaux composants (Calendrier heatmap et Charge d'entraînement ACWR/Monotonie/Strain) avec leurs endpoints backend respectifs.
-2. **Application globale** : réduction de la largeur de la sidebar de 15% et ajout du numéro de version à côté du titre "CourseScope".
-3. **Page d'accueil `/`** : correction du positionnement du point sur la jauge VO2 max (actuellement toujours au maximum).
+Modifications issues de l'audit SQLite (`docs/audit-base-sqlite.md` §14 « Plan d'action recommandé »). L'utilisateur reprend la checklist de l'audit avec ses priorités P1→P4 et demande explicitement de ne pas implémenter le P4 (« optionnel / prématuré »). La ligne sur la redondance backend (`docs/audit_application.md`) est exclue — l'utilisateur l'a retirée du scope.
 
-Les demandes 1 et 3 sont techniques et bien cadrées par les docs existants (`calendrier-implementation.md`, `charge-entrainement-implementation.md`). La demande 2 est structurelle et impacte le shell global.
+**P1 — Création de 3 nouvelles tables de persistance analytique + extension des best efforts + nettoyage d'une colonne redondante.** Objectif : supprimer les recalculs coûteux à chaque consultation d'activité (zones, splits, climbs) et enrichir les best efforts.
 
-Priorisation :
-- **P1** — Calendrier + Charge d'entraînement (back + front), car fonctionnalités directement utiles
-- **P1** — Correction jauge VO2 max, car bug visible
-- **P2** — Sidebar -15% + version, car amélioration UX sans blocage
+**P2 — Optimisations : cache, colonnes manquantes, agrégats journaliers, index.** Objectif : accélérer les endpoints d'analyse et de progression.
+
+**P3 — Documentation, index marginaux, extraction FIT laps.** Objectif : compléter la couverture documentaire et les optimisations résiduelles.
+
+**P4 — Explicitement exclu** par l'utilisateur (« optionnel / prématuré »).
+
+**Tâche finale** : mise à jour de `docs/base-sqlite.md` pour refléter le nouveau schéma.
+
+Au total : **13 actions P1-P3** + 1 mise à jour documentaire. Aucune modification frontend.
 
 ## 2. Demandes utilisateur extraites
 
-### Demande 1 — Calendrier heatmap dans /progress
+### Demande 1 — Actions P1 (5 items)
 
-- **Texte source** : `un Calendrier (docs/calendrier-implementation.md) qui sera positionné sous le graphique "Volume hebdo"`
-- **Interprétation** : Ajouter le composant CalendarHeatmap décrit dans la doc d'implémentation, avec son endpoint backend `/progress/calendar`, et l'insérer dans la page `/progress` juste après la carte "Volume hebdo" (avant "Charge (TRIMP) par semaine").
+- **Texte source** : checklist P1 dans `agents/modifications.txt`
+- **Interprétation** : Créer 3 nouvelles tables (`progress_activity_zones`, `progress_activity_splits`, `progress_activity_climbs`) et les peupler via indexation lente. Étendre `progress_best_effort_points` aux efforts HR et power (`effort_kind`). Supprimer ou marquer `cardiac_drift_pct` comme alias de `decoupling_pct`.
 - **Statut** : retenue
-- **Justification** : Spécification complète et validée dans le doc source. Toutes les dépendances backend (`ProgressRepository.list_activity_rows`, table `progress_activity_index`) existent déjà.
+- **Justification** : Impact direct sur les performances — zones, splits et climbs sont actuellement recalculés à chaque `GET /activity/{id}/real`. Schémas déjà proposés dans l'audit §11.
 
-### Demande 2 — Charge d'entraînement dans /progress
+### Demande 2 — Actions P2 (4 items)
 
-- **Texte source** : `un graphique de charge (docs/charge-entrainement-implementation.md) qui sera positionné sous le graphique "Charge (TRIMP) par semaine"`
-- **Interprétation** : Ajouter le composant TrainingLoadChart avec son endpoint `/progress/training-load`, inséré juste après la carte "Charge (TRIMP) par semaine" (avant "Best effort").
+- **Texte source** : checklist P2 dans `agents/modifications.txt`
+- **Interprétation** : Activer `InMemoryCache` pour `/activity/{id}/real` (TTL 60s). Ajouter 8 colonnes à `progress_activity_index` (elevation_loss_m, pacing, puissance NP/IF/TSS, cadence). Créer `progress_daily_aggregates` pour `/progress/series` et `/progress/training-load`. Ajouter un index sur `activity_sources.activity_id`.
 - **Statut** : retenue
-- **Justification** : Spécification complète. Dépendances backend (`ProgressRepository.list_series_rows(metric="trimp")`, colonne `trimp` existante) satisfaites.
+- **Justification** : Optimisations à faible risque. Cache évite des recomputes, agrégats journaliers accélèrent les endpoints de progression.
 
-### Demande 3 — Sidebar -15% + version
+### Demande 3 — Actions P3 (4 items)
 
-- **Texte source** : `je veux réduire la barre latérale de 15% de largeur, ajouter une petite mention de la version à la suite du titre "CourseScope" et avec la meme taille de police que le texte "Analyse d'activites de course"`
-- **Interprétation** : 
-  - Largeur sidebar desktop actuelle : `260px` → cible : `221px` (260 × 0.85). Arrondi à `220px` pour la propreté CSS (écart négligeable de ~0.4%).
-  - Version affichée à côté du titre "CourseScope" dans le bloc branding de la sidebar, avec la même typographie que le sous-titre (`text-xs text-muted-foreground`).
+- **Texte source** : checklist P3 dans `agents/modifications.txt`
+- **Interprétation** : Documenter ~30 endpoints absents de `docs/metrics_catalog.md`. Ajouter index sur `progress_activity_index.activity_type` seul et sur `progress_activity_tags.source`. Implémenter extraction des laps Garmin depuis FIT.
 - **Statut** : retenue
-- **Justification** : Demandes directes. La sidebar est déjà un composant isolé (Sidebar.tsx), le changement de largeur est localisé dans AppShell.tsx. La version est déjà exposée par `GET /` (utilisé par `metaApi.root()` dans `HeaderActions.tsx`).
+- **Justification** : Faible risque. Documentation et index marginaux. L'extraction FIT est la plus complexe mais reste P3.
 
-### Demande 4 — Correction jauge VO2 max page d'accueil
+### Demande 4 — Actions P4 (4 items)
 
-- **Texte source** : `revoir le mecanisme du petit point qui doit se positionner correctement en fonction du chiffre de la vo2max, en ce moment il est toujours positionné au maximum de la jauge`
-- **Interprétation** : Bug de calcul trigonométrique : le code actuel utilise `Math.cos` pour x et `Math.sin` pour y avec un angle en convention CSS (0° = haut, sens horaire), alors que les fonctions trigonométriques JS utilisent la convention mathématique (0° = droite, sens anti-horaire). Il faut adapter la conversion.
+- **Texte source** : checklist P4 + mention « optionnel / prématuré »
+- **Statut** : rejetée (cette itération)
+- **Justification** : L'utilisateur les qualifie lui-même de prématurés. À replanifier ultérieurement.
+
+### Demande 5 — Mise à jour `docs/base-sqlite.md`
+
+- **Texte source** : `A la fin : mettre à jour docs\base-sqlite.md`
 - **Statut** : retenue
-- **Justification** : Bug confirmé par analyse du code (voir section 3.2). Correction isolée sur 2 lignes dans `page.tsx`.
+- **Justification** : Demande explicite. Le document est la référence technique du schéma et doit refléter les changements.
 
 ## 3. Diagnostic de l'existant
 
 ### 3.1 Fichiers et zones lus
 
-- `agents/modifications.txt`
-- `docs/calendrier-implementation.md`
-- `docs/charge-entrainement-implementation.md`
-- `docs/style-frontend-ui.md`
-- `README.md`
-- `CHANGELOG.md`
-- `frontend/src/app/page.tsx` (page d'accueil + jauge VO2 max)
-- `frontend/src/app/progress/page.tsx` (page /progress, 1200 lignes)
-- `frontend/src/components/layout/AppShell.tsx`
-- `frontend/src/components/layout/Sidebar.tsx`
-- `frontend/src/components/layout/nav.ts`
-- `frontend/src/components/layout/page-metadata.tsx`
-- `frontend/src/components/layout/HeaderActions.tsx`
-- `frontend/src/types/api.ts` (488 lignes)
-- `frontend/src/lib/api.ts` (529 lignes)
-- `frontend/src/hooks/useProgress.ts` (162 lignes)
-- `frontend/package.json`
-- `backend/api/routes/progress.py` (844 lignes)
-- `backend/db/progress_repository.py` (296 lignes)
+- `docs/audit-base-sqlite.md` — audit complet (608 lignes), §14 plan d'action
+- `docs/base-sqlite.md` — référence schéma SQLite (528 lignes)
+- `docs/metrics_catalog.md` — catalogue endpoints API (484 lignes)
+- `docs/indexation.md` — architecture indexation fast/slow
+- `backend/db/models.py` — 11 modèles ORM (252 lignes)
+- `backend/db/session.py` — migrations manuelles (94 lignes)
+- `backend/db/progress_repository.py` — repository progression (296 lignes)
+- `backend/progress/indexer.py` — `index_activity()` (462 lignes)
+- `backend/progress/indexation_runner.py` — runner fast/slow (703 lignes)
+- `backend/services/cache.py` — `InMemoryCache`, `MemoryCache` (169 lignes)
+- `backend/core/real_run_analysis.py` — `compute_splits()`, `compute_climbs()`, `compute_best_efforts_by_duration()` (1551 lignes)
+- `backend/core/metrics.py` — `compute_garmin_like_stats()`, `_build_zone_table()` (825 lignes)
+- `backend/api/routes/analysis.py` — handler `get_real_activity`
+- `backend/api/routes/progress.py` — routes progression (1074 lignes)
 
 ### 3.2 Constats établis
 
-**Calendrier :**
-- ❌ L'endpoint `GET /progress/calendar` n'existe pas.
-- ❌ Les types `CalendarDay`, `CalendarResponse` n'existent pas dans `types/api.ts`.
-- ❌ La méthode `progressApi.calendar()` n'existe pas dans `lib/api.ts`.
-- ❌ Le hook `useCalendar()` n'existe pas dans `hooks/useProgress.ts`.
-- ❌ Le composant `CalendarHeatmap.tsx` n'existe pas.
-- ✅ `ProgressRepository.list_activity_rows()` existe (ligne 178 de `progress_repository.py`), accepte `from_ts_utc`, `to_ts_utc`, `activity_type`, `limit`.
-- ✅ La table `progress_activity_index` contient `start_ts_utc`, `distance_m`, `moving_time_s`.
-- ✅ `_parse_ts_utc()` existe dans `progress.py` (ligne 160).
+#### 3.2.1 `cardiac_drift_pct` = alias de `decoupling_pct`
 
-**Charge d'entraînement :**
-- ❌ L'endpoint `GET /progress/training-load` n'existe pas.
-- ❌ Les types `TrainingLoadPoint`, `TrainingLoadResponse` n'existent pas.
-- ❌ La méthode `progressApi.trainingLoad()` n'existe pas.
-- ❌ Le hook `useTrainingLoad()` n'existe pas.
-- ❌ Le composant `TrainingLoadChart.tsx` n'existe pas.
-- ✅ `ProgressRepository.list_series_rows()` existe (ligne 199), accepte `metric`, `from_ts_utc`, `to_ts_utc`, `activity_type`.
-- ✅ La colonne `trimp` existe dans `progress_activity_index`.
-- ✅ L'indexeur remplit déjà `trimp` lors de l'indexation.
+- **Fait** : Dans `models.py:160-161`, les deux colonnes existent côte à côte.
+- **Fait** : Dans `indexer.py:333-338`, `decoupling_pct = cardiac_drift_pct` (même valeur assignée aux deux).
+- **Fait** : Aucun endpoint n'expose `cardiac_drift_pct` — seul `decoupling_pct` est dans `ProgressActivityRow`.
+- **Conclusion** : Colonne redondante, suppression sans impact API.
 
-**Sidebar :**
-- Largeur actuelle définie dans `AppShell.tsx` ligne 49 : `md:grid-cols-[260px_minmax(0,1fr)]`.
-- Le bloc branding est dans `Sidebar.tsx` lignes 17-19 : titre "CourseScope" (`text-lg font-semibold`) + sous-titre (`text-xs text-muted-foreground`).
-- ✅ La version applicative est disponible via `GET /` → `{ version: "1.1.88" }`. Déjà consommée par `SettingsHeaderVersion` dans `HeaderActions.tsx` via `metaApi.root()`.
-- `Sidebar.tsx` est un composant serveur (pas de directive `'use client'`).
+#### 3.2.2 Tables manquantes
 
-**Jauge VO2 max :**
-- Le calcul du point dans `page.tsx` lignes 77-89 utilise :
-  ```js
-  const angle = -140 + ratio * 280;  // angle CSS (0° = haut, sens horaire)
-  const rad = (angle * Math.PI) / 180;
-  const x = center + Math.cos(rad) * radius;  // ❌ convention mathématique (0° = droite)
-  const y = center + Math.sin(rad) * radius;  // ❌ idem
-  ```
-- La jauge (`conic-gradient`) utilise la convention CSS (0° = haut, sens horaire), mais `Math.cos/sin` utilisent la convention mathématique (0° = droite, sens anti-horaire, Y vers le haut).
-- Le point est rendu avec `left`/`top` CSS + `-translate-x-1/2 -translate-y-1/2` pour centrage.
-- Vérification concrète avec VO2 max = 46 (ratio 0.5, angle CSS = 0° soit le haut du cercle) :
-  - Code actuel : `x = 70 + cos(0)*58 = 128` (droite), `y = 70 + sin(0)*58 = 70` (centre) → **position incorrecte** (devrait être en haut : x=70, y=12).
-  - Code corrigé : `x = 70 + sin(0)*58 = 70`, `y = 70 - cos(0)*58 = 12` → **position correcte**.
+- **Fait** : Aucune des 4 nouvelles tables n'existe dans `models.py` ni dans la base.
+- **Fait** : Zones calculées par `compute_garmin_like_stats()` → `_build_zone_table()`, recalculées à chaque consultation.
+- **Fait** : Splits calculés par `compute_splits()` dans `real_run_analysis.py`, recalculés à chaque appel.
+- **Fait** : Climbs calculés par `compute_climbs()`, retournent une liste de dicts.
+- **Fait** : `compute_best_efforts_by_duration()` n'est appelée qu'avec le défaut (pace).
+
+#### 3.2.3 Cache non utilisé
+
+- **Fait** : `InMemoryCache` existe dans `services/cache.py` mais n'est pas instancié pour les endpoints d'analyse.
+- **Fait** : `GET /activity/{id}/real` recharge le Parquet et recalcule tout à chaque appel.
+
+#### 3.2.4 Colonnes manquantes
+
+- **Fait** : `progress_activity_index` n'a pas `elevation_loss_m`, `pace_first_half_s_per_km`, `pace_second_half_s_per_km`, `power_normalized_w`, `power_intensity_factor`, `power_tss`, `cadence_mean_spm`, `cadence_max_spm`.
+- **Fait** : Ces métriques sont calculées par `compute_garmin_like_stats()` mais non persistées.
+
+#### 3.2.5 Index manquants
+
+- `activity_sources` : pas d'index sur `activity_id` seul.
+- `progress_activity_index` : pas d'index sur `activity_type` seul (seulement composite).
+- `progress_activity_tags` : pas d'index sur `source`.
+
+#### 3.2.6 Documentation
+
+- `metrics_catalog.md` couvre ~33/39 endpoints. Manquent : CRUD activities/traces/goals, settings, Garmin, progress/index, training-load, calendar, geo, health, real-bins.
+
+#### 3.2.7 Laps FIT
+
+- Parsing FIT actuel ne supporte pas les messages `lap`. La lib `fitparse` le supporte.
 
 ### 3.3 Hypothèses
 
-- Le composant `TrainingLoadChart` réutilise `finiteNumber` déjà défini dans `progress/page.tsx`. La doc source suggère soit d'extraire la fonction dans un utilitaire partagé, soit de la dupliquer. Hypothèse : duplication acceptable pour le scope de cette modification, car le composant est autonome.
-- La version applicative (`1.1.88` dans `package.json` frontend) correspond à la version exposée par l'API (`GET /` → `metaApi.root()`). Hypothèse : ces deux sources sont synchronisées.
-- Le drawer mobile n'est pas impacté par la réduction de largeur sidebar desktop car il utilise sa propre largeur (`w-[18rem] max-w-[88vw]`).
+- `Base.metadata.create_all()` crée automatiquement les nouvelles tables.
+- Les colonnes sont ajoutées via `ALTER TABLE ADD COLUMN` (pattern existant dans `session.py`).
+- `compute_best_efforts_by_duration()` accepte un paramètre `metric` pour HR/power. Si non, adapter.
+- Cache TTL 60s suffisant sans invalidation fine (changements HR max rares en usage local).
+- `METRICS_VERSION` doit être incrémenté (6 → 7) pour forcer le recalcul.
 
 ### 3.4 Incertitudes
 
-- Le `ProgressSeriesRow` retourné par `list_series_rows` est un tuple nommé avec `.start_ts_utc` et `.value`. La doc source utilise `r.value` et `r.start_ts_utc`. Si la structure exacte diffère, l'endpoint training-load devra être adapté.
-- L'indexation doit avoir été exécutée au moins une fois pour que `trimp` soit renseigné. Le code existant lance déjà une indexation rapide à l'ouverture de `/progress` (lignes 210-293 de `page.tsx`). Pas de risque pour le calendrier (utilise `distance_m` qui est toujours présent).
+- Structure exacte du DataFrame zones : `range_low`/`range_high` séparés ou string `range` "X-Y" ? → inspecter `_build_zone_table()`.
+- `compute_best_efforts_by_duration()` avec HR/power : testé ? → lire la fonction.
+- Nombre exact de splits : estimé 10-40/activité.
+- Nombre exact de climbs : estimé 0-10/activité.
+- Complexité parsing FIT laps : variable selon appareils.
 
 ## 4. Spécification fonctionnelle cible
 
-### 4.1 Calendrier (Calendar Heatmap)
+Après implémentation :
 
-**Comportement attendu :**
-- Carte affichant une heatmap annuelle façon GitHub : grille 7 jours × ~52 semaines.
-- Chaque cellule = un jour ; intensité de couleur basée sur le volume (km).
-- 3 KPIs : jours actifs dans l'année, plus longue série (streak max), série en cours.
-- Sélecteur d'année (année courante et 5 années précédentes).
-- Légende de l'échelle de couleur (Moins → Plus).
+1. **Zones, splits, climbs** ne sont plus recalculés à chaque consultation. Calculés une fois lors de l'indexation lente, stockés, servis directement.
+2. **Best efforts HR et power** disponibles dans `/progress/best-efforts` (`effort_kind=hr_bpm`, `effort_kind=power_w`).
+3. **`/activity/{id}/real`** plus rapide grâce au cache TTL 60s.
+4. **`/progress/series` et `/progress/training-load`** plus rapides grâce aux agrégats journaliers pré-calculés.
+5. **Nouvelles métriques** dans `/progress/activities` : pacing, puissance avancée, cadence, dénivelé négatif.
+6. **`cardiac_drift_pct`** n'existe plus dans le code.
+7. **Documentation** à jour (`metrics_catalog.md` et `base-sqlite.md`).
 
-**États :**
-- `loading` : carte avec titre "Calendrier" et texte "Chargement…".
-- `empty` (aucune activité dans l'année) : carte avec sélecteur d'année + message "Pas d'activités en YYYY".
-- `error` : carte avec message "Données indisponibles".
-- `data` : heatmap complète avec KPIs et légende.
+### États à gérer
 
-**Position dans la page `/progress`** : immédiatement après la carte "Volume hebdo" (ligne 688 de `page.tsx` : après `</Card>` du volume), avant la carte "Charge (TRIMP) par semaine".
-
-### 4.2 Charge d'entraînement (Training Load)
-
-**Comportement attendu :**
-- Section avec KPIs (ACWR, Monotonie, Strain) + badge de zone de risque + graphique ComposedChart Recharts.
-- Graphique : charge aiguë 7j (aire), charge chronique 42j (ligne grise), ACWR (ligne pointillée orange, axe Y droit), bandes de référence (0.8 vert, 1.3 orange, 1.5 rouge).
-- Sélecteur de période (30j, 60j, 90j, 6 mois, 1 an).
-
-**États :**
-- `loading` : carte avec titre "Charge d'entraînement" et "Chargement…".
-- `empty` (pas de données TRIMP) : message "Pas de données de charge disponibles".
-- `error` : message "Données indisponibles".
-- `data` : KPIs + badge risque + graphique.
-
-**Position dans la page `/progress`** : immédiatement après la carte "Charge (TRIMP) par semaine" (ligne 727 de `page.tsx`), avant la carte "Best effort" (ligne 729).
-
-### 4.3 Sidebar
-
-**Largeur :** `220px` (réduction de ~15.4% par rapport à 260px, arrondi propre).
-
-**Version :** Affichée sur la même ligne que "CourseScope", avec le style `text-xs text-muted-foreground` (identique au sous-titre). Layout cible :
-
-```
-CourseScope v1.1.88            ← CourseScope en text-lg font-semibold, v1.1.88 en text-xs text-muted-foreground
-Analyse d'activites de course  ← inchangé
-```
-
-### 4.4 Jauge VO2 max
-
-**Comportement attendu :** Le point indiquant la valeur de VO2 max sur la jauge circulaire doit se positionner correctement le long de l'arc coloré, proportionnellement à la valeur (min=30, max=62). Actuellement toujours au maximum → après correction, le point suit la graduation.
+- **Absence de données** : colonnes puissance/cadence = NULL si pas de capteur. Tables zones/splits/climbs peuvent être vides.
+- **Peuplement** : UNIQUEMENT via indexation lente. L'indexation rapide ne touche pas ces tables.
+- **Rétrocompatibilité** : endpoints existants inchangés. Nouvelles tables peuplées en parallèle.
+- **Migration** : colonnes ajoutées = NULL par défaut. Tables créées vides, peuplées au prochain passage d'indexation lente.
 
 ## 5. Spécification technique proposée
 
-### 5.1 Frontend
+### 5.1 Modèles ORM — Nouvelles tables (P1)
 
-#### 5.1.1 Calendrier — Fichiers à créer/modifier
+Fichier : `backend/db/models.py`
 
-| # | Fichier | Action | Détail |
-|---|---------|--------|--------|
-| 1 | `frontend/src/types/api.ts` | Ajouter | Interfaces `CalendarDay` et `CalendarResponse` (en fin de fichier) |
-| 2 | `frontend/src/lib/api.ts` | Ajouter | Méthode `progressApi.calendar(year)` + import `CalendarResponse` |
-| 3 | `frontend/src/hooks/useProgress.ts` | Ajouter | Query key `calendar` + hook `useCalendar(year)` + import `CalendarResponse` |
-| 4 | `frontend/src/components/features/progress/CalendarHeatmap.tsx` | Créer | Composant principal (~290 lignes, basé sur `docs/calendrier-implementation.md` §4.4) |
-| 5 | `frontend/src/app/progress/page.tsx` | Modifier | Import + `<CalendarHeatmap />` après la carte Volume hebdo |
-
-**Détail d'implémentation CalendarHeatmap :**
-- `'use client'` — utilise `useCalendar` (TanStack Query).
-- Échelle de couleur fixe : `bg-gray-100` (0 km), `bg-blue-100` (<3 km), `bg-blue-300` (<8 km), `bg-blue-500` (<15 km), `bg-blue-800` (≥15 km).
-- Grille construite en remplissant les jours manquants de l'année avec `has_activity: false`.
-- Jours de semaine : Lundi à Dimanche (ISO, `(getUTCDay() + 6) % 7`).
-- Tailles de cellule : 13px × 13px, gap 2px.
-- Seuils de couleur codés en dur, ajustables.
-- Réutilise `formatNumber` de `@/lib/metricsFormat` et `cn` de `@/lib/utils`.
-- Utilise les primitives `Card`, `CardContent`, `CardHeader`, `CardTitle` existantes.
-
-#### 5.1.2 Charge d'entraînement — Fichiers à créer/modifier
-
-| # | Fichier | Action | Détail |
-|---|---------|--------|--------|
-| 1 | `frontend/src/types/api.ts` | Ajouter | Interfaces `TrainingLoadPoint` et `TrainingLoadResponse` |
-| 2 | `frontend/src/lib/api.ts` | Ajouter | Méthode `progressApi.trainingLoad(params)` + import |
-| 3 | `frontend/src/hooks/useProgress.ts` | Ajouter | Query keys + hook `useTrainingLoad(params)` + import |
-| 4 | `frontend/src/components/features/progress/TrainingLoadChart.tsx` | Créer | Composant principal (~310 lignes, basé sur `docs/charge-entrainement-implementation.md` §4.4) |
-| 5 | `frontend/src/app/progress/page.tsx` | Modifier | Import + `<TrainingLoadChart />` après la carte Charge TRIMP |
-
-**Détail d'implémentation TrainingLoadChart :**
-- `'use client'` — utilise `useTrainingLoad` (TanStack Query).
-- Graphique `ComposedChart` Recharts avec :
-  - `Area` pour charge aiguë 7j (couleur `#0f172a`, fillOpacity 0.08).
-  - `Line` pour charge chronique 42j (couleur `#64748b`).
-  - `Line` pour ACWR sur axe Y droit (couleur `#f4a261`, `strokeDasharray="4 4"`).
-  - `ReferenceLine` × 3 pour les seuils ACWR (0.8, 1.3, 1.5).
-- KPIs dans 3 mini-cards (ACWR, Monotonie, Strain).
-- Badge de zone de risque : `Faible` (vert), `Modéré` (jaune), `Élevé` (rouge).
-- Sélecteur de période (30/60/90/180/365 jours) — filtre côté client sur `data.points.slice(-days)`.
-- Fonction `finiteNumber` dupliquée dans le composant (ou extraite si refacto futur).
-- Réutilise Recharts (déjà installé), `Card`, `cn`, `formatNumber`.
-
-#### 5.1.3 Sidebar — Fichiers à modifier
-
-| # | Fichier | Action | Détail |
-|---|---------|--------|--------|
-| 1 | `frontend/src/components/layout/AppShell.tsx` | Modifier | `md:grid-cols-[260px_minmax(0,1fr)]` → `md:grid-cols-[220px_minmax(0,1fr)]` |
-| 2 | `frontend/src/components/layout/Sidebar.tsx` | Modifier | Ajouter prop `version?: string`, afficher à côté du titre |
-
-**Détail Sidebar :**
-- Nouvelle prop : `version?: string`.
-- Dans le bloc branding (lignes 17-19), remplacer :
-  ```tsx
-  <p className="text-lg font-semibold tracking-tight">CourseScope</p>
-  ```
-  par :
-  ```tsx
-  <p className="text-lg font-semibold tracking-tight">
-    CourseScope
-    {version ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">v{version}</span> : null}
-  </p>
-  ```
-- `AppShell.tsx` doit fournir la version. Ajouter un `useQuery` sur `metaApi.root()` dans AppShell (déjà `'use client'`) et passer `version={versionQuery.data?.version}` à `<Sidebar>`.
-
-**Note sur l'import `metaApi`** : `AppShell.tsx` devra importer `metaApi` depuis `@/lib/api` et `useQuery` depuis `@tanstack/react-query`.
-
-#### 5.1.4 Jauge VO2 max — Fichier à modifier
-
-| # | Fichier | Action | Détail |
-|---|---------|--------|--------|
-| 1 | `frontend/src/app/page.tsx` | Modifier | Lignes 86-87 : corriger la conversion angle CSS → coordonnées écran |
-
-**Correction exacte :**
-
-Remplacer (lignes 86-87) :
-```tsx
-const x = center + Math.cos(rad) * radius;
-const y = center + Math.sin(rad) * radius;
-```
-Par :
-```tsx
-const x = center + Math.sin(rad) * radius;
-const y = center - Math.cos(rad) * radius;
-```
-
-**Justification mathématique :** L'angle `-140 + ratio * 280` est en convention CSS (0° = haut du cercle, sens horaire). La conversion en coordonnées écran (x croissant vers la droite, y croissant vers le bas) est : `x = center + sin(θ) × radius`, `y = center - cos(θ) × radius`.
-
-Vérification pour angle = 0° (haut du cercle, ratio = 0.5, VO2 ≈ 46) :
-- `x = 70 + sin(0) × 58 = 70` (centre horizontal) ✓
-- `y = 70 - cos(0) × 58 = 12` (proche du haut) ✓
-
-### 5.2 Backend
-
-#### 5.2.1 Endpoint `GET /progress/calendar`
-
-**Fichier** : `backend/api/routes/progress.py`
-
-**Ajouter** après les endpoints existants (après `/progress/session-taxonomy` ou en fin de fichier) :
+#### 5.1.1 `ProgressActivityZone`
 
 ```python
-@router.get("/progress/calendar")
-async def get_calendar(
-    request: Request,
-    year: int = Query(..., ge=2000, le=2100),
-):
-    """Données de heatmap calendrier pour une année donnée."""
+class ProgressActivityZone(Base):
+    __tablename__ = "progress_activity_zones"
+    __table_args__ = (
+        Index("ix_zones_activity_type", "activity_id", "zone_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    activity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    zone_type: Mapped[str] = mapped_column(String(32), nullable=False)  # 'heart_rate', 'pace', 'power'
+    zone_name: Mapped[str] = mapped_column(String(16), nullable=False)  # 'Z1', 'Z2', ...
+    range_low: Mapped[float | None] = mapped_column(Float, nullable=True)
+    range_high: Mapped[float | None] = mapped_column(Float, nullable=True)
+    time_s: Mapped[float] = mapped_column(Float, nullable=False)
+    time_pct: Mapped[float] = mapped_column(Float, nullable=False)
 ```
 
-**Logique** :
-1. Récupérer `db_session_factory` depuis `request.app.state`.
-2. Appeler `ProgressRepository.list_activity_rows()` avec `from_ts_utc=f"{year}-01-01T00:00:00Z"`, `to_ts_utc=f"{year}-12-31T23:59:59Z"`, `activity_type="real"`, `limit=None`.
-3. Agréger par jour (clé = `start_ts_utc[:10]`) : somme `distance_m` → `distance_km`, somme `moving_time_s`, compteur `activity_count`.
-4. Calculer les streaks via `_compute_streaks(active_dates, today_iso)`.
-5. Retourner `{ days, year, total_active_days, longest_streak, current_streak }`.
-
-**Fonction helper `_compute_streaks`** : définie comme fonction privée dans le module. Calcule la plus longue série de jours consécutifs actifs et la série en cours (en remontant depuis aujourd'hui).
-
-**Dépendances déjà satisfaites** : `ProgressRepository`, `list_activity_rows`, `datetime`, `timedelta`, `timezone`, `math` — tous déjà importés.
-
-#### 5.2.2 Endpoint `GET /progress/training-load`
-
-**Fichier** : `backend/api/routes/progress.py`
-
-**Ajouter** après les endpoints existants :
+#### 5.1.2 `ProgressActivitySplit`
 
 ```python
-@router.get("/progress/training-load")
-async def get_training_load(
-    request: Request,
-    from_ts: str | None = Query(None, alias="from"),
-    to_ts: str | None = Query(None, alias="to"),
-):
-    """ACWR, monotonie d'entraînement, et strain à partir de la série TRIMP."""
+class ProgressActivitySplit(Base):
+    __tablename__ = "progress_activity_splits"
+    __table_args__ = (
+        Index("ix_splits_activity", "activity_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    activity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    split_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False)
+    time_s: Mapped[float] = mapped_column(Float, nullable=False)
+    pace_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    elevation_gain_m: Mapped[float | None] = mapped_column(Float, nullable=True)
 ```
 
-**Logique** :
-1. Récupérer `db_session_factory`.
-2. Parser `from_ts`/`to_ts` via `_parse_ts_utc()`.
-3. Appeler `ProgressRepository.list_series_rows(metric="trimp", ...)`.
-4. Bucketer TRIMP par jour.
-5. Pour chaque jour, calculer :
-   - **Charge aiguë (7j)** : moyenne glissante sur 7 jours.
-   - **Charge chronique (42j)** : moyenne glissante sur 42 jours (si ≥7 jours disponibles).
-   - **ACWR** : aiguë / chronique.
-   - **Monotonie (7j)** : moyenne / écart-type (si ≥3 valeurs, écart-type > 0).
-   - **Strain (7j)** : somme TRIMP × monotonie.
-6. Déterminer `risk_zone` à partir de l'ACWR le plus récent (<0.8 → "low", 0.8-1.3 → "moderate", ≥1.3 → "high").
-7. Retourner `{ points, current_acwr, current_monotony, current_strain, risk_zone }`.
+#### 5.1.3 `ProgressActivityClimb`
 
-**Dépendances déjà satisfaites** : `ProgressRepository`, `list_series_rows`, `_parse_ts_utc`, `math.sqrt`, `math.isfinite`.
+```python
+class ProgressActivityClimb(Base):
+    __tablename__ = "progress_activity_climbs"
+    __table_args__ = (
+        Index("ix_climbs_activity", "activity_id"),
+    )
 
-#### 5.2.3 Compatibilité API
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    activity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False)
+    elevation_gain_m: Mapped[float] = mapped_column(Float, nullable=False)
+    avg_grade_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pace_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    vam_m_h: Mapped[float | None] = mapped_column(Float, nullable=True)
+    start_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    end_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+```
 
-Les deux nouveaux endpoints doivent être accessibles via `/progress/calendar` ET `/api/progress/calendar` (idem pour training-load). La règle de compatibilité `/xxx` et `/api/xxx` est gérée par le montage du router FastAPI et le proxy Next.js — aucune action supplémentaire n'est requise.
+#### 5.1.4 `ProgressDailyAggregate` (P2)
 
-### 5.3 Données et métriques
+```python
+class ProgressDailyAggregate(Base):
+    __tablename__ = "progress_daily_aggregates"
 
-| Champ | Unité | Null possible ? | Fallback |
-|-------|-------|-----------------|----------|
-| `CalendarDay.distance_km` | km | Oui (si pas d'activité) | `null` |
-| `CalendarDay.moving_time_s` | secondes | Oui | `null` |
-| `CalendarResponse.total_active_days` | jours (entier) | Non | — |
-| `CalendarResponse.longest_streak` | jours (entier) | Non (min 0) | — |
-| `TrainingLoadPoint.acute_load_7d` | TRIMP/jour | Non (arrondi 1 décimale) | — |
-| `TrainingLoadPoint.chronic_load_42d` | TRIMP/jour | Oui (si <7j de données) | `null` |
-| `TrainingLoadPoint.acwr` | ratio | Oui (si chronique ≤0) | `null` |
-| `TrainingLoadPoint.monotony_7d` | ratio | Oui (si écart-type ≤0) | `null` |
-| `TrainingLoadPoint.strain_7d` | TRIMP | Oui (si monotonie nulle) | `null` |
+    date_utc: Mapped[str] = mapped_column(String(16), primary_key=True)  # YYYY-MM-DD
+    distance_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    moving_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    elapsed_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    elevation_gain_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trimp: Mapped[float | None] = mapped_column(Float, nullable=True)
+    activity_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    computed_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+```
 
-### 5.4 Documentation
+### 5.2 Colonnes à ajouter à `ProgressActivityIndex` (P2)
 
-La documentation suivante devra être mise à jour (après implémentation, si demandé) :
-- `docs/metrics_catalog.md` : ajouter Calendrier et Training Load.
-- `docs/metrics_catalog.md` : ajouter les nouveaux endpoints.
+Dans `models.py`, ajouter après les colonnes existantes de `ProgressActivityIndex` :
 
-**Justification** : nouvelles métriques exposées par l'API → documentation nécessaire. Mais selon `AGENTS.md` §5.6, ne pas modifier sans demande explicite. L'agent-dev devra confirmer avant de toucher à la documentation.
+```python
+elevation_loss_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+pace_first_half_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+pace_second_half_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+power_normalized_w: Mapped[float | None] = mapped_column(Float, nullable=True)
+power_intensity_factor: Mapped[float | None] = mapped_column(Float, nullable=True)
+power_tss: Mapped[float | None] = mapped_column(Float, nullable=True)
+cadence_mean_spm: Mapped[float | None] = mapped_column(Float, nullable=True)
+cadence_max_spm: Mapped[float | None] = mapped_column(Float, nullable=True)
+```
+
+### 5.3 Suppression de `cardiac_drift_pct` (P1)
+
+Dans `models.py`, supprimer la ligne :
+
+```python
+cardiac_drift_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+```
+
+**Note SQLite** : `DROP COLUMN` supporté depuis SQLite 3.35.0 (mars 2021). Stratégie :
+1. Supprimer du modèle ORM
+2. Dans `session.py`, tenter `ALTER TABLE ... DROP COLUMN cardiac_drift_pct` avec try/except
+3. La colonne physique peut persister dans d'anciennes bases — documenté dans `base-sqlite.md`
+
+### 5.4 Nouveaux index (P2, P3)
+
+Dans les `__table_args__` des classes existantes :
+
+```python
+# ActivitySource (P2)
+Index("ix_activity_sources_activity_id", "activity_id"),
+
+# ProgressActivityIndex (P3)
+Index("ix_progress_activity_type", "activity_type"),
+
+# ProgressActivityTag (P3)
+Index("ix_progress_tags_source", "source"),
+```
+
+### 5.5 Migrations (`session.py`)
+
+Dans `init_db()`, ajouter :
+
+- **Nouvelles tables** : `Base.metadata.create_all()` les crée automatiquement.
+- **Nouvelles colonnes** : 8 blocs `PRAGMA table_info(progress_activity_index)` + `ALTER TABLE ADD COLUMN` (pattern lignes 82-91 existantes).
+- **Suppression `cardiac_drift_pct`** : `ALTER TABLE progress_activity_index DROP COLUMN cardiac_drift_pct` avec try/except.
+- **Nouveaux index** : `CREATE INDEX IF NOT EXISTS` pour chaque index.
+
+### 5.6 Nouvelles méthodes `ProgressRepository` (P1, P2)
+
+Fichier : `backend/db/progress_repository.py`
+
+```python
+from .models import ProgressActivityZone, ProgressActivitySplit, ProgressActivityClimb, ProgressDailyAggregate
+
+def replace_activity_zones(self, session, *, activity_id, zone_type, zones):
+    session.execute(
+        delete(ProgressActivityZone)
+        .where(ProgressActivityZone.activity_id == activity_id)
+        .where(ProgressActivityZone.zone_type == zone_type)
+    )
+    for z in zones:
+        session.add(z)
+
+def replace_activity_splits(self, session, *, activity_id, splits):
+    session.execute(delete(ProgressActivitySplit).where(ProgressActivitySplit.activity_id == activity_id))
+    for s in splits:
+        session.add(s)
+
+def replace_activity_climbs(self, session, *, activity_id, climbs):
+    session.execute(delete(ProgressActivityClimb).where(ProgressActivityClimb.activity_id == activity_id))
+    for c in climbs:
+        session.add(c)
+
+def upsert_daily_aggregate(self, session, *, row):
+    existing = session.get(ProgressDailyAggregate, row.date_utc)
+    if existing is None:
+        session.add(row)
+    else:
+        for key, value in row.__dict__.items():
+            if key.startswith("_"):
+                continue
+            setattr(existing, key, value)
+```
+
+### 5.7 Peuplement dans `indexer.py:index_activity()` (P1, P2)
+
+Fichier : `backend/progress/indexer.py`
+
+#### 5.7.1 Zones (P1)
+
+Ajouter après le bloc best-efforts existant (~ligne 454) :
+
+```python
+# Zones HR, pace, power
+zones_data = garmin.get("zones") if isinstance(garmin, dict) else None
+if isinstance(zones_data, dict):
+    for zone_type in ("heart_rate", "pace", "power"):
+        zone_df = zones_data.get(zone_type)
+        if zone_df is None:
+            continue
+        zone_rows = []
+        if hasattr(zone_df, "iterrows"):
+            for _, zrow in zone_df.iterrows():
+                range_low = _finite_or_none(zrow.get("range_low")) if "range_low" in zone_df.columns else None
+                range_high = _finite_or_none(zrow.get("range_high")) if "range_high" in zone_df.columns else None
+                zone_rows.append(ProgressActivityZone(
+                    activity_id=activity_id,
+                    zone_type=str(zone_type),
+                    zone_name=str(zrow.get("zone") or ""),
+                    range_low=range_low,
+                    range_high=range_high,
+                    time_s=float(zrow.get("time_s") or 0),
+                    time_pct=float(zrow.get("time_pct") or 0),
+                ))
+        repo.replace_activity_zones(session, activity_id=activity_id, zone_type=str(zone_type), zones=zone_rows)
+```
+
+**⚠️** : Inspecter `metrics.py:_build_zone_table()` avant — les colonnes peuvent être `range` (string "X-Y") au lieu de `range_low`/`range_high`.
+
+#### 5.7.2 Splits (P1)
+
+```python
+from core.real_run_analysis import compute_splits
+
+splits_df = compute_splits(df, total_distance_m=distance_m)
+split_rows = []
+if splits_df is not None and not splits_df.empty:
+    for _, srow in splits_df.iterrows():
+        split_rows.append(ProgressActivitySplit(
+            activity_id=activity_id,
+            split_index=int(srow.get("split_index") or 0),
+            distance_km=float(srow.get("distance_km") or 0),
+            time_s=float(srow.get("time_s") or 0),
+            pace_s_per_km=_finite_or_none(srow.get("pace_s_per_km")),
+            elevation_gain_m=_finite_or_none(srow.get("elevation_gain_m")),
+        ))
+repo.replace_activity_splits(session, activity_id=activity_id, splits=split_rows)
+```
+
+#### 5.7.3 Climbs (P1)
+
+```python
+from core.real_run_analysis import compute_climbs
+
+climbs_list = compute_climbs(df)
+climb_rows = []
+if climbs_list:
+    for c in climbs_list:
+        if not isinstance(c, dict):
+            continue
+        climb_rows.append(ProgressActivityClimb(
+            activity_id=activity_id,
+            distance_km=float(c.get("distance_km") or 0),
+            elevation_gain_m=float(c.get("elevation_gain_m") or 0),
+            avg_grade_percent=_finite_or_none(c.get("avg_grade_percent")),
+            pace_s_per_km=_finite_or_none(c.get("pace_s_per_km")),
+            vam_m_h=_finite_or_none(c.get("vam_m_h")),
+            start_km=_finite_or_none(c.get("start_km")),
+            end_km=_finite_or_none(c.get("end_km")),
+            duration_s=_finite_or_none(c.get("duration_s")),
+        ))
+repo.replace_activity_climbs(session, activity_id=activity_id, climbs=climb_rows)
+```
+
+#### 5.7.4 Best efforts HR et power (P1)
+
+```python
+# Best efforts HR
+if has_hr:
+    best_hr = compute_best_efforts_by_duration(df, durations_s=durations_s, metric="heart_rate")
+    hr_points = []
+    if best_hr is not None and not best_hr.empty:
+        for _, r in best_hr.iterrows():
+            dur = int(r.get("duration_s") or 0)
+            val = _finite_or_none(r.get("heart_rate"))
+            if dur <= 0 or val is None:
+                continue
+            hr_points.append(ProgressBestEffortPoint(
+                activity_id=activity_id, start_ts_utc=start_ts_utc,
+                effort_kind="hr_bpm", duration_s=dur, value=float(val),
+            ))
+    repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="hr_bpm", points=hr_points)
+
+# Best efforts power
+if has_power:
+    best_power = compute_best_efforts_by_duration(df, durations_s=durations_s, metric="power")
+    power_points = []
+    if best_power is not None and not best_power.empty:
+        for _, r in best_power.iterrows():
+            dur = int(r.get("duration_s") or 0)
+            val = _finite_or_none(r.get("power"))
+            if dur <= 0 or val is None:
+                continue
+            power_points.append(ProgressBestEffortPoint(
+                activity_id=activity_id, start_ts_utc=start_ts_utc,
+                effort_kind="power_w", duration_s=dur, value=float(val),
+            ))
+    repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="power_w", points=power_points)
+```
+
+**⚠️** : Vérifier que `compute_best_efforts_by_duration()` accepte `metric="heart_rate"` et `metric="power"`. Si non, adapter la fonction.
+
+#### 5.7.5 Nettoyage `cardiac_drift_pct` (P1)
+
+Dans `index_activity()`, supprimer la variable locale `cardiac_drift_pct` et l'assignation dans le constructeur. Renommer directement :
+
+```python
+decoupling_pct = _finite_or_none(pacing.get("cardiac_drift_pct"))
+```
+
+Ne garder que `decoupling_pct=decoupling_pct` dans le constructeur `ProgressActivityIndex(...)`.
+
+#### 5.7.6 Nouvelles colonnes `progress_activity_index` (P2)
+
+Extraire après les métriques existantes dans `index_activity()` :
+
+```python
+elevation_loss_m = _finite_or_none(summary.get("elevation_loss_m"))
+pace_first_half = _finite_or_none(pacing.get("pace_first_half_s_per_km"))
+pace_second_half = _finite_or_none(pacing.get("pace_second_half_s_per_km"))
+
+power_data = garmin.get("power_advanced") if isinstance(garmin, dict) else None
+power_np = _finite_or_none(power_data.get("normalized_power_w")) if isinstance(power_data, dict) else None
+power_if = _finite_or_none(power_data.get("intensity_factor")) if isinstance(power_data, dict) else None
+power_tss_val = _finite_or_none(power_data.get("tss")) if isinstance(power_data, dict) else None
+
+cadence_data = garmin.get("cadence") if isinstance(garmin, dict) else None
+cadence_mean = _finite_or_none(cadence_data.get("mean_spm")) if isinstance(cadence_data, dict) else None
+cadence_max = _finite_or_none(cadence_data.get("max_spm")) if isinstance(cadence_data, dict) else None
+```
+
+Ajouter ces variables dans les kwargs du constructeur `ProgressActivityIndex(...)`.
+
+### 5.8 Agrégats journaliers (P2)
+
+Dans `backend/progress/indexer.py` (ou nouveau `backend/progress/daily_aggregator.py`) :
+
+```python
+def recompute_daily_aggregates(session: Session) -> None:
+    from db.models import ProgressDailyAggregate, utc_now_iso
+    from sqlalchemy import func
+
+    repo = ProgressRepository()
+    stmt = (
+        select(
+            func.substr(ProgressActivityIndex.start_ts_utc, 1, 10).label("date_utc"),
+            func.sum(ProgressActivityIndex.distance_m).label("distance_m"),
+            func.sum(ProgressActivityIndex.moving_time_s).label("moving_time_s"),
+            func.sum(ProgressActivityIndex.elapsed_time_s).label("elapsed_time_s"),
+            func.sum(ProgressActivityIndex.elevation_gain_m).label("elevation_gain_m"),
+            func.sum(ProgressActivityIndex.trimp).label("trimp"),
+            func.count(ProgressActivityIndex.activity_id).label("activity_count"),
+        )
+        .where(ProgressActivityIndex.activity_type == "real")
+        .group_by(func.substr(ProgressActivityIndex.start_ts_utc, 1, 10))
+    )
+    rows = session.execute(stmt).all()
+    now = utc_now_iso()
+    for r in rows:
+        repo.upsert_daily_aggregate(session, row=ProgressDailyAggregate(
+            date_utc=str(r.date_utc),
+            distance_m=float(r.distance_m) if r.distance_m else None,
+            moving_time_s=float(r.moving_time_s) if r.moving_time_s else None,
+            elapsed_time_s=float(r.elapsed_time_s) if r.elapsed_time_s else None,
+            elevation_gain_m=float(r.elevation_gain_m) if r.elevation_gain_m else None,
+            trimp=float(r.trimp) if r.trimp else None,
+            activity_count=int(r.activity_count or 0),
+            computed_at_utc=now,
+        ))
+```
+
+Appeler `recompute_daily_aggregates(session)` à la fin de l'indexation lente (dans `indexation_runner.py`, phase post-processing).
+
+### 5.9 Cache `InMemoryCache` pour `/activity/{id}/real` (P2)
+
+Fichier : `backend/api/routes/analysis.py`
+
+```python
+from services.cache import InMemoryCache, make_cache_key
+
+real_activity_cache = InMemoryCache(max_items=256)
+CACHE_VERSION = "2"
+
+@router.get("/activity/{id}/real")
+async def get_real_activity(request: Request, id: str):
+    # ... code existant pour récupérer settings, etc.
+    
+    # Cache
+    hr_max = ...  # hr max effectif (détecté ou manuel)
+    cache_key = make_cache_key(
+        namespace="real_activity",
+        version=CACHE_VERSION,
+        payload={"activity_id": id, "hr_max": hr_max},
+    )
+    cached = real_activity_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
+    # ... calcul existant
+    result = ...
+    real_activity_cache.set(cache_key, result, ttl_s=60)
+    return result
+```
+
+### 5.10 Documentation `metrics_catalog.md` (P3)
+
+Ajouter les sections pour les endpoints non documentés (audit §3.2) :
+- CRUD activities, traces, goals
+- Settings (GET, PATCH, hr-max-detected)
+- Garmin (6 endpoints)
+- Progress/index (fast, slow, status), training-load, calendar
+- Geo/cities, `/`, `/health`, real-bins
+
+Format : tableaux markdown avec Path, Type, Unit, Description — cohérent avec l'existant.
+
+### 5.11 Extraction laps Garmin FIT (P3)
+
+- **Fichier** : `backend/core/parsing/` — parser les messages `lap` FIT
+- **Table optionnelle** : `activity_laps` (modèle fourni en annexe si nécessaire)
+- **Peuplement** : dans `indexer.py`, lors de l'indexation lente
+
+Si la complexité est trop élevée, limiter à l'extraction sans créer la table.
+
+### 5.12 Mise à jour `docs/base-sqlite.md` (tâche finale)
+
+Mettre à jour les sections :
+- §2 : ajouter les 4 nouvelles tables
+- §2.8.1 : documenter les 8 nouvelles colonnes
+- §2.8.2 : documenter les nouveaux `effort_kind`
+- §4 : noter la suppression de `cardiac_drift_pct`
+- §6 : ajouter les nouvelles migrations
+- §12 : ajouter les nouveaux index
 
 ## 6. Plan d'implémentation pour agent-dev
 
-### Étape 1 — Backend : endpoint `/progress/calendar`
+**Ordre** : P1 (étapes 1-5, parallélisables) → P2 (6-10) → P3 (11-13) → Tâche finale (14).
 
-- **Objectif** : Ajouter l'endpoint GET `/progress/calendar?year=YYYY` avec calcul des streaks.
-- **Fichier** : `backend/api/routes/progress.py`
-- **Détails** : Ajouter la fonction helper `_compute_streaks` et le handler `get_calendar` (cf. `docs/calendrier-implementation.md` §3.1).
-- **Tests** : Vérifier avec `curl "http://127.0.0.1:8000/progress/calendar?year=2026"`. Lancer `python -m compileall backend`.
-- **Risques** : Aucun. Lecture seule sur table existante, pas de migration.
+### Étape 1 — P1 : Modèles ORM pour les 3 nouvelles tables
 
-### Étape 2 — Backend : endpoint `/progress/training-load`
+- **Fichier** : `backend/db/models.py`
+- **Action** : Ajouter `ProgressActivityZone`, `ProgressActivitySplit`, `ProgressActivityClimb`
+- **Vérification** : `python -m compileall backend`
 
-- **Objectif** : Ajouter l'endpoint GET `/progress/training-load?from=&to=` avec calcul ACWR/Monotonie/Strain.
-- **Fichier** : `backend/api/routes/progress.py`
-- **Détails** : Ajouter le handler `get_training_load` (cf. `docs/charge-entrainement-implementation.md` §3.1).
-- **Tests** : `curl "http://127.0.0.1:8000/progress/training-load"`. Lancer `python -m compileall backend`.
-- **Risques** : Si `ProgressSeriesRow` n'a pas `.value` et `.start_ts_utc` comme supposé, vérifier la structure réelle et adapter.
+### Étape 2 — P1 : Nouvelles méthodes `ProgressRepository`
 
-### Étape 3 — Frontend : types API + méthode API + hooks (Calendrier)
+- **Fichier** : `backend/db/progress_repository.py`
+- **Action** : Ajouter `replace_activity_zones()`, `replace_activity_splits()`, `replace_activity_climbs()`
+- **Vérification** : `python -m compileall backend`
 
-- **Objectif** : Ajouter les types, la méthode API et le hook React Query pour le calendrier.
-- **Fichiers** : `frontend/src/types/api.ts`, `frontend/src/lib/api.ts`, `frontend/src/hooks/useProgress.ts`
-- **Détails** : 
-  - Types `CalendarDay` et `CalendarResponse` en fin de `api.ts`.
-  - `progressApi.calendar(year)` dans `lib/api.ts`.
-  - `progressKeys.calendar(year)` + `useCalendar(year)` dans `useProgress.ts`.
-- **Tests** : `cd frontend && npm run build`.
-- **Risques** : Aucun. Ajouts incrémentaux.
+### Étape 3 — P1 : Peuplement zones, splits, climbs dans `index_activity()`
 
-### Étape 4 — Frontend : types API + méthode API + hooks (Training Load)
+- **Fichier** : `backend/progress/indexer.py`
+- **Action** : Ajouter extraction et persistance (cf. §5.7.1-5.7.3). Incrémenter `METRICS_VERSION` (6 → 7).
+- **⚠️** : Inspecter `_build_zone_table()`, `compute_splits()`, `compute_climbs()` avant le mapping.
+- **Vérification** : `python -m compileall backend`, indexation lente, `SELECT COUNT(*)` sur les nouvelles tables.
 
-- **Objectif** : Ajouter les types, la méthode API et le hook pour la charge d'entraînement.
-- **Fichiers** : `frontend/src/types/api.ts`, `frontend/src/lib/api.ts`, `frontend/src/hooks/useProgress.ts`
-- **Détails** :
-  - Types `TrainingLoadPoint` et `TrainingLoadResponse`.
-  - `progressApi.trainingLoad(params)`.
-  - `progressKeys.trainingLoad()`, `progressKeys.trainingLoadQuery(params)`, `useTrainingLoad(params)`.
-- **Tests** : `cd frontend && npm run build`.
-- **Risques** : Aucun.
+### Étape 4 — P1 : Best efforts HR et power
 
-### Étape 5 — Frontend : composant CalendarHeatmap.tsx
+- **Fichier** : `backend/progress/indexer.py`
+- **Action** : Ajouter §5.7.4. Vérifier `compute_best_efforts_by_duration()` avant.
+- **Vérification** : `SELECT DISTINCT effort_kind FROM progress_best_effort_points`
 
-- **Objectif** : Créer le composant CalendarHeatmap avec heatmap, KPIs, sélecteur d'année.
-- **Fichier** : `frontend/src/components/features/progress/CalendarHeatmap.tsx` (créer)
-- **Détails** : Implémenter selon `docs/calendrier-implementation.md` §4.4. Gérer les états loading/error/empty.
-- **Tests** : `cd frontend && npm test && npm run build`.
-- **Risques** : Si le dossier `features/progress/` n'existe pas, le créer.
+### Étape 5 — P1 : Supprimer `cardiac_drift_pct`
 
-### Étape 6 — Frontend : composant TrainingLoadChart.tsx
+- **Fichiers** : `backend/db/models.py`, `backend/db/session.py`, `backend/progress/indexer.py`
+- **Action** : Supprimer colonne du modèle. Tenter `DROP COLUMN` dans `session.py`. Nettoyer `indexer.py` (cf. §5.7.5).
+- **⚠️** : `grep -r cardiac_drift_pct backend/` pour vérifier l'absence de références.
+- **Vérification** : `python -m compileall backend`
 
-- **Objectif** : Créer le composant TrainingLoadChart avec KPIs, graphique ACWR, badge risque.
-- **Fichier** : `frontend/src/components/features/progress/TrainingLoadChart.tsx` (créer)
-- **Détails** : Implémenter selon `docs/charge-entrainement-implementation.md` §4.4. Gérer les états loading/error/empty.
-- **Tests** : `cd frontend && npm test && npm run build`.
-- **Risques** : `finiteNumber` est dupliquée dans le composant (déjà présente dans `page.tsx`). Acceptable pour ce scope.
+### Étape 6 — P2 : Modèle + repo `ProgressDailyAggregate`
 
-### Étape 7 — Frontend : intégration dans la page /progress
+- **Fichiers** : `backend/db/models.py`, `backend/db/progress_repository.py`
+- **Action** : Ajouter modèle et `upsert_daily_aggregate()`
+- **Vérification** : `python -m compileall backend`
 
-- **Objectif** : Insérer `<CalendarHeatmap />` après Volume hebdo, `<TrainingLoadChart />` après Charge TRIMP.
-- **Fichier** : `frontend/src/app/progress/page.tsx`
-- **Détails** :
-  - Importer les deux composants.
-  - `<CalendarHeatmap />` après la fermeture `</Card>` du Volume hebdo (ligne 688).
-  - `<TrainingLoadChart />` après la fermeture `</Card>` du Charge TRIMP (ligne 727).
-- **Tests** : `cd frontend && npm test && npm run build`.
-- **Risques** : Vérifier que les imports n'entrent pas en conflit avec les imports existants.
+### Étape 7 — P2 : `recompute_daily_aggregates()` + appel dans le runner
 
-### Étape 8 — Frontend : réduction sidebar + version
+- **Fichiers** : `backend/progress/indexer.py` (ou `daily_aggregator.py`), `backend/progress/indexation_runner.py`
+- **Action** : Implémenter §5.8. Appeler en fin d'indexation lente.
+- **Vérification** : Indexation lente, `SELECT * FROM progress_daily_aggregates`
 
-- **Objectif** : Réduire la largeur sidebar à 220px et afficher la version.
-- **Fichiers** : `frontend/src/components/layout/AppShell.tsx`, `frontend/src/components/layout/Sidebar.tsx`
-- **Détails** :
-  - `AppShell.tsx` ligne 49 : `260px` → `220px`.
-  - `AppShell.tsx` : ajouter `useQuery` sur `metaApi.root()`, passer `version` à `<Sidebar>`.
-  - `Sidebar.tsx` : ajouter prop `version?: string`, afficher dans le bloc branding.
-- **Tests** : `cd frontend && npm run build`. Vérifier visuellement la sidebar.
-- **Risques** : La largeur 220px peut dégrader la lisibilité des libellés de navigation sur écrans étroits. Test recommandé.
+### Étape 8 — P2 : Cache `InMemoryCache` pour `/activity/{id}/real`
 
-### Étape 9 — Frontend : correction jauge VO2 max
+- **Fichier** : `backend/api/routes/analysis.py`
+- **Action** : Implémenter §5.9.
+- **Vérification** : 2 appels < 60s, second plus rapide.
 
-- **Objectif** : Corriger le positionnement du point sur la jauge VO2 max.
-- **Fichier** : `frontend/src/app/page.tsx`
-- **Détails** : Remplacer lignes 86-87 (cf. §5.1.4 ci-dessus).
-- **Tests** : `cd frontend && npm test && npm run build`. Vérifier visuellement avec différentes valeurs de VO2 max.
-- **Risques** : Aucun. Changement localisé de 2 lignes.
+### Étape 9 — P2 : Ajouter 8 colonnes à `progress_activity_index`
+
+- **Fichiers** : `backend/db/models.py`, `backend/db/session.py` (migrations), `backend/progress/indexer.py` (peuplement)
+- **Action** : Colonnes au modèle. Migrations `ALTER TABLE ADD COLUMN`. Extraction dans `index_activity()` (cf. §5.7.6).
+- **⚠️** : Vérifier les clés exactes dans le dict `compute_garmin_like_stats()`.
+- **Vérification** : `PRAGMA table_info(progress_activity_index)`, indexation lente.
+
+### Étape 10 — P2 : Index `activity_sources.activity_id`
+
+- **Fichiers** : `backend/db/models.py`, `backend/db/session.py`
+- **Action** : `Index(...)` + `CREATE INDEX IF NOT EXISTS`
+- **Vérification** : `PRAGMA index_list('activity_sources')`
+
+### Étape 11 — P3 : Index `progress_activity_index.activity_type` et `progress_activity_tags.source`
+
+- **Fichiers** : `backend/db/models.py`, `backend/db/session.py`
+- **Action** : Même pattern que l'étape 10.
+- **Vérification** : `PRAGMA index_list()` sur chaque table.
+
+### Étape 12 — P3 : Documenter endpoints dans `metrics_catalog.md`
+
+- **Fichier** : `docs/metrics_catalog.md`
+- **Action** : Ajouter sections pour ~30 endpoints manquants.
+- **Vérification** : Relecture manuelle.
+
+### Étape 13 — P3 : Extraction laps Garmin FIT
+
+- **Fichier** : `backend/core/parsing/` (+ optionnellement `models.py`, `indexer.py`)
+- **Action** : Parser les messages `lap`. Table `activity_laps` optionnelle.
+- **⚠️** : Si trop complexe, limiter à l'extraction sans persistance.
+
+### Étape 14 — Tâche finale : `docs/base-sqlite.md`
+
+- **Fichier** : `docs/base-sqlite.md`
+- **Action** : Mettre à jour §2, §2.8.1, §2.8.2, §4, §6, §12.
 
 ## 7. Tests et vérifications attendus
 
@@ -451,85 +665,91 @@ La documentation suivante devra être mise à jour (après implémentation, si d
 
 ```bash
 python -m compileall backend
-python -m pytest tests/pytest/ -x -q
 python -m pytest tests/unit/ -x -q
+python -m pytest tests/pytest/ -x -q
 ```
 
-Vérifications manuelles :
+Vérifications sqlite3 :
+
 ```bash
-curl "http://127.0.0.1:8000/progress/calendar?year=2026"
-curl "http://127.0.0.1:8000/progress/training-load"
-curl "http://127.0.0.1:8000/progress/training-load?from=2026-01-01&to=2026-06-30"
+sqlite3 data/coursescope.sqlite ".tables"
+sqlite3 data/coursescope.sqlite "PRAGMA table_info(progress_activity_index)"
+sqlite3 data/coursescope.sqlite "SELECT DISTINCT effort_kind FROM progress_best_effort_points"
+sqlite3 data/coursescope.sqlite "SELECT COUNT(*) FROM progress_activity_zones"
+sqlite3 data/coursescope.sqlite "SELECT COUNT(*) FROM progress_activity_splits"
+sqlite3 data/coursescope.sqlite "SELECT COUNT(*) FROM progress_activity_climbs"
+sqlite3 data/coursescope.sqlite "SELECT COUNT(*) FROM progress_daily_aggregates"
 ```
 
 ### Frontend
 
 ```bash
-cd frontend
-npm test
-npm run build
+cd frontend && npm run build
 ```
-
-Vérifications manuelles :
-- Page `/progress` : calendrier et charge d'entraînement apparaissent aux bonnes positions.
-- Page `/progress` : changer l'année du calendrier, changer la période du training load.
-- Page `/progress` : états loading/empty/error (tester sans données).
-- Page `/` : la jauge VO2 max affiche le point à la bonne position (tester avec différentes valeurs).
-- Sidebar desktop : largeur réduite, version affichée.
-- Sidebar mobile : drawer non impacté.
-- Toutes les pages : pas de régression UI.
 
 ## 8. Critères d'acceptation
 
-- [ ] L'endpoint `GET /progress/calendar?year=YYYY` retourne les données de heatmap avec streaks.
-- [ ] L'endpoint `GET /progress/training-load` retourne ACWR, monotonie, strain.
-- [ ] Le composant `CalendarHeatmap` s'affiche sous "Volume hebdo" dans `/progress` avec heatmap interactive.
-- [ ] Le composant `TrainingLoadChart` s'affiche sous "Charge (TRIMP) par semaine" dans `/progress` avec graphique ACWR.
-- [ ] Les deux composants gèrent les états loading, error, et empty.
-- [ ] La sidebar desktop fait 220px de large (contre 260px avant).
-- [ ] La version (ex: `v1.1.88`) est affichée à côté de "CourseScope" dans la sidebar, en `text-xs text-muted-foreground`.
-- [ ] La jauge VO2 max positionne son point correctement (pas toujours au max).
-- [ ] `npm run build` passe sans erreur.
-- [ ] `python -m compileall backend` passe sans erreur.
-- [ ] Aucune duplication de header/container dans les nouveaux composants.
-- [ ] Le drawer mobile fonctionne toujours.
-- [ ] Les endpoints sont accessibles en `/progress/calendar` et `/api/progress/calendar` (idem training-load).
+- [ ] `progress_activity_zones` créée et peuplée (HR, pace, power par activité)
+- [ ] `progress_activity_splits` créée et peuplée
+- [ ] `progress_activity_climbs` créée et peuplée
+- [ ] `progress_best_effort_points` contient `effort_kind IN ('pace_s_per_km', 'hr_bpm', 'power_w')`
+- [ ] `cardiac_drift_pct` n'est plus référencé dans le code
+- [ ] `InMemoryCache` actif pour `/activity/{id}/real` (TTL 60s)
+- [ ] `progress_activity_index` a 8 nouvelles colonnes
+- [ ] `progress_daily_aggregates` créée et peuplée
+- [ ] Index `activity_sources.activity_id` présent
+- [ ] Index `progress_activity_index.activity_type` présent
+- [ ] Index `progress_activity_tags.source` présent
+- [ ] `docs/metrics_catalog.md` documente les endpoints manquants
+- [ ] `docs/base-sqlite.md` reflète le nouveau schéma
+- [ ] `python -m compileall backend` passe
+- [ ] `python -m pytest tests/unit/ -x -q` passe
+- [ ] `cd frontend && npm run build` passe
+- [ ] Aucune régression sur les endpoints existants
+- [ ] `METRICS_VERSION` incrémenté à 7
 
 ## 9. Risques et garde-fous
 
-### Risque 1 — Structure de `ProgressSeriesRow`
-**Garde-fou** : Vérifier dans `progress_repository.py` que les rows retournées ont bien `.value` et `.start_ts_utc`. Si nom différent, adapter le code de l'endpoint training-load.
+### Risque 1 — Structure du DataFrame zones inconnue
+**Garde-fou** : Inspecter `_build_zone_table()` avant d'écrire le mapping. Les colonnes peuvent être `range` (string) au lieu de `range_low`/`range_high`.
 
-### Risque 2 — TRIMP non renseigné
-**Garde-fou** : L'indexation rapide est lancée automatiquement à l'ouverture de `/progress`. Si `trimp` est null pour toutes les activités, le graphique affichera "Pas de données de charge disponibles" — état géré.
+### Risque 2 — `compute_best_efforts_by_duration()` sans support HR/power
+**Garde-fou** : Lire la fonction. Si le paramètre `metric` n'existe pas, implémenter une approche alternative (rolling sur fenêtres).
 
-### Risque 3 — Sidebar à 220px et lisibilité
-**Garde-fou** : Les libellés de navigation français ("Page d'accueil", "Progression", "Traces GPX") sont testés à 220px. Si trop étroit, ajuster à 230px. Le `text-xs` du sous-titre peut être réduit à `text-[11px]` si nécessaire.
+### Risque 3 — Régressions dans l'indexation lente
+**Garde-fou** : Wrapper chaque nouveau bloc dans try/except. Une activité qui échoue ne bloque pas les autres.
 
-### Risque 4 — Régressions dans la page /progress
-**Garde-fou** : Les ajouts sont localisés (2 composants ajoutés après le contenu existant, pas de refacto). Les composants existants ne sont pas modifiés. Si un test échoue, vérifier que les nouveaux imports n'entrent pas en conflit.
+### Risque 4 — Cache invalidation
+**Garde-fou** : Clé inclut HR max effectif + TTL 60s. Suffisant pour usage local mono-utilisateur.
 
-### Risque 5 — Fuseau horaire dans le calendrier
-**Garde-fou** : Les dates sont en UTC (`start_ts_utc`). La heatmap utilise UTC pour éviter les décalages. Si l'utilisateur est en France (UTC+2), un run à 23h UTC apparaitra le jour J+1 en heure locale. Documenté mais acceptable pour une heatmap annuelle.
+### Risque 5 — Migration SQLite < 3.35
+**Garde-fou** : Toutes les migrations en try/except silencieux (pattern `session.py`). `DROP COLUMN` tenté avec fallback.
+
+### Risque 6 — Volume d'indexation lente
+**Garde-fou** : +2-5s/activité estimé. Background thread, pas de blocage UI. `METRICS_VERSION=7` force un seul recalcul complet.
+
+### Risque 7 — `METRICS_VERSION` et recalcul forcé
+**Garde-fou** : Incrément garantit le peuplement de toutes les nouvelles tables pour toutes les activités existantes.
 
 ## 10. Décisions prises par agent-brainstorm
 
-1. **Largeur sidebar arrondie à 220px** (au lieu de 221px exact) : 1px de différence est négligeable (0.4%), et 220px est plus propre en CSS.
-2. **Version affichée sur la même ligne que le titre** : "CourseScope v1.1.88" sur une ligne, sous-titre inchangé en dessous. Plus compact et suit l'esprit de la demande ("à la suite du titre").
-3. **Version récupérée via `useQuery` dans AppShell** : plutôt que de convertir Sidebar en composant client, on garde Sidebar simple et on passe la version en prop depuis AppShell (déjà `'use client'`).
-4. **Option A (ajout inline) pour les deux composants** : pas de refacto par onglets. La page `/progress` fait déjà 1200 lignes — un refacto par onglets est souhaitable mais hors scope. Les docs sources mentionnent cette option comme la plus simple.
-5. **`finiteNumber` dupliquée dans TrainingLoadChart** : plutôt que d'extraire dans un utilitaire partagé (refacto qui toucherait `page.tsx`), on duplique la fonction dans le nouveau composant. Cohérent avec le principe "changer le minimum nécessaire".
-6. **Pas de modification de `docs/`** : la mise à jour de `metrics_catalog.md` est laissée à l'appréciation de l'utilisateur après validation.
+1. **`cardiac_drift_pct` supprimé du modèle ORM** — colonne physique laissée si SQLite < 3.35. Documenté.
+2. **`METRICS_VERSION` 6 → 7** — force recalcul complet au prochain passage d'indexation lente.
+3. **Zones stockées par type** — une ligne par zone, filtrable via `zone_type`.
+4. **Peuplement UNIQUEMENT via indexation lente** — cohérent avec fast/slow.
+5. **Cache TTL 60s sans invalidation fine** — compromis acceptable pour usage local.
+6. **P4 non implémenté** — conforme à la demande utilisateur.
+7. **Extraction FIT laps limitée au parsing** — table `activity_laps` optionnelle si complexe.
+8. **Ordre P1 → P2 → P3 → final** — items P1 parallélisables entre eux.
 
 ## 11. Points à ne pas faire
 
-- **Ne pas refactorer `/progress` en onglets** : option B des docs sources. Hors scope, trop risqué pour cette itération.
-- **Ne pas modifier le drawer mobile** : sa largeur (`w-[18rem] max-w-[88vw]`) est indépendante de la sidebar desktop.
-- **Ne pas modifier `agents/modifications.txt`** : c'est le fichier d'entrée utilisateur.
-- **Ne pas modifier les endpoints existants** : `/progress/series`, `/progress/activities`, etc. restent inchangés.
-- **Ne pas ajouter de dépendance npm** : Recharts, TanStack Query, Tailwind sont déjà installés.
-- **Ne pas modifier la navigation (`nav.ts`)** : pas d'ajout de page.
-- **Ne pas modifier les métadonnées de page (`page-metadata.tsx`)** : la page `/progress` garde son title/subtitle/container actuels.
-- **Ne pas extraire `finiteNumber` dans un utilitaire partagé** : refacto hors scope, nécessiterait de modifier `page.tsx` existant.
-- **Ne pas modifier le comportement de l'indexation automatique** dans `/progress`.
-- **Ne pas changer les tokens de design** : les nouveaux composants utilisent `bg-card`, `text-muted-foreground`, `border`, etc.
+- **Ne pas modifier les endpoints API existants** — contrats inchangés.
+- **Ne pas toucher `progress_pace_hr_bins`** — hors scope.
+- **Ne pas modifier le frontend** — aucune modification UI.
+- **Ne pas implémenter P4** — pipeline, Redis, normalisation, gear.
+- **Ne pas faire de refactoring lourd** (`real_run_analysis.py`, `progress/page.tsx`).
+- **Ne pas modifier `agents/modifications.txt`**.
+- **Ne pas modifier `docs/audit_application.md`** ni traiter la redondance backend.
+- **Ne pas changer `effort_kind='pace_s_per_km'` existant**.
+- **Ne pas modifier l'indexation rapide** — elle reste strictement structurelle.

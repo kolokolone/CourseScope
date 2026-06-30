@@ -6,7 +6,16 @@ from typing import Iterable
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .models import ProgressActivityIndex, ProgressActivityTag, ProgressBestEffortPoint, ProgressPaceHrBin
+from .models import (
+    ProgressActivityIndex,
+    ProgressActivityTag,
+    ProgressBestEffortPoint,
+    ProgressPaceHrBin,
+    ProgressActivityZone,
+    ProgressActivitySplit,
+    ProgressActivityClimb,
+    ProgressDailyAggregate,
+)
 
 
 @dataclass(frozen=True)
@@ -240,6 +249,65 @@ class ProgressRepository:
             stmt = stmt.where(ProgressBestEffortPoint.start_ts_utc <= to_ts_utc)
         stmt = stmt.order_by(ProgressBestEffortPoint.start_ts_utc.asc())
         return list(session.execute(stmt).scalars().all())
+
+    def replace_activity_zones(
+        self,
+        session: Session,
+        *,
+        activity_id: str,
+        zone_type: str,
+        zones: Iterable[ProgressActivityZone],
+    ) -> None:
+        session.execute(
+            delete(ProgressActivityZone)
+            .where(ProgressActivityZone.activity_id == activity_id)
+            .where(ProgressActivityZone.zone_type == zone_type)
+        )
+        for z in zones:
+            session.add(z)
+
+    def replace_activity_splits(
+        self,
+        session: Session,
+        *,
+        activity_id: str,
+        splits: Iterable[ProgressActivitySplit],
+    ) -> None:
+        session.execute(
+            delete(ProgressActivitySplit)
+            .where(ProgressActivitySplit.activity_id == activity_id)
+        )
+        for s in splits:
+            session.add(s)
+
+    def replace_activity_climbs(
+        self,
+        session: Session,
+        *,
+        activity_id: str,
+        climbs: Iterable[ProgressActivityClimb],
+    ) -> None:
+        session.execute(
+            delete(ProgressActivityClimb)
+            .where(ProgressActivityClimb.activity_id == activity_id)
+        )
+        for c in climbs:
+            session.add(c)
+
+    def upsert_daily_aggregate(
+        self,
+        session: Session,
+        *,
+        row: ProgressDailyAggregate,
+    ) -> None:
+        existing = session.get(ProgressDailyAggregate, row.date_utc)
+        if existing is None:
+            session.add(row)
+            return
+        for key, value in row.__dict__.items():
+            if key.startswith("_"):
+                continue
+            setattr(existing, key, value)
 
     def list_pace_hr_rows(
         self,

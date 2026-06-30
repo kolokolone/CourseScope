@@ -89,6 +89,33 @@ def init_db(engine: Engine) -> None:
                     conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN fast_indexation_date TEXT"))
                 if "slow_indexation_date" not in progress_cols:
                     conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN slow_indexation_date TEXT"))
+                # P2: new columns (audit SQLite)
+                if "elevation_loss_m" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN elevation_loss_m REAL"))
+                if "pace_first_half_s_per_km" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN pace_first_half_s_per_km REAL"))
+                if "pace_second_half_s_per_km" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN pace_second_half_s_per_km REAL"))
+                if "power_normalized_w" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN power_normalized_w REAL"))
+                if "power_intensity_factor" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN power_intensity_factor REAL"))
+                if "power_tss" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN power_tss REAL"))
+                if "cadence_mean_spm" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN cadence_mean_spm REAL"))
+                if "cadence_max_spm" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN cadence_max_spm REAL"))
+                # P1: drop redundant column cardiac_drift_pct
+                try:
+                    conn.execute(text("ALTER TABLE progress_activity_index DROP COLUMN cardiac_drift_pct"))
+                except Exception:
+                    pass  # SQLite < 3.35, column will persist physically
+
+                # P2-P3: new indexes
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_activity_sources_activity_id ON activity_sources(activity_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_progress_activity_type ON progress_activity_index(activity_type)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_progress_tags_source ON progress_activity_tags(source)"))
     except Exception:
         # Best-effort: app should stay usable even if migrations fail.
         pass

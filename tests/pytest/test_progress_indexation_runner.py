@@ -103,7 +103,6 @@ def _add_progress_row(session, *, activity_id: str, fingerprint: str, metrics_ve
             trimp=40.0,
             training_load_method="edwards",
             decoupling_pct=4.0,
-            cardiac_drift_pct=4.0,
             stability_cv=0.08,
             stability_iqr_ratio=0.12,
             aerobic_efficiency_m_s_per_bpm=0.09,

@@ -8,16 +8,27 @@ from typing import Any
 
 import pandas as pd
 from sqlalchemy.orm import Session
+from sqlalchemy import func, select
 
 from core.metrics import compute_garmin_like_stats
-from core.real_run_analysis import compute_best_efforts_by_duration, compute_derived_series
+from core.real_run_analysis import compute_best_efforts_by_duration, compute_derived_series, compute_splits, compute_climbs
 from core.stats.basic_stats import compute_basic_stats
-from db.models import ProgressActivityIndex, ProgressActivityTag, ProgressBestEffortPoint, ProgressPaceHrBin, UserSettings
+from db.models import (
+    ProgressActivityIndex,
+    ProgressActivityTag,
+    ProgressBestEffortPoint,
+    ProgressPaceHrBin,
+    UserSettings,
+    ProgressActivityZone,
+    ProgressActivitySplit,
+    ProgressActivityClimb,
+    ProgressDailyAggregate,
+)
 from db.progress_repository import ProgressRepository
 from db.models import utc_now_iso
 
 
-METRICS_VERSION = 6
+METRICS_VERSION = 7
 
 
 def _parse_iso_datetime(value: object) -> datetime | None:
@@ -81,6 +92,70 @@ def _finite_or_none(value: object) -> float | None:
     if not math.isfinite(v):
         return None
     return v
+
+
+def _parse_zone_range(range_str: str) -> tuple[float | None, float | None]:
+    """Parse a zone range string like '60-70%' or '>= 90% FTP' into (low, high)."""
+    if not range_str:
+        return None, None
+    import re
+    # Matches patterns like: ">= 90%", "60-70%", "114-129% seuil", "0-55% FTP"
+    ge_match = re.match(r">=\s*(\d+(?:\.\d+)?)", range_str)
+    if ge_match:
+        low = float(ge_match.group(1))
+        return low, None
+    range_match = re.match(r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)", range_str)
+    if range_match:
+        low = float(range_match.group(1))
+        high = float(range_match.group(2))
+        return low, high
+    return None, None
+
+
+def _best_value_by_duration(
+    elapsed_s: "np.ndarray",  # type: ignore
+    values: "np.ndarray",      # type: ignore
+    durations_s: list[int],
+) -> "pd.DataFrame | None":
+    """Compute the best (max) average value over sliding windows of target durations."""
+    import numpy as np
+    if elapsed_s.size < 2 or values.size < 2:
+        return None
+    valid = np.isfinite(values) & np.isfinite(elapsed_s) & (elapsed_s >= 0)
+    if not valid.any():
+        return None
+    t = elapsed_s[valid]
+    v = values[valid]
+    if t.size < 2:
+        return None
+    # Ensure sorted by time
+    order = np.argsort(t)
+    t = t[order]
+    v = v[order]
+    results = []
+    for duration_s in durations_s:
+        best = None
+        left = 0
+        window_sum = 0.0
+        window_count = 0
+        for right in range(len(t)):
+            # Add new point
+            window_sum += float(v[right])
+            window_count += 1
+            # Shrink from left while window > target duration
+            while left < right and (t[right] - t[left]) > float(duration_s):
+                window_sum -= float(v[left])
+                window_count -= 1
+                left += 1
+            if window_count > 0:
+                avg = window_sum / float(window_count)
+                if best is None or avg > best:
+                    best = avg
+        if best is not None and math.isfinite(best):
+            results.append({"duration_s": float(duration_s), "value": float(best)})
+    if not results:
+        return None
+    return pd.DataFrame(results)
 
 
 def _extract_vo2max(df: pd.DataFrame) -> float | None:
@@ -330,12 +405,11 @@ def index_activity(
     training_load_method = training_load.get("method")
     training_load_method = str(training_load_method) if isinstance(training_load_method, str) and training_load_method else None
 
-    cardiac_drift_pct = _finite_or_none(pacing.get("cardiac_drift_pct"))
     stability_cv = _finite_or_none(pacing.get("stability_cv"))
     stability_iqr_ratio = _finite_or_none(pacing.get("stability_iqr_ratio"))
 
     # decoupling_pct is the UI-facing alias for cardiac drift.
-    decoupling_pct = cardiac_drift_pct
+    decoupling_pct = _finite_or_none(pacing.get("cardiac_drift_pct"))
 
     aerobic_efficiency = None
     if (
@@ -354,6 +428,20 @@ def index_activity(
     has_cadence = 1 if ("cadence" in df.columns and bool(df["cadence"].notna().any())) else 0
     data_points = int(len(df))
     vo2max = _extract_vo2max(df)
+
+    # New columns (P2)
+    elevation_loss_m = _finite_or_none(summary.get("elevation_loss_m"))
+    pace_first_half = _finite_or_none(pacing.get("pace_first_half_s_per_km"))
+    pace_second_half = _finite_or_none(pacing.get("pace_second_half_s_per_km"))
+
+    power_data = garmin.get("power_advanced") if isinstance(garmin, dict) else None
+    power_np = _finite_or_none(power_data.get("normalized_power_w")) if isinstance(power_data, dict) else None
+    power_if = _finite_or_none(power_data.get("intensity_factor")) if isinstance(power_data, dict) else None
+    power_tss_val = _finite_or_none(power_data.get("tss")) if isinstance(power_data, dict) else None
+
+    cadence_data = garmin.get("cadence") if isinstance(garmin, dict) else None
+    cadence_mean = _finite_or_none(cadence_data.get("mean_spm")) if isinstance(cadence_data, dict) else None
+    cadence_max = _finite_or_none(cadence_data.get("max_spm")) if isinstance(cadence_data, dict) else None
 
     fingerprint = build_fingerprint(meta, parquet_path)
     indexed_at_ts = utc_now_iso()
@@ -380,7 +468,6 @@ def index_activity(
         trimp=trimp,
         training_load_method=training_load_method,
         decoupling_pct=decoupling_pct,
-        cardiac_drift_pct=cardiac_drift_pct,
         stability_cv=stability_cv,
         stability_iqr_ratio=stability_iqr_ratio,
         aerobic_efficiency_m_s_per_bpm=aerobic_efficiency,
@@ -389,6 +476,14 @@ def index_activity(
         has_power=has_power,
         has_cadence=has_cadence,
         data_points=data_points,
+        elevation_loss_m=elevation_loss_m,
+        pace_first_half_s_per_km=pace_first_half,
+        pace_second_half_s_per_km=pace_second_half,
+        power_normalized_w=power_np,
+        power_intensity_factor=power_if,
+        power_tss=power_tss_val,
+        cadence_mean_spm=cadence_mean,
+        cadence_max_spm=cadence_max,
     )
     repo.upsert_activity_index(session, row)
 
@@ -453,6 +548,146 @@ def index_activity(
             )
     repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="pace_s_per_km", points=points)
 
+    # Best-efforts HR
+    if has_hr and "heart_rate" in df.columns:
+        try:
+            elapsed_h = df.get("elapsed_time_s")
+            if elapsed_h is None and "delta_time_s" in df.columns:
+                elapsed_h = df["delta_time_s"].fillna(0).cumsum()
+            if elapsed_h is not None:
+                elapsed_arr = pd.to_numeric(elapsed_h, errors="coerce").to_numpy(dtype=float)
+                hr_arr = pd.to_numeric(df["heart_rate"], errors="coerce").to_numpy(dtype=float)
+                hr_results = _best_value_by_duration(elapsed_arr, hr_arr, durations_s)
+                hr_points: list[ProgressBestEffortPoint] = []
+                if hr_results is not None and not hr_results.empty:
+                    for _, r in hr_results.iterrows():
+                        dur = int(r.get("duration_s") or 0)
+                        val = _finite_or_none(r.get("value"))
+                        if dur <= 0 or val is None:
+                            continue
+                        hr_points.append(ProgressBestEffortPoint(
+                            activity_id=activity_id, start_ts_utc=start_ts_utc,
+                            effort_kind="hr_bpm", duration_s=dur, value=float(val),
+                        ))
+                repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="hr_bpm", points=hr_points)
+        except Exception:
+            pass
+
+    # Best-efforts power
+    if has_power and "power" in df.columns:
+        try:
+            elapsed_p = df.get("elapsed_time_s")
+            if elapsed_p is None and "delta_time_s" in df.columns:
+                elapsed_p = df["delta_time_s"].fillna(0).cumsum()
+            if elapsed_p is not None:
+                elapsed_arr = pd.to_numeric(elapsed_p, errors="coerce").to_numpy(dtype=float)
+                pwr_arr = pd.to_numeric(df["power"], errors="coerce").to_numpy(dtype=float)
+                pwr_results = _best_value_by_duration(elapsed_arr, pwr_arr, durations_s)
+                pwr_points: list[ProgressBestEffortPoint] = []
+                if pwr_results is not None and not pwr_results.empty:
+                    for _, r in pwr_results.iterrows():
+                        dur = int(r.get("duration_s") or 0)
+                        val = _finite_or_none(r.get("value"))
+                        if dur <= 0 or val is None:
+                            continue
+                        pwr_points.append(ProgressBestEffortPoint(
+                            activity_id=activity_id, start_ts_utc=start_ts_utc,
+                            effort_kind="power_w", duration_s=dur, value=float(val),
+                        ))
+                repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="power_w", points=pwr_points)
+        except Exception:
+            pass
+
+    # Zones — HR
+    hr_garmin = garmin.get("heart_rate") if isinstance(garmin, dict) else None
+    if isinstance(hr_garmin, dict):
+        hr_zones_df = hr_garmin.get("zones")
+        if hr_zones_df is not None and hasattr(hr_zones_df, "iterrows") and not hr_zones_df.empty:
+            zone_rows: list[ProgressActivityZone] = []
+            for _, zrow in hr_zones_df.iterrows():
+                range_low, range_high = _parse_zone_range(str(zrow.get("range") or ""))
+                zone_rows.append(ProgressActivityZone(
+                    activity_id=activity_id, zone_type="heart_rate",
+                    zone_name=str(zrow.get("zone") or ""),
+                    range_low=range_low, range_high=range_high,
+                    time_s=float(zrow.get("time_s") or 0),
+                    time_pct=float(zrow.get("time_pct") or 0),
+                ))
+            repo.replace_activity_zones(session, activity_id=activity_id, zone_type="heart_rate", zones=zone_rows)
+
+    # Zones — pace
+    pace_zones_df = garmin.get("pace_zones") if isinstance(garmin, dict) else None
+    if pace_zones_df is not None and hasattr(pace_zones_df, "iterrows") and not pace_zones_df.empty:
+        pz_rows: list[ProgressActivityZone] = []
+        for _, zrow in pace_zones_df.iterrows():
+            range_low, range_high = _parse_zone_range(str(zrow.get("range") or ""))
+            pz_rows.append(ProgressActivityZone(
+                activity_id=activity_id, zone_type="pace",
+                zone_name=str(zrow.get("zone") or ""),
+                range_low=range_low, range_high=range_high,
+                time_s=float(zrow.get("time_s") or 0),
+                time_pct=float(zrow.get("time_pct") or 0),
+            ))
+        repo.replace_activity_zones(session, activity_id=activity_id, zone_type="pace", zones=pz_rows)
+
+    # Zones — power
+    power_garmin = garmin.get("power") if isinstance(garmin, dict) else None
+    if isinstance(power_garmin, dict):
+        pw_zones_df = power_garmin.get("zones")
+        if pw_zones_df is not None and hasattr(pw_zones_df, "iterrows") and not pw_zones_df.empty:
+            pw_rows: list[ProgressActivityZone] = []
+            for _, zrow in pw_zones_df.iterrows():
+                range_low, range_high = _parse_zone_range(str(zrow.get("range") or ""))
+                pw_rows.append(ProgressActivityZone(
+                    activity_id=activity_id, zone_type="power",
+                    zone_name=str(zrow.get("zone") or ""),
+                    range_low=range_low, range_high=range_high,
+                    time_s=float(zrow.get("time_s") or 0),
+                    time_pct=float(zrow.get("time_pct") or 0),
+                ))
+            repo.replace_activity_zones(session, activity_id=activity_id, zone_type="power", zones=pw_rows)
+
+    # Splits
+    try:
+        splits_df = compute_splits(df, split_distance_km=1.0)
+        split_rows: list[ProgressActivitySplit] = []
+        if splits_df is not None and not splits_df.empty:
+            for _, srow in splits_df.iterrows():
+                split_rows.append(ProgressActivitySplit(
+                    activity_id=activity_id,
+                    split_index=int(srow.get("split_index") or 0),
+                    distance_km=float(srow.get("distance_km") or 0),
+                    time_s=float(srow.get("time_s") or 0),
+                    pace_s_per_km=_finite_or_none(srow.get("pace_s_per_km")),
+                    elevation_gain_m=_finite_or_none(srow.get("elevation_gain_m")),
+                ))
+        repo.replace_activity_splits(session, activity_id=activity_id, splits=split_rows)
+    except Exception:
+        pass
+
+    # Climbs
+    try:
+        climbs_list = compute_climbs(df)
+        climb_rows: list[ProgressActivityClimb] = []
+        if climbs_list:
+            for c in climbs_list:
+                if not isinstance(c, dict):
+                    continue
+                climb_rows.append(ProgressActivityClimb(
+                    activity_id=activity_id,
+                    distance_km=float(c.get("distance_km") or 0),
+                    elevation_gain_m=float(c.get("elevation_gain_m") or 0),
+                    avg_grade_percent=_finite_or_none(c.get("avg_grade_percent")),
+                    pace_s_per_km=_finite_or_none(c.get("pace_s_per_km")),
+                    vam_m_h=_finite_or_none(c.get("vam_m_h")),
+                    start_km=_finite_or_none(c.get("start_km")),
+                    end_km=_finite_or_none(c.get("end_km")),
+                    duration_s=_finite_or_none(c.get("duration_s")),
+                ))
+        repo.replace_activity_climbs(session, activity_id=activity_id, climbs=climb_rows)
+    except Exception:
+        pass
+
     pace_hr_bins = _build_pace_hr_bins(
         df=df,
         activity_id=activity_id,
@@ -460,3 +695,34 @@ def index_activity(
         start_ts_utc=start_ts_utc,
     )
     repo.replace_pace_hr_bins(session, activity_id=activity_id, bins=pace_hr_bins)
+
+
+def recompute_daily_aggregates(session: Session) -> None:
+    """Recalcule les agrégats journaliers à partir de progress_activity_index."""
+    repo = ProgressRepository()
+    stmt = (
+        select(
+            func.substr(ProgressActivityIndex.start_ts_utc, 1, 10).label("date_utc"),
+            func.sum(ProgressActivityIndex.distance_m).label("distance_m"),
+            func.sum(ProgressActivityIndex.moving_time_s).label("moving_time_s"),
+            func.sum(ProgressActivityIndex.elapsed_time_s).label("elapsed_time_s"),
+            func.sum(ProgressActivityIndex.elevation_gain_m).label("elevation_gain_m"),
+            func.sum(ProgressActivityIndex.trimp).label("trimp"),
+            func.count(ProgressActivityIndex.activity_id).label("activity_count"),
+        )
+        .where(ProgressActivityIndex.activity_type == "real")
+        .group_by(func.substr(ProgressActivityIndex.start_ts_utc, 1, 10))
+    )
+    rows = session.execute(stmt).all()
+    now = utc_now_iso()
+    for r in rows:
+        repo.upsert_daily_aggregate(session, row=ProgressDailyAggregate(
+            date_utc=str(r.date_utc) if r.date_utc else "1970-01-01",
+            distance_m=float(r.distance_m) if r.distance_m else None,
+            moving_time_s=float(r.moving_time_s) if r.moving_time_s else None,
+            elapsed_time_s=float(r.elapsed_time_s) if r.elapsed_time_s else None,
+            elevation_gain_m=float(r.elevation_gain_m) if r.elevation_gain_m else None,
+            trimp=float(r.trimp) if r.trimp else None,
+            activity_count=int(r.activity_count or 0),
+            computed_at_utc=now,
+        ))

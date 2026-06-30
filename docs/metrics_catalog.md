@@ -482,3 +482,296 @@ Returns binned Pace\u2194HR curves per activity for 3D rendering.
 | `activities[].points[].pace_bin_s_per_km` | float | s/km | pace bin |
 | `activities[].points[].hr_bpm` | float | bpm | aggregated HR |
 | `activities[].points[].time_s_bin` | float | s | time weight |
+
+## Activities CRUD (DELETE /activity/{id}, DELETE /activities, PATCH /activities/{id})
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `id` | string | - | UUID de l'activité |
+| `name` | string\|null | - | nom mis à jour (PATCH) |
+| `message` | string | - | message de confirmation (DELETE) |
+
+## Traces (GET /traces, POST /traces/upload, PATCH /traces/{id}, DELETE /traces/{id}, DELETE /traces)
+
+### Liste (GET /traces)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `traces[]` | array<object> | - | liste des traces sauvegardées |
+| `traces[].id` | string | - | UUID de la trace |
+| `traces[].name` | string\|null | - | nom de la trace |
+| `traces[].created_at_utc` | string | - | ISO UTC timestamp |
+| `traces[].distance_km` | float | km | distance |
+| `traces[].elevation_gain_m` | float | m | dénivelé positif |
+| `traces[].elevation_loss_m` | float\|null | m | dénivelé négatif |
+| `traces[].elevation_min_m` | float\|null | m | altitude min |
+| `traces[].elevation_max_m` | float\|null | m | altitude max |
+| `traces[].original_filename` | string\|null | - | nom du fichier original |
+| `sync.scanned` | int | - | traces parcourues |
+| `sync.indexed` | int | - | traces indexées |
+| `sync.up_to_date` | int | - | traces déjà à jour |
+| `sync.deleted` | int | - | traces supprimées |
+| `sync.errors` | int | - | erreurs |
+
+### Upload (POST /traces/upload)
+
+Requête multipart: `file` (GPX/FIT), `name` (optionnel).
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `trace` | object | - | TraceItem (memes champs que ci-dessus) |
+| `activity_id` | string | - | UUID de l'activite theorique ouverte |
+
+### Rename (PATCH /traces/{id})
+
+Requête: `{ "name": "nouveau nom" }`. Retourne un `TraceItem`.
+
+### Delete single (DELETE /traces/{id})
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `deleted` | bool | - | true si supprime |
+
+### Cleanup all (DELETE /traces)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `deleted` | int | - | nombre de traces supprimees |
+
+### Open for theoretical (POST /traces/{id}/open)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `activity_id` | string | - | UUID de l'activite theorique creee |
+| `trace_id` | string | - | UUID de la trace |
+
+### Trace status / save on activity (GET /activity/{id}/trace-status, POST /activity/{id}/trace-save)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `saved` | bool | - | deja sauvegarde comme trace |
+| `trace_id` | string\|null | - | UUID de la trace (si saved=true) |
+| `trace_name` | string\|null | - | nom de la trace (si saved=true) |
+
+POST trace-save accepte un body optionnel `{ "name": "..." }`. Retourne un `TraceItem`.
+
+## Goals (GET /goals, POST /goals, PATCH /goals/{id}, DELETE /goals/{id}, DELETE /goals)
+
+### Liste (GET /goals)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `goals[]` | array<object> | - | liste des objectifs |
+| `goals[].id` | string | - | UUID |
+| `goals[].name` | string | - | nom de la course |
+| `goals[].event_date` | string | - | date au format YYYY-MM-DD |
+| `goals[].distance_km` | float | km | distance |
+| `goals[].location` | string\|null | - | lieu |
+| `goals[].location_city` | string\|null | - | ville |
+| `goals[].location_country` | string\|null | - | pays |
+| `goals[].location_country_code` | string\|null | - | code pays (ISO) |
+| `goals[].location_lat` | float\|null | deg | latitude |
+| `goals[].location_lon` | float\|null | deg | longitude |
+| `goals[].target_time_s` | float\|null | s | temps cible |
+| `goals[].target_pace_s_per_km` | float\|null | s/km | allure cible |
+| `goals[].race_type` | string | - | `road` ou `trail` |
+| `goals[].notes` | string\|null | - | notes |
+| `goals[].created_at_utc` | string | - | ISO UTC timestamp |
+| `goals[].updated_at_utc` | string | - | ISO UTC timestamp |
+
+### Create (POST /goals)
+
+Requete: `GoalCreateRequest`. Un seul de `target_time_s` / `target_pace_s_per_km` requis.
+
+### Update (PATCH /goals/{id})
+
+Requete: `GoalUpdateRequest` (tous les champs optionnels). Retourne le `GoalItem` mis a jour.
+
+### Delete single / all (DELETE /goals/{id}, DELETE /goals)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `deleted` | bool\|int | - | true ou nombre supprime |
+
+## Personal Settings (GET /settings/personal, PATCH /settings/personal, GET /settings/personal/hr-max-detected)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `vma_kmh` | float\|null | km/h | VMA |
+| `vo2max_lastest` | float\|null | - | derniere estimation VO2max detectee |
+| `hr_max_manual_bpm` | int\|null | bpm | FC max manuelle |
+| `hr_max_source` | string | - | `detected` ou `manual` |
+| `hr_max_detected_bpm` | int\|null | bpm | FC max detectee automatiquement |
+| `hr_max_effective_bpm` | int\|null | bpm | FC max effective utilisee |
+| `updated_at_utc` | string | - | ISO UTC timestamp |
+
+### PATCH /settings/personal
+
+Requete: `{ vma_kmh?, hr_max_manual_bpm?, hr_max_source? }`.
+
+### GET /settings/personal/hr-max-detected
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `hr_max_detected_bpm` | int\|null | bpm | FC max detectee |
+
+## Garmin Integration (POST /integrations/garmin/*, GET /integrations/garmin/*)
+
+### Connect (POST /integrations/garmin/connect)
+
+Requete: `{ email?, password?, otp?, mfa_session_id? }`.
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `status` | string | - | `ok` ou `otp_required` |
+| `mfa_session_id` | string\|null | - | session MFA a fournir avec l'OTP |
+
+### Sync (POST /integrations/garmin/sync)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `run_id` | string | - | UUID du run de synchro |
+| `status` | string | - | `ok` ou `error` |
+| `imported_count` | int | - | activites importees |
+| `skipped_count` | int | - | activites ignorees (deja presentes) |
+| `cursor_time_utc` | string\|null | - | curseur apres synchro |
+| `error` | string\|null | - | message d'erreur |
+
+### Reset (POST /integrations/garmin/reset)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `status` | string | - | `ok` |
+| `deleted_sources` | int | - | mappings source supprimes |
+| `deleted_cursor` | int | - | curseurs supprimes |
+
+### Status (GET /integrations/garmin/status)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `tokens_present` | bool | - | tokens d'authentification presents |
+| `tokens_dir` | string | - | repertoire des tokens |
+| `cursor_time_utc` | string\|null | - | curseur de synchro |
+| `cursor_updated_at_utc` | string\|null | - | date maj curseur |
+| `last_run.id` | string\|null | - | UUID du dernier run |
+| `last_run.status` | string\|null | - | statut du dernier run |
+| `last_run.imported_count` | int\|null | - | importees |
+| `last_run.skipped_count` | int\|null | - | ignorees |
+| `last_run.duration_s` | int\|null | s | duree du run |
+
+### Credentials (POST /integrations/garmin/credentials, GET /integrations/garmin/credentials/status)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `configured` | bool | - | credentials sauvegardes |
+| `email` | string\|null | - | email Garmin |
+| `path` | string | - | chemin du fichier credentials |
+
+## Progress Indexation (POST /progress/index/fast, POST /progress/index/slow, GET /progress/index/status)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `running` | bool | - | indexation en cours |
+| `mode` | string | - | `fast` ou `slow` |
+| `phase` | string | - | phase actuelle |
+| `current_run_duration_ms` | int\|null | ms | duree du run courant |
+| `progress_current` | int | - | progression actuelle |
+| `progress_total` | int | - | progression totale |
+| `percent` | float | % | pourcentage |
+| `last_result.scanned` | int\|null | - | activites parcourues |
+| `last_result.indexed` | int\|null | - | activites indexees |
+| `last_result.up_to_date` | int\|null | - | deja a jour |
+| `last_result.errors` | int\|null | - | erreurs |
+| `last_error` | string\|null | - | derniere erreur |
+| `last_started_at_utc` | string\|null | - | ISO UTC |
+| `last_finished_at_utc` | string\|null | - | ISO UTC |
+| `last_duration_ms` | int\|null | ms | duree du dernier run |
+
+POST /progress/index/fast accepte `{ "reason": "..." }`.
+POST /progress/index/slow accepte `{ "strategy": "incremental|backfill_missing|backfill_full", "reason": "...", "force": bool }`.
+
+## Training Load (GET /progress/training-load)
+
+Query params: `from`, `to` (date ou ISO datetime).
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `points[]` | array<object> | - | serie temporelle |
+| `points[].bucket_start` | string | - | date YYYY-MM-DD |
+| `points[].acute_load_7d` | float | - | charge aigue (7 jours) |
+| `points[].chronic_load_42d` | float\|null | - | charge chronique (42 jours) |
+| `points[].acwr` | float\|null | - | ratio charge aigue/chronique |
+| `points[].monotony_7d` | float\|null | - | monotonie (7 jours) |
+| `points[].strain_7d` | float\|null | - | strain (charge x monotonie) |
+| `current_acwr` | float\|null | - | ACWR actuel |
+| `current_monotony` | float\|null | - | monotonie actuelle |
+| `current_strain` | float\|null | - | strain actuel |
+| `risk_zone` | string\|null | - | `low`, `moderate`, `high` |
+
+## Calendar (GET /progress/calendar)
+
+Query params: `year` (obligatoire, 2000-2100).
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `days[]` | array<object> | - | jours avec activite |
+| `days[].date` | string | - | YYYY-MM-DD |
+| `days[].has_activity` | bool | - | activite ce jour |
+| `days[].distance_km` | float | km | distance cumulee |
+| `days[].moving_time_s` | float | s | temps de mouvement cumule |
+| `days[].activity_count` | int | - | nombre d'activites |
+| `year` | int | - | annee |
+| `total_active_days` | int | - | jours actifs dans l'annee |
+| `longest_streak` | int | jours | plus longue serie consecutive |
+| `current_streak` | int | jours | serie en cours |
+
+## Geo Cities (GET /geo/cities)
+
+Query params: `query` (min 2 car.), `limit` (1-10, defaut 8), `language` (defaut `fr`).
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `query` | string | - | terme recherche |
+| `results[]` | array<object> | - | resultats |
+| `results[].label` | string | - | "Ville, Pays" |
+| `results[].city` | string | - | ville |
+| `results[].country` | string | - | pays |
+| `results[].country_code` | string\|null | - | code pays ISO |
+| `results[].lat` | float | deg | latitude |
+| `results[].lon` | float | deg | longitude |
+
+## Root & Health (GET /, GET /health)
+
+### Root (GET /)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `message` | string | - | "CourseScope API" |
+| `version` | string | - | version de l'API |
+| `docs` | string | - | URL de la doc Swagger |
+| `status` | string | - | "operational" |
+
+### Health (GET /health)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `status` | string | - | "healthy" |
+| `storage` | string | - | statut du storage |
+| `registry` | string | - | statut du registry |
+
+## Real Bins (GET /activity/{id}/real-bins)
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `pace_elevation_series[]` | array<object> | - | points pace x elevation |
+| `pace_elevation_series[].distance_km` | float | km | distance |
+| `pace_elevation_series[].pace_s_per_km` | float | s/km | allure |
+| `pace_elevation_series[].elevation_m` | float\|null | m | altitude |
+| `pace_time_bins[]` | array<object> | - | distribution temps par allure |
+| `pace_time_bins[].pace_bin_floor_s_per_km` | float | s/km | plancher du bin |
+| `pace_time_bins[].label` | string | - | label format (ex: "5:00-5:15/km") |
+| `pace_time_bins[].time_s` | float | s | temps passe dans le bin |
+| `grade_time_bins[]` | array<object> | - | distribution temps par pente |
+| `grade_time_bins[].grade_bin_center_pct` | float | % | centre du bin de pente |
+| `grade_time_bins[].label` | string | - | label format (ex: "2.0%") |
+| `grade_time_bins[].time_s` | float | s | temps passe dans le bin |
