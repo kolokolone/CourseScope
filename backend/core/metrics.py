@@ -197,20 +197,6 @@ def _compute_grade_percent_from_elevation(
     return grade
 
 
-def _normalized_power_w(
-    power_w: np.ndarray,
-    delta_time_s: np.ndarray,
-    mask: np.ndarray,
-    *,
-    rolling_window_s: int = 30,
-) -> float:
-    """Calcule la Normalized Power (NP) via resampling 1 Hz + moyenne glissante 30s."""
-    if power_w.size == 0:
-        return math.nan
-
-    series_1hz = _resample_series_1hz(power_w, delta_time_s, mask)
-    return _normalized_power_from_series(series_1hz, rolling_window_s=rolling_window_s)
-
 
 def _resample_series_1hz(
     values: np.ndarray,
@@ -272,15 +258,6 @@ def _compute_power_duration_curve_from_series(
         out.append({"duration_s": float(window), "power_w": float(peak)})
     return out
 
-
-def _compute_power_duration_curve(
-    power_w: np.ndarray,
-    delta_time_s: np.ndarray,
-    mask: np.ndarray,
-    durations_s: list[int],
-) -> list[dict[str, float]]:
-    series_1hz = _resample_series_1hz(power_w, delta_time_s, mask)
-    return _compute_power_duration_curve_from_series(series_1hz, durations_s)
 
 
 def _edwards_trimp_from_zones(zones_df: pd.DataFrame) -> float:
@@ -808,12 +785,4 @@ def compute_garmin_like_stats(
     }
 
 
-def format_zone_table(df: pd.DataFrame) -> pd.DataFrame:
-    if df is None or df.empty:
-        return pd.DataFrame(columns=["Zone", "Plage", "Temps", "% Temps"])
-    formatted = df.copy()
-    formatted["Temps"] = formatted["time_s"].apply(lambda v: seconds_to_mmss(v) if v == v else "-")
-    formatted["% Temps"] = formatted["time_pct"].apply(lambda v: f"{v:.1f}%" if v == v else "-")
-    return formatted[["zone", "range", "Temps", "% Temps"]].rename(
-        columns={"zone": "Zone", "range": "Plage"}
-    )
+

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import math
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.responses import JSONResponse
@@ -13,7 +12,22 @@ from progress.indexation_runner import (
     start_fast_indexation_in_background,
     start_slow_indexation_in_background,
 )
+from services.progress_service import ProgressService
 
+from core.utils import (
+    parse_ts_utc as _parse_ts_utc_core,
+    parse_csv_floats as _parse_csv_floats,
+    parse_optional_bool as _parse_optional_bool,
+)
+
+
+
+def _parse_ts_utc(value: str | None, *, is_end: bool) -> str | None:
+    """Wrapper qui convertit ValueError en HTTPException 400."""
+    try:
+        return _parse_ts_utc_core(value, is_end=is_end)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 router = APIRouter()
@@ -125,135 +139,6 @@ async def get_progress_index_status(request: Request):
     return _to_indexation_status_payload(state)
 
 
-def _parse_ts_utc(value: str | None, *, is_end: bool) -> str | None:
-    if value is None:
-        return None
-    raw = str(value).strip()
-    if raw == "":
-        return None
-
-    # Accept YYYY-MM-DD and interpret as UTC day bounds.
-    if len(raw) == 10 and raw[4] == "-" and raw[7] == "-":
-        if is_end:
-            raw = f"{raw}T23:59:59Z"
-        else:
-            raw = f"{raw}T00:00:00Z"
-
-    try:
-        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except Exception:
-        raise HTTPException(status_code=400, detail=f"Invalid datetime: {value}")
-
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    dt = dt.astimezone(timezone.utc).replace(microsecond=0)
-    return dt.isoformat().replace("+00:00", "Z")
-
-
-def _bucket_start(dt: datetime, group_by: str) -> datetime:
-    d = dt.astimezone(timezone.utc)
-    if group_by == "day":
-        return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
-    if group_by == "month":
-        return datetime(d.year, d.month, 1, tzinfo=timezone.utc)
-
-    # group_by == 'week' => ISO week starting Monday.
-    base = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
-    weekday = base.weekday()  # Monday=0
-    return base.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=weekday)
-
-
-def _parse_csv_floats(raw: str | None, *, default_values: list[float]) -> list[float]:
-    if raw is None or str(raw).strip() == "":
-        return list(default_values)
-    out: list[float] = []
-    for part in str(raw).split(","):
-        token = part.strip()
-        if token == "":
-            continue
-        try:
-            value = float(token)
-        except Exception:
-            continue
-        if math.isfinite(value):
-            out.append(value)
-    if not out:
-        return list(default_values)
-    return sorted(set(out))
-
-
-def _dedupe_xy(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
-    if not points:
-        return []
-    grouped: dict[float, list[float]] = {}
-    for x, y in points:
-        grouped.setdefault(float(x), []).append(float(y))
-    out = []
-    for x in sorted(grouped.keys()):
-        vals = grouped[x]
-        out.append((x, float(sum(vals) / len(vals))))
-    return out
-
-
-def _interp_linear(points: list[tuple[float, float]], target_x: float) -> float | None:
-    if not points:
-        return None
-    pts = _dedupe_xy(points)
-    if not pts:
-        return None
-    x0 = pts[0][0]
-    x1 = pts[-1][0]
-    if target_x < x0 or target_x > x1:
-        return None
-    for i in range(len(pts) - 1):
-        xa, ya = pts[i]
-        xb, yb = pts[i + 1]
-        if xa == xb:
-            continue
-        if xa <= target_x <= xb:
-            ratio = (target_x - xa) / (xb - xa)
-            y = ya + ratio * (yb - ya)
-            return float(y) if math.isfinite(y) else None
-    if target_x == pts[-1][0]:
-        return float(pts[-1][1])
-    return None
-
-
-def _parse_optional_bool(value: object) -> bool | None:
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return value
-    s = str(value).strip().lower()
-    if s in {"1", "true", "yes", "y", "on"}:
-        return True
-    if s in {"0", "false", "no", "n", "off"}:
-        return False
-    return None
-
-
-def _aggregate_curve(points: list[tuple[float, float, float]], bin_step: float) -> list[dict[str, float]]:
-    if not points:
-        return []
-    grouped: dict[float, list[tuple[float, float]]] = {}
-    step = max(1.0, float(bin_step))
-    for pace, hr, weight in points:
-        if not (math.isfinite(pace) and math.isfinite(hr) and math.isfinite(weight) and weight > 0):
-            continue
-        bucket = round(pace / step) * step
-        grouped.setdefault(bucket, []).append((hr, weight))
-
-    out: list[dict[str, float]] = []
-    for pace_bin in sorted(grouped.keys()):
-        values = grouped[pace_bin]
-        total = sum(w for _, w in values)
-        if total <= 0:
-            continue
-        hr_mean = sum(v * w for v, w in values) / total
-        out.append({"pace_bin_s_per_km": float(pace_bin), "hr_bpm": float(hr_mean), "time_s_bin": float(total)})
-    return out
-
-
 @router.get("/progress/activities")
 async def list_progress_activities(
     request: Request,
@@ -292,54 +177,10 @@ async def list_progress_activities(
         activity_ids = [str(r.activity_id) for r in rows]
         tags_map = repo.get_activity_tags_map(session, activity_ids=activity_ids)
 
-        if session_tag is not None or terrain_tag is not None or race_marker is not None:
-            filtered_rows = []
-            for r in rows:
-                tag = tags_map.get(str(r.activity_id))
-                if session_tag is not None and (tag is None or tag.session_tag != session_tag):
-                    continue
-                if terrain_tag is not None and (tag is None or tag.terrain_tag != terrain_tag):
-                    continue
-                if race_marker is not None and (tag is None or bool(tag.race_marker) != bool(race_marker)):
-                    continue
-                filtered_rows.append(r)
-            rows = filtered_rows
-
-        payload = []
-        for r in rows:
-            tag = tags_map.get(str(r.activity_id))
-            payload.append(
-                {
-                    "activity_id": r.activity_id,
-                    "activity_type": r.activity_type,
-                    "start_ts_utc": r.start_ts_utc,
-                    "distance_m": r.distance_m,
-                    "moving_time_s": r.moving_time_s,
-                    "elapsed_time_s": r.elapsed_time_s,
-                    "elevation_gain_m": r.elevation_gain_m,
-                    "avg_pace_s_per_km": r.avg_pace_s_per_km,
-                    "best_pace_s_per_km": r.best_pace_s_per_km,
-                    "pace_threshold_s_per_km": r.pace_threshold_s_per_km,
-                    "avg_hr_bpm": r.avg_hr_bpm,
-                    "max_hr_bpm": r.max_hr_bpm,
-                    "trimp": r.trimp,
-                    "training_load_method": r.training_load_method,
-                    "aerobic_efficiency_m_s_per_bpm": r.aerobic_efficiency_m_s_per_bpm,
-                    "vo2max": r.vo2max,
-                    "decoupling_pct": r.decoupling_pct,
-                    "stability_cv": r.stability_cv,
-                    "stability_iqr_ratio": r.stability_iqr_ratio,
-                    "has_hr": bool(r.has_hr),
-                    "has_power": bool(r.has_power),
-                    "has_cadence": bool(r.has_cadence),
-                    "data_points": r.data_points,
-                    "session_tag": (tag.session_tag if tag is not None else None),
-                    "terrain_tag": (tag.terrain_tag if tag is not None else None),
-                    "race_marker": (bool(tag.race_marker) if tag is not None else False),
-                    "tag_source": (tag.source if tag is not None else None),
-                }
-            )
-
+        payload = ProgressService.build_activity_list(
+            rows, tags_map,
+            filters={"session_tag": session_tag, "terrain_tag": terrain_tag, "race_marker": race_marker},
+        )
         return {"activities": payload}
     finally:
         session.close()
@@ -395,38 +236,7 @@ async def get_progress_series(
     finally:
         session.close()
 
-    buckets: dict[str, list[float]] = {}
-    for r in rows:
-        if r.value is None:
-            continue
-        if not isinstance(r.value, (int, float)):
-            continue
-        v = float(r.value)
-        if not math.isfinite(v):
-            continue
-
-        try:
-            dt = datetime.fromisoformat(str(r.start_ts_utc).replace("Z", "+00:00"))
-        except Exception:
-            continue
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        b = _bucket_start(dt, group_by)
-        key = b.date().isoformat()
-        buckets.setdefault(key, []).append(v)
-
-    out = []
-    for key in sorted(buckets.keys()):
-        values = buckets[key]
-        if not values:
-            continue
-        if agg == "avg":
-            value = float(sum(values) / len(values))
-        else:
-            value = float(sum(values))
-        out.append({"bucket_start": key, "value": value})
-
-    return out
+    return ProgressService.compute_time_series(rows, group_by, agg)
 
 
 @router.get("/progress/best-efforts")
@@ -460,24 +270,7 @@ async def get_progress_best_efforts(
     finally:
         session.close()
 
-    best = math.inf
-    out = []
-    for p in points:
-        v = float(p.value)
-        is_pr = False
-        if math.isfinite(v) and v < best:
-            best = v
-            is_pr = True
-        out.append(
-            {
-                "activity_id": p.activity_id,
-                "start_ts_utc": p.start_ts_utc,
-                "value": v,
-                "is_pr": is_pr,
-            }
-        )
-
-    return {"points": out}
+    return {"points": ProgressService.annotate_prs(points)}
 
 
 @router.get("/progress/hr-at-pace")
@@ -525,36 +318,7 @@ async def get_progress_hr_at_pace(
     finally:
         session.close()
 
-    per_activity: dict[str, dict] = {}
-    for r in rows:
-        hr_value = r.hr_q50_w_bpm if r.hr_q50_w_bpm is not None else r.hr_mean_w_bpm
-        if hr_value is None:
-            continue
-        if not math.isfinite(hr_value):
-            continue
-        if not math.isfinite(r.pace_bin_s_per_km):
-            continue
-        data = per_activity.setdefault(r.activity_id, {"start_ts_utc": r.start_ts_utc, "pairs": []})
-        data["pairs"].append((float(r.pace_bin_s_per_km), float(hr_value)))
-
-    out_series = []
-    for ref in refs:
-        pts = []
-        for activity_id, data in per_activity.items():
-            value = _interp_linear(list(data["pairs"]), float(ref))
-            if value is None:
-                continue
-            pts.append(
-                {
-                    "activity_id": activity_id,
-                    "start_ts_utc": data["start_ts_utc"],
-                    "value": float(value),
-                }
-            )
-        pts.sort(key=lambda x: str(x["start_ts_utc"]))
-        out_series.append({"pace_s_per_km": float(ref), "points": pts})
-
-    return {"series": out_series}
+    return ProgressService.compute_hr_pace_series(rows, refs, "hr_at_pace")
 
 
 @router.get("/progress/pace-at-hr")
@@ -602,34 +366,7 @@ async def get_progress_pace_at_hr(
     finally:
         session.close()
 
-    per_activity: dict[str, dict] = {}
-    for r in rows:
-        hr_value = r.hr_q50_w_bpm if r.hr_q50_w_bpm is not None else r.hr_mean_w_bpm
-        if hr_value is None:
-            continue
-        if not (math.isfinite(hr_value) and math.isfinite(r.pace_bin_s_per_km)):
-            continue
-        data = per_activity.setdefault(r.activity_id, {"start_ts_utc": r.start_ts_utc, "pairs": []})
-        data["pairs"].append((float(hr_value), float(r.pace_bin_s_per_km)))
-
-    out_series = []
-    for ref in refs:
-        pts = []
-        for activity_id, data in per_activity.items():
-            value = _interp_linear(list(data["pairs"]), float(ref))
-            if value is None:
-                continue
-            pts.append(
-                {
-                    "activity_id": activity_id,
-                    "start_ts_utc": data["start_ts_utc"],
-                    "value": float(value),
-                }
-            )
-        pts.sort(key=lambda x: str(x["start_ts_utc"]))
-        out_series.append({"hr_bpm": float(ref), "points": pts})
-
-    return {"series": out_series}
+    return ProgressService.compute_hr_pace_series(rows, refs, "pace_at_hr")
 
 
 @router.get("/progress/session-taxonomy")
@@ -661,23 +398,7 @@ async def get_progress_session_taxonomy(
     finally:
         session.close()
 
-    session_counts: dict[str, int] = {}
-    terrain_counts: dict[str, int] = {}
-    race_markers = 0
-    for r in rows:
-        s = r.session_tag or "unknown"
-        t = r.terrain_tag or "unknown"
-        session_counts[s] = session_counts.get(s, 0) + 1
-        terrain_counts[t] = terrain_counts.get(t, 0) + 1
-        if r.race_marker:
-            race_markers += 1
-
-    return {
-        "session_counts": [{"tag": k, "count": session_counts[k]} for k in sorted(session_counts.keys())],
-        "terrain_counts": [{"tag": k, "count": terrain_counts[k]} for k in sorted(terrain_counts.keys())],
-        "race_markers": int(race_markers),
-        "total_tagged": int(len(rows)),
-    }
+    return ProgressService.compute_session_taxonomy(rows)
 
 
 @router.post("/progress/tags")
@@ -707,17 +428,18 @@ async def upsert_progress_activity_tag(request: Request, payload: dict):
     session = db_session_factory()
     try:
         previous = repo.get_activity_tags_map(session, activity_ids=[activity_id]).get(activity_id)
+        merged = ProgressService.merge_tag(previous, {
+            "session_tag": session_tag,
+            "terrain_tag": terrain_tag,
+            "race_marker": race_marker,
+        })
         repo.upsert_activity_tag(
             session,
             row=ProgressActivityTag(
                 activity_id=activity_id,
-                session_tag=(session_tag if session_tag is not None else (previous.session_tag if previous is not None else None)),
-                terrain_tag=(terrain_tag if terrain_tag is not None else (previous.terrain_tag if previous is not None else None)),
-                race_marker=(
-                    int(bool(race_marker))
-                    if race_marker is not None
-                    else (1 if (previous is not None and previous.race_marker) else 0)
-                ),
+                session_tag=merged["session_tag"],
+                terrain_tag=merged["terrain_tag"],
+                race_marker=merged["race_marker"],
                 source="manual",
                 updated_at_ts=utc_now_iso(),
             ),
@@ -772,41 +494,7 @@ async def get_progress_pace_hr_waterfall(
     finally:
         session.close()
 
-    by_activity: dict[str, dict] = {}
-    for r in rows:
-        hr_value = r.hr_q50_w_bpm if r.hr_q50_w_bpm is not None else r.hr_mean_w_bpm
-        if hr_value is None:
-            continue
-        if not (math.isfinite(hr_value) and math.isfinite(r.pace_bin_s_per_km) and math.isfinite(r.time_s_bin)):
-            continue
-        item = by_activity.setdefault(
-            r.activity_id,
-            {
-                "activity_id": r.activity_id,
-                "start_ts_utc": r.start_ts_utc,
-                "points_raw": [],
-            },
-        )
-        item["points_raw"].append((float(r.pace_bin_s_per_km), float(hr_value), float(r.time_s_bin)))
-
-    activities = []
-    for activity_id, item in by_activity.items():
-        points = _aggregate_curve(list(item["points_raw"]), float(bin_step_s_per_km))
-        if len(points) < 1:
-            continue
-        tag = tag_map.get(activity_id)
-        activities.append(
-            {
-                "activity_id": activity_id,
-                "start_ts_utc": item["start_ts_utc"],
-                "session_tag": tag.session_tag if tag is not None else "unknown",
-                "terrain_tag": tag.terrain_tag if tag is not None else "unknown",
-                "race_marker": bool(tag.race_marker) if tag is not None else False,
-                "points": points,
-            }
-        )
-
-    activities.sort(key=lambda x: str(x["start_ts_utc"]))
+    activities = ProgressService.compute_waterfall(rows, tag_map, float(bin_step_s_per_km))
     if len(activities) > int(limit):
         activities = activities[-int(limit):]
     return {"activities": activities}
@@ -839,137 +527,7 @@ async def get_training_load(
     finally:
         session.close()
 
-    # Bucket TRIMP per day
-    daily_trimp: dict[str, float] = {}
-    for r in rows:
-        if r.value is None or not math.isfinite(r.value):
-            continue
-        day = r.start_ts_utc[:10]
-        daily_trimp[day] = daily_trimp.get(day, 0.0) + r.value
-
-    if not daily_trimp:
-        return {
-            "points": [],
-            "current_acwr": None,
-            "current_monotony": None,
-            "current_strain": None,
-            "risk_zone": None,
-        }
-
-    sorted_days = sorted(daily_trimp.keys())
-
-    points: list[dict] = []
-    for i, day in enumerate(sorted_days):
-        # Acute load: 7-day rolling
-        acute_sum = 0.0
-        acute_count = 0
-        for j in range(max(0, i - 6), i + 1):
-            acute_sum += daily_trimp[sorted_days[j]]
-            acute_count += 1
-        acute_load = acute_sum / 7.0
-
-        # Chronic load: 42-day rolling
-        chronic_sum = 0.0
-        chronic_count = 0
-        for j in range(max(0, i - 41), i + 1):
-            chronic_sum += daily_trimp[sorted_days[j]]
-            chronic_count += 1
-        chronic_load = chronic_sum / 42.0 if chronic_count >= 7 else None
-
-        # ACWR
-        acwr = acute_load / chronic_load if (chronic_load is not None and chronic_load > 0) else None
-
-        # Monotony (on acute window)
-        monotony = None
-        if acute_count >= 3:
-            mean_val = acute_sum / acute_count
-            variance = 0.0
-            for j in range(max(0, i - 6), i + 1):
-                v = daily_trimp[sorted_days[j]]
-                variance += (v - mean_val) ** 2
-            variance /= acute_count
-            std_val = math.sqrt(variance)
-            if std_val > 0:
-                monotony = mean_val / std_val
-
-        # Strain
-        strain = acute_sum * monotony if monotony is not None else None
-
-        points.append({
-            "bucket_start": day,
-            "acute_load_7d": round(acute_load, 1),
-            "chronic_load_42d": round(chronic_load, 1) if chronic_load is not None else None,
-            "acwr": round(acwr, 2) if acwr is not None else None,
-            "monotony_7d": round(monotony, 2) if monotony is not None else None,
-            "strain_7d": round(strain, 1) if strain is not None else None,
-        })
-
-    last = points[-1] if points else None
-    risk_zone = None
-    current_acwr = None
-    current_monotony = None
-    current_strain = None
-
-    if last is not None:
-        current_acwr = last["acwr"]
-        current_monotony = last["monotony_7d"]
-        current_strain = last["strain_7d"]
-
-        if current_acwr is not None:
-            if current_acwr < 0.8:
-                risk_zone = "low"
-            elif current_acwr < 1.3:
-                risk_zone = "moderate"
-            else:
-                risk_zone = "high"
-
-    return {
-        "points": points,
-        "current_acwr": current_acwr,
-        "current_monotony": current_monotony,
-        "current_strain": current_strain,
-        "risk_zone": risk_zone,
-    }
-
-
-def _compute_streaks(active_dates: set[str], reference_date: str) -> tuple[int, int]:
-    if not active_dates:
-        return (0, 0)
-
-    parsed: set = set()
-    for d in active_dates:
-        try:
-            parsed.add(datetime.strptime(str(d), "%Y-%m-%d").date())
-        except ValueError:
-            continue
-
-    if not parsed:
-        return (0, 0)
-
-    sorted_dates = sorted(parsed)
-
-    longest_streak = 1
-    current_run = 1
-    for i in range(1, len(sorted_dates)):
-        if (sorted_dates[i] - sorted_dates[i - 1]).days == 1:
-            current_run += 1
-        else:
-            current_run = 1
-        if current_run > longest_streak:
-            longest_streak = current_run
-
-    current_streak = 0
-    try:
-        ref_date = datetime.strptime(reference_date, "%Y-%m-%d").date()
-    except ValueError:
-        return (longest_streak, 0)
-
-    check_date = ref_date
-    while check_date in parsed:
-        current_streak += 1
-        check_date = check_date - timedelta(days=1)
-
-    return (longest_streak, current_streak)
+    return ProgressService.compute_training_load(rows)
 
 
 @router.get("/progress/calendar")
@@ -998,45 +556,4 @@ async def get_calendar(
     finally:
         session.close()
 
-    by_day: dict[str, dict] = {}
-    active_dates: set[str] = set()
-
-    for r in rows:
-        if r.start_ts_utc is None:
-            continue
-        day_key = str(r.start_ts_utc)[:10]
-        active_dates.add(day_key)
-
-        if day_key not in by_day:
-            by_day[day_key] = {"distance_km": 0.0, "moving_time_s": 0.0, "activity_count": 0}
-
-        entry = by_day[day_key]
-        entry["activity_count"] += 1
-
-        if r.distance_m is not None and math.isfinite(r.distance_m):
-            entry["distance_km"] += r.distance_m / 1000.0
-
-        if r.moving_time_s is not None and math.isfinite(r.moving_time_s):
-            entry["moving_time_s"] += r.moving_time_s
-
-    days = []
-    for day_key in sorted(by_day.keys()):
-        entry = by_day[day_key]
-        days.append({
-            "date": day_key,
-            "has_activity": True,
-            "distance_km": round(entry["distance_km"], 3),
-            "moving_time_s": round(entry["moving_time_s"], 1),
-            "activity_count": entry["activity_count"],
-        })
-
-    today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    longest_streak, current_streak = _compute_streaks(active_dates, today_iso)
-
-    return {
-        "days": days,
-        "year": year,
-        "total_active_days": len(active_dates),
-        "longest_streak": longest_streak,
-        "current_streak": current_streak,
-    }
+    return ProgressService.compute_calendar(rows, year)

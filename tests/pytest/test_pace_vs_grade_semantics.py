@@ -34,7 +34,7 @@ def _df_base(n: int) -> pd.DataFrame:
 
 
 def test_pace_vs_grade_binning_includes_minus20_and_plus20() -> None:
-    from core.real_run_analysis import compute_pace_vs_grade_data
+    from core.pace_grade import compute_pace_vs_grade_data
 
     n = 80
     df = _df_base(n)
@@ -50,7 +50,7 @@ def test_pace_vs_grade_binning_includes_minus20_and_plus20() -> None:
 
 
 def test_pace_vs_grade_filters_pauses_but_keeps_walking() -> None:
-    from core.real_run_analysis import compute_pace_vs_grade_data
+    from core.pace_grade import compute_pace_vs_grade_data
 
     # Build enough duration to pass bin quality gating.
     n_move1 = 20
@@ -87,7 +87,7 @@ def test_pace_vs_grade_filters_pauses_but_keeps_walking() -> None:
 
 
 def test_pace_vs_grade_time_weighting_affects_aggregates() -> None:
-    from core.real_run_analysis import compute_pace_vs_grade_data
+    from core.pace_grade import compute_pace_vs_grade_data
 
     # Two pace levels with different time weights.
     n_fast = 5
@@ -115,7 +115,7 @@ def test_pace_vs_grade_time_weighting_affects_aggregates() -> None:
 
 
 def test_pace_vs_grade_outlier_clipping_is_per_bin_and_non_flat() -> None:
-    from core.real_run_analysis import compute_pace_vs_grade_data
+    from core.pace_grade import compute_pace_vs_grade_data
 
     n = 120
     df = _df_base(n)
@@ -142,7 +142,7 @@ def test_pace_vs_grade_outlier_clipping_is_per_bin_and_non_flat() -> None:
 
 
 def test_pace_vs_grade_endpoint_and_figures_share_same_pace_defaults() -> None:
-    from core.real_run_analysis import compute_derived_series, compute_pace_series
+    from core.derived import compute_derived_series, compute_pace_series
     from services.models import RealRunViewParams
     from services.real_activity_service import analyze_real_activity
 

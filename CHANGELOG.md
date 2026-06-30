@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.1.94] - 2026-06-30
+
+### Changed
+- **Refactor** : découpage des 3 monolithes backend (`real_run_analysis.py` 1528→6 modules, `progress.py` 1042→570 lignes, `analysis.py` 977→250 lignes)
+- **Refactor** : extraction de `ProgressService` (9 méthodes) et `AnalysisService` (9 méthodes)
+- **Refactor** : création de 9 nouveaux modules core (`splits.py`, `best_efforts.py`, `climbs.py`, `pace_grade.py`, `plots.py`, `progress_math.py`, `real_activity_bins.py`, `theoretical_segments.py`, `utils.py` étendu)
+- **Suppression** : 3 fonctions mortes dans `metrics.py` (`_normalized_power_w`, `_compute_power_duration_curve`, `format_zone_table`)
+
 ## [1.1.93] - 2026-06-30
 
 ### Changed

@@ -13,7 +13,7 @@ ensure_project_on_path()
 
 class TestTheoreticalAnalysisHelpers(unittest.TestCase):
     def test_parse_pace_input(self) -> None:
-        from api.routes.analysis import _parse_pace_to_seconds_per_km
+        from core.utils import parse_pace_to_seconds_per_km as _parse_pace_to_seconds_per_km
 
         self.assertEqual(_parse_pace_to_seconds_per_km('6'), 360.0)
         self.assertEqual(_parse_pace_to_seconds_per_km('4:30'), 270.0)
@@ -22,7 +22,7 @@ class TestTheoreticalAnalysisHelpers(unittest.TestCase):
         self.assertIsNone(_parse_pace_to_seconds_per_km('invalid'))
 
     def test_build_pace_bins_uses_15_second_width(self) -> None:
-        from api.routes.analysis import _build_pace_time_bins
+        from core.theoretical_segments import build_pace_time_bins as _build_pace_time_bins
 
         df = pd.DataFrame(
             {
@@ -37,7 +37,7 @@ class TestTheoreticalAnalysisHelpers(unittest.TestCase):
         self.assertAlmostEqual(float(out[0]['time_s']), 30.0, places=6)
 
     def test_build_grade_bins_clips_to_minus20_plus20(self) -> None:
-        from api.routes.analysis import _build_grade_time_bins
+        from core.theoretical_segments import build_grade_time_bins as _build_grade_time_bins
 
         df = pd.DataFrame(
             {
@@ -52,10 +52,10 @@ class TestTheoreticalAnalysisHelpers(unittest.TestCase):
         self.assertIn('20.0%', labels)
 
     def test_resolve_target_from_time(self) -> None:
-        from api.routes.analysis import _resolve_target_pace_and_time
+        from services.analysis_service import AnalysisService
 
         df = pd.DataFrame({'distance_m': [0.0, 5000.0, 10000.0]})
-        mode, pace_s, time_s = _resolve_target_pace_and_time(
+        mode, pace_s, time_s = AnalysisService.resolve_target_pace_and_time(
             activity_df=df,
             target_mode='time',
             target_pace=None,
@@ -66,7 +66,7 @@ class TestTheoreticalAnalysisHelpers(unittest.TestCase):
         self.assertAlmostEqual(pace_s, 300.0, places=6)
 
     def test_constant_effort_target_pace_behaviour(self) -> None:
-        from api.routes.analysis import _constant_effort_target_pace
+        from core.theoretical_segments import constant_effort_target_pace as _constant_effort_target_pace
 
         grades = np.array([-8.0, 0.0, 8.0], dtype=float)
         paces = _constant_effort_target_pace(

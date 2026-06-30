@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CourseScope API",
     description="Analytics pour traces GPX/FIT",
-    version="1.1.93",
+    version="1.1.94",
     lifespan=lifespan,
 )
 
@@ -188,7 +188,7 @@ app.include_router(geo_router, prefix="/api", include_in_schema=False)
 async def root():
     return {
         "message": "CourseScope API",
-        "version": "1.1.92",
+        "version": "1.1.94",
         "docs": "/docs",
         "status": "operational",
     }

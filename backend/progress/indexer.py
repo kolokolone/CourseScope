@@ -11,7 +11,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, select
 
 from core.metrics import compute_garmin_like_stats
-from core.real_run_analysis import compute_best_efforts_by_duration, compute_derived_series, compute_splits, compute_climbs
+from core.best_efforts import compute_best_efforts_by_duration
+from core.derived import compute_derived_series
+from core.splits import compute_splits
+from core.climbs import compute_climbs
 from core.stats.basic_stats import compute_basic_stats
 from db.models import (
     ProgressActivityIndex,

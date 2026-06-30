@@ -11,7 +11,7 @@ ensure_project_on_path()
 
 def test_compute_pace_vs_grade_data_basic() -> None:
     from core.constants import MOVING_SPEED_THRESHOLD_M_S
-    from core.real_run_analysis import compute_pace_vs_grade_data
+    from core.pace_grade import compute_pace_vs_grade_data
 
     n = 12
     df = pd.DataFrame(
@@ -47,7 +47,7 @@ def test_compute_pace_vs_grade_data_basic() -> None:
 
 def test_compute_pace_vs_grade_data_reports_mask() -> None:
     from core.constants import MOVING_SPEED_THRESHOLD_M_S
-    from core.real_run_analysis import compute_pace_vs_grade_data
+    from core.pace_grade import compute_pace_vs_grade_data
     from core.transform_report import TransformReport
 
     n = 5
@@ -67,7 +67,7 @@ def test_compute_pace_vs_grade_data_reports_mask() -> None:
 
 def test_compute_residuals_vs_grade_data_basic() -> None:
     from core.constants import MOVING_SPEED_THRESHOLD_M_S
-    from core.real_run_analysis import compute_residuals_vs_grade_data
+    from core.pace_grade import compute_residuals_vs_grade_data
 
     n = 12
     df = pd.DataFrame(

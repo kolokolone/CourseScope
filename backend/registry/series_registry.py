@@ -5,7 +5,8 @@ import numpy as np
 
 from api.schemas import SeriesInfo, SeriesResponse, SeriesMeta
 from core.constants import DEFAULT_GRADE_SMOOTH_WINDOW
-from core.real_run_analysis import compute_grade_percent_series, compute_moving_mask
+from core.pace_grade import compute_grade_percent_series
+from core.derived import compute_moving_mask
 
 
 @dataclass

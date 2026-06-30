@@ -12,7 +12,7 @@ ensure_project_on_path()
 
 def test_compute_splits_basic() -> None:
     """Test compute_splits function with basic data."""
-    from core.real_run_analysis import compute_splits
+    from core.splits import compute_splits
 
     # Basic, realistic test data (includes boundaries).
     df = pd.DataFrame(
@@ -45,7 +45,7 @@ def test_compute_splits_basic() -> None:
 
 def test_compute_splits_with_heart_rate() -> None:
     """Test compute_splits function with heart rate data."""
-    from core.real_run_analysis import compute_splits
+    from core.splits import compute_splits
 
     # Create test data with heart rate - ensure proper boundaries for each split
     df = pd.DataFrame({
@@ -67,7 +67,7 @@ def test_compute_splits_with_heart_rate() -> None:
 
 def test_compute_splits_with_negative_elevation() -> None:
     """Test compute_splits with negative elevation changes."""
-    from core.real_run_analysis import compute_splits
+    from core.splits import compute_splits
 
     df = pd.DataFrame({
         "distance_m": [0, 500, 1000, 1500, 2000, 2500, 3000],
@@ -96,7 +96,7 @@ def test_compute_splits_with_negative_elevation() -> None:
 
 def test_compute_splits_empty_dataframe() -> None:
     """Test compute_splits with empty dataframe."""
-    from core.real_run_analysis import compute_splits
+    from core.splits import compute_splits
 
     df = pd.DataFrame()
     splits = compute_splits(df, split_distance_km=1.0)
@@ -108,7 +108,7 @@ def test_compute_splits_empty_dataframe() -> None:
 
 def test_compute_splits_partial_heart_rate() -> None:
     """Test compute_splits with partial heart rate data (some NaN)."""
-    from core.real_run_analysis import compute_splits
+    from core.splits import compute_splits
 
     df = pd.DataFrame({
         "distance_m": [0, 500, 1000, 1500, 2000],
@@ -129,7 +129,7 @@ def test_compute_splits_partial_heart_rate() -> None:
 
 def test_compute_splits_missing_elevation() -> None:
     """Test compute_splits when elevation data is missing."""
-    from core.real_run_analysis import compute_splits
+    from core.splits import compute_splits
 
     df = pd.DataFrame({
         "distance_m": [500, 1500],
@@ -146,7 +146,7 @@ def test_compute_splits_missing_elevation() -> None:
 
 def test_compute_splits_excludes_pauses_from_time() -> None:
     """Split time/pace should exclude stopped time (no distance progress)."""
-    from core.real_run_analysis import compute_splits
+    from core.splits import compute_splits
 
     # Pause between 500m and 500m (time passes, distance does not).
     df = pd.DataFrame(

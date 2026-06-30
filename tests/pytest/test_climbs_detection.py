@@ -51,7 +51,7 @@ def _linear_profile(
 
 
 def test_climbs_continuous_climb_with_noise_is_single_segment() -> None:
-    from core.real_run_analysis import compute_climbs
+    from core.climbs import compute_climbs
 
     step = 5.0
     d, elev = _linear_profile(total_m=500.0, step_m=step, grade_percent=8.0, noise_amp_m=0.3)
@@ -76,7 +76,7 @@ def test_climbs_continuous_climb_with_noise_is_single_segment() -> None:
 
 
 def test_climbs_climb_with_short_flat_gap_stays_one_segment() -> None:
-    from core.real_run_analysis import compute_climbs
+    from core.climbs import compute_climbs
 
     step = 5.0
     # 200m @ 8%, 40m flat, 200m @ 8%
@@ -96,7 +96,7 @@ def test_climbs_climb_with_short_flat_gap_stays_one_segment() -> None:
 
 
 def test_climbs_descent_net_splits_into_two_segments() -> None:
-    from core.real_run_analysis import compute_climbs
+    from core.climbs import compute_climbs
 
     step = 5.0
     d1, e1 = _linear_profile(total_m=250.0, step_m=step, grade_percent=7.0, elev0=0.0)
@@ -115,7 +115,7 @@ def test_climbs_descent_net_splits_into_two_segments() -> None:
 
 
 def test_climbs_pause_with_zero_delta_distance_does_not_break_detection() -> None:
-    from core.real_run_analysis import compute_climbs
+    from core.climbs import compute_climbs
 
     step = 5.0
     d, elev = _linear_profile(total_m=500.0, step_m=step, grade_percent=8.0, elev0=0.0)

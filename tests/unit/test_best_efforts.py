@@ -25,7 +25,7 @@ def _build_linear_df(n: int, speed_m_s: float) -> pd.DataFrame:
 
 
 def test_best_efforts_by_duration_linear() -> None:
-    from core.real_run_analysis import compute_best_efforts_by_duration
+    from core.best_efforts import compute_best_efforts_by_duration
 
     df = _build_linear_df(n=301, speed_m_s=2.0)
     out = compute_best_efforts_by_duration(df, durations_s=[60, 120])
@@ -40,7 +40,7 @@ def test_best_efforts_by_duration_linear() -> None:
 
 
 def test_best_efforts_by_distance_linear() -> None:
-    from core.real_run_analysis import compute_best_efforts
+    from core.best_efforts import compute_best_efforts
 
     df = _build_linear_df(n=1001, speed_m_s=2.0)
     out = compute_best_efforts(df)

@@ -12,7 +12,7 @@ ensure_project_on_path()
 
 class TestMovingMask(unittest.TestCase):
     def test_compute_moving_mask_flags_long_pause(self) -> None:
-        from core.real_run_analysis import compute_moving_mask
+        from core.derived import compute_moving_mask
 
         # 10 seconds: first 3 moving, then 6 seconds stopped, then moving again.
         df = pd.DataFrame(
@@ -30,7 +30,7 @@ class TestMovingMask(unittest.TestCase):
         self.assertFalse(mask.iloc[-1])
 
     def test_compute_moving_mask_does_not_flag_short_pause(self) -> None:
-        from core.real_run_analysis import compute_moving_mask
+        from core.derived import compute_moving_mask
 
         df = pd.DataFrame(
             {
@@ -42,7 +42,7 @@ class TestMovingMask(unittest.TestCase):
         self.assertTrue(mask.all())
 
     def test_compute_moving_mask_keeps_pause_contiguous_across_dt_zero(self) -> None:
-        from core.real_run_analysis import compute_moving_mask
+        from core.derived import compute_moving_mask
 
         # dt==0 does not break historical pause accumulation.
         df = pd.DataFrame(
@@ -60,7 +60,7 @@ class TestMovingMask(unittest.TestCase):
         self.assertFalse(mask.iloc[4])
 
     def test_compute_moving_mask_pause_at_end(self) -> None:
-        from core.real_run_analysis import compute_moving_mask
+        from core.derived import compute_moving_mask
 
         df = pd.DataFrame(
             {

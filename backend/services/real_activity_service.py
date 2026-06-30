@@ -11,23 +11,15 @@ import pandas as pd
 from core.ref_data import get_pro_pace_vs_grade_df
 from core.transform_report import TransformReport
 from core.metrics import compute_garmin_like_stats, estimate_zone_inputs
-from core.real_run_analysis import (
-    build_distribution_plots,
-    build_pace_elevation_plot,
-    build_pace_grade_heatmap,
-    build_pace_grade_scatter,
-    build_pace_vs_grade_plot,
-    build_residuals_vs_grade,
-    compute_best_efforts,
-    compute_best_efforts_by_duration,
-    compute_race_predictions,
-    compute_climbs,
-    compute_derived_series,
-    compute_pause_markers,
-    compute_pace_series as compute_pace_series_core,
-    compute_splits,
-    compute_summary_stats,
-)
+from core.splits import compute_splits
+from core.best_efforts import compute_best_efforts, compute_best_efforts_by_duration, compute_race_predictions
+from core.climbs import compute_climbs
+from core.plots import (build_distribution_plots, build_pace_elevation_plot,
+                         build_pace_grade_heatmap, build_pace_grade_scatter,
+                         build_pace_vs_grade_plot, build_residuals_vs_grade)
+from core.derived import (compute_derived_series, compute_summary_stats,
+                           compute_pace_series as compute_pace_series_core,
+                           compute_pause_markers)
 from core.utils import seconds_to_mmss
 from services.models import (
     RealRunBase,
