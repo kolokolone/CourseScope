@@ -725,6 +725,58 @@ Query params: `year` (obligatoire, 2000-2100).
 | `longest_streak` | int | jours | plus longue serie consecutive |
 | `current_streak` | int | jours | serie en cours |
 
+## Intensity Distribution (GET /progress/intensity-distribution)
+
+Query params: `from`, `to` (dates YYYY-MM-DD), `type` (optionnel, `real` par défaut).
+
+Temps passé dans chaque zone de fréquence cardiaque (Z1-Z5) agrégé par semaine.
+Les activités sans données HR sont silencieusement exclues.
+Les seuils de zones sont calculés à partir de la FC max effective configurée dans les paramètres.
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `points[]` | array<object> | - | serie hebdomadaire |
+| `points[].bucket_start` | string | - | date debut semaine YYYY-MM-DD |
+| `points[].z1_time_min` | float | min | temps en zone 1 (50-60% FC max) |
+| `points[].z2_time_min` | float | min | temps en zone 2 (60-70% FC max) |
+| `points[].z3_time_min` | float | min | temps en zone 3 (70-80% FC max) |
+| `points[].z4_time_min` | float | min | temps en zone 4 (80-90% FC max) |
+| `points[].z5_time_min` | float | min | temps en zone 5 (>90% FC max) |
+| `points[].total_time_min` | float | min | temps total avec HR |
+| `zone_thresholds_bpm` | object\|null | bpm | seuils de zones en bpm (null si FC max non configurée) |
+| `zone_thresholds_bpm.z1` | float | bpm | seuil Z1 |
+| `zone_thresholds_bpm.z2` | float | bpm | seuil Z2 |
+| `zone_thresholds_bpm.z3` | float | bpm | seuil Z3 |
+| `zone_thresholds_bpm.z4` | float | bpm | seuil Z4 |
+| `zone_thresholds_bpm.z5` | float | bpm | seuil Z5 |
+
+## Long Run Dose (GET /progress/long-run-dose)
+
+Query params: `from`, `to` (dates YYYY-MM-DD).
+
+Distance et temps des sorties longues (tag `long_run` : distance ≥ 18 km ou temps ≥ 90 min) agrégés par semaine.
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `[].bucket_start` | string | - | date debut semaine YYYY-MM-DD |
+| `[].distance_km` | float | km | distance totale en sortie longue |
+| `[].moving_time_h` | float | h | temps total en sortie longue |
+| `[].activity_count` | int | - | nombre de sorties longues |
+| `[].max_distance_km` | float | km | plus longue sortie de la semaine |
+
+## VAM Trend (GET /progress/vam-trend)
+
+Query params: `from`, `to` (dates YYYY-MM-DD).
+
+Meilleur VAM (vitesse ascensionnelle) par activité contenant au moins une montée.
+Les activités sans montée sont silencieusement exclues.
+
+| Path | Type | Unit | Description |
+| --- | --- | --- | --- |
+| `[].activity_id` | string | - | ID de l'activité |
+| `[].start_ts_utc` | string | - | date/heure UTC de l'activité |
+| `[].vam_max_m_h` | float | m/h | VAM max parmi les montées de l'activité |
+
 ## Geo Cities (GET /geo/cities)
 
 Query params: `query` (min 2 car.), `limit` (1-10, defaut 8), `language` (defaut `fr`).

@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
-## [1.1.96] - 2026-07-01
+## [1.2.0] - 2026-07-01
 
 ### Added
 - **KPI Session Taxonomy** : nouvelle section `ProgressSessionTaxonomy` sur la page Progression — bar chart horizontal par type de séance (easy, tempo, interval, long_run) + compteurs terrain/race markers (hook `useProgressSessionTaxonomy` existant)
@@ -15,6 +15,8 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - **Backend** : méthode `list_climb_max_vam` dans `ProgressRepository`
 - **Backend** : méthodes `compute_intensity_distribution`, `compute_long_run_dose`, `compute_vam_trend` dans `ProgressService`
 - **Frontend** : hooks `useProgressIntensityDistribution`, `useProgressLongRunDose`, `useProgressVamTrend`
+- **Docs** : ajout des 3 nouveaux endpoints dans `docs/metrics_catalog.md`
+- **Docs** : mise à jour du tableau des fonctionnalités dans `README.md`
 
 ## [1.1.95] - 2026-07-01
 

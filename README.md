@@ -22,7 +22,7 @@ Le projet est composé d'un **frontend Next.js** (UI) et d'une **API FastAPI** (
 | Graphiques | ✅ | Allure vs distance, temps par allure, temps par pente, dénivelé, allure vs pente |
 | Gestion des traces | ✅ | Liste, upload, rename, suppression, ouverture en mode théorique |
 | Intégration Garmin | ✅ | Connexion, sync, status, reset — stockage local des tokens |
-| Progression | ✅ | Dashboard multi-activités : volume, TRIMP, best efforts, EF, découplage, waterfall 3D |
+| Progression | ✅ | Dashboard multi-activités : volume, TRIMP, charge, best efforts, EF, découplage, HR@pace, waterfall 3D, session taxonomy, intensity distribution, long run dose, VAM trend |
 | Objectifs | ✅ | CRUD courses à venir, timeline, calendrier, carte Leaflet |
 | Paramètres | ✅ | VMA, FC max, détection auto, maintenance, indexation |
 | Cache et indexation | ✅ | Indexation analytique SQLite fast/slow, cache LRU, pas de recompute inutile |
