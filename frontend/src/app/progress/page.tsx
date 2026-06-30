@@ -37,6 +37,8 @@ import type {
   ProgressTerrainTag,
 } from '@/types/api';
 import { PaceHr3DChart } from '@/components/charts/PaceHr3DChart';
+import CalendarHeatmap from '@/components/features/progress/CalendarHeatmap';
+import TrainingLoadChart from '@/components/features/progress/TrainingLoadChart';
 import { TrendingUp } from 'lucide-react';
 
 type HistoryRange = '3m' | '6m' | '1y' | 'all';
@@ -687,6 +689,8 @@ export default function ProgressPage() {
           </CardContent>
         </Card>
 
+      <CalendarHeatmap />
+
       <Card>
           <CardHeader className="py-3 px-4">
             <CardTitle className="text-base">Charge (TRIMP) par semaine</CardTitle>
@@ -725,6 +729,8 @@ export default function ProgressPage() {
             )}
           </CardContent>
         </Card>
+
+      <TrainingLoadChart />
 
       <Card>
           <CardHeader className="py-3 px-4">

@@ -486,3 +486,38 @@ export interface ProgressPaceHrWaterfallActivity {
 export interface ProgressPaceHrWaterfallResponse {
   activities: ProgressPaceHrWaterfallActivity[];
 }
+
+// Calendar heatmap
+export interface CalendarDay {
+  date: string;
+  has_activity: boolean;
+  distance_km: number | null;
+  moving_time_s: number | null;
+  activity_count: number;
+}
+
+export interface CalendarResponse {
+  days: CalendarDay[];
+  year: number;
+  total_active_days: number;
+  longest_streak: number;
+  current_streak: number;
+}
+
+// Training load (ACWR / Monotony / Strain)
+export interface TrainingLoadPoint {
+  bucket_start: string;
+  acute_load_7d: number | null;
+  chronic_load_42d: number | null;
+  acwr: number | null;
+  monotony_7d: number | null;
+  strain_7d: number | null;
+}
+
+export interface TrainingLoadResponse {
+  points: TrainingLoadPoint[];
+  current_acwr: number | null;
+  current_monotony: number | null;
+  current_strain: number | null;
+  risk_zone: 'low' | 'moderate' | 'high' | null;
+}

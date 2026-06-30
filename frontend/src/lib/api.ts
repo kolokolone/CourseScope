@@ -29,6 +29,8 @@ import {
   ProgressVerifyResponse,
   ProgressIndexStatusResponse,
   ProgressIndexationStrategy,
+  CalendarResponse,
+  TrainingLoadResponse,
   GoalItem,
   GoalsListResponse,
   GeoCitiesResponse,
@@ -525,5 +527,16 @@ export const progressApi = {
     if (typeof params.race_marker === 'boolean') sp.append('race_marker', String(params.race_marker));
 
     return apiRequest<ProgressActivitiesResponse>(`/progress/activities?${sp.toString()}`);
+  },
+
+  calendar: async (year: number) =>
+    apiRequest<CalendarResponse>(`/progress/calendar?year=${year}`),
+
+  trainingLoad: async (params?: { from?: string; to?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from) sp.append('from', params.from);
+    if (params?.to) sp.append('to', params.to);
+    const suffix = sp.toString();
+    return apiRequest<TrainingLoadResponse>(`/progress/training-load${suffix ? `?${suffix}` : ''}`);
   },
 };

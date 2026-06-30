@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { progressApi } from '@/lib/api';
 import type {
+  CalendarResponse,
   ProgressActivitiesResponse,
   ProgressAgg,
   ProgressBestEffortKind,
@@ -15,6 +16,7 @@ import type {
   ProgressTerrainTag,
   ProgressSeriesResponse,
   ProgressType,
+  TrainingLoadResponse,
 } from '@/types/api';
 
 export const progressKeys = {
@@ -33,6 +35,9 @@ export const progressKeys = {
   sessionTaxonomyQuery: (params: string) => [...progressKeys.sessionTaxonomy(), params] as const,
   paceHrWaterfall: () => [...progressKeys.all, 'pace-hr-waterfall'] as const,
   paceHrWaterfallQuery: (params: string) => [...progressKeys.paceHrWaterfall(), params] as const,
+  calendar: (year: number) => [...progressKeys.all, 'calendar', year] as const,
+  trainingLoad: () => [...progressKeys.all, 'training-load'] as const,
+  trainingLoadQuery: (params: string) => [...progressKeys.trainingLoad(), params] as const,
 };
 
 export function useProgressSeries(params: {
@@ -157,6 +162,24 @@ export function useProgressPaceHrWaterfall(params: {
     queryKey: progressKeys.paceHrWaterfallQuery(paramString),
     queryFn: (): Promise<ProgressPaceHrWaterfallResponse> => progressApi.paceHrWaterfall(params),
     enabled: Boolean(params.from && params.to),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useCalendar(year: number) {
+  return useQuery({
+    queryKey: progressKeys.calendar(year),
+    queryFn: (): Promise<CalendarResponse> => progressApi.calendar(year),
+    enabled: year > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useTrainingLoad(params?: { from?: string; to?: string }) {
+  const paramString = JSON.stringify(params ?? {});
+  return useQuery({
+    queryKey: progressKeys.trainingLoadQuery(paramString),
+    queryFn: (): Promise<TrainingLoadResponse> => progressApi.trainingLoad(params),
     staleTime: 60 * 1000,
   });
 }
