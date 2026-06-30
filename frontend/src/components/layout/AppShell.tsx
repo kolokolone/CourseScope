@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 import { usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { metaApi } from '@/lib/api';
 import { PageContainer } from './PageContainer';
 import { resolvePageMetadata } from './page-metadata';
 import { Sidebar } from './Sidebar';
@@ -25,6 +27,12 @@ export function AppShell({ children }: AppShellProps) {
   const HeaderActions = pageMetadata.HeaderActions;
   const contextInfo = pageMetadata.showToday ? formatTodayLabel() : undefined;
 
+  const versionQuery = useQuery({
+    queryKey: ['meta', 'root'],
+    queryFn: () => metaApi.root(),
+    staleTime: 60_000,
+  });
+
   React.useEffect(() => {
     setMobileSidebarOpen(false);
   }, [pathname]);
@@ -46,9 +54,9 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="h-screen overflow-hidden bg-background text-foreground">
-      <div className="grid h-full md:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="grid h-full md:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="hidden h-screen overflow-y-auto border-r border-border md:block">
-          <Sidebar pathname={pathname} />
+          <Sidebar pathname={pathname} version={versionQuery.data?.version} />
         </aside>
 
         <div className="flex min-h-0 flex-col">
@@ -75,7 +83,7 @@ export function AppShell({ children }: AppShellProps) {
             aria-label="Fermer la navigation"
           />
           <div className="relative h-full w-[18rem] max-w-[88vw] border-r border-border bg-card">
-            <Sidebar pathname={pathname} onNavigate={() => setMobileSidebarOpen(false)} />
+            <Sidebar pathname={pathname} onNavigate={() => setMobileSidebarOpen(false)} version={versionQuery.data?.version} />
           </div>
         </div>
       ) : null}

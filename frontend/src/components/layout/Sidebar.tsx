@@ -4,6 +4,7 @@ import { NavItem } from './NavItem';
 type SidebarProps = {
   pathname: string;
   onNavigate?: () => void;
+  version?: string;
 };
 
 function isItemActive(pathname: string, item: NavItemConfig) {
@@ -11,11 +12,14 @@ function isItemActive(pathname: string, item: NavItemConfig) {
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-export function Sidebar({ pathname, onNavigate }: SidebarProps) {
+export function Sidebar({ pathname, onNavigate, version }: SidebarProps) {
   return (
     <div className="flex h-full flex-col bg-card">
       <div className="border-b border-border px-5 py-5">
-        <p className="text-lg font-semibold tracking-tight">CourseScope</p>
+        <p className="text-lg font-semibold tracking-tight">
+          CourseScope
+          {version ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">v{version}</span> : null}
+        </p>
         <p className="mt-1 text-xs text-muted-foreground">Analyse d'activites de course</p>
       </div>
 
