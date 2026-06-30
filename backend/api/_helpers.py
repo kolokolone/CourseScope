@@ -7,6 +7,14 @@ from registry.series_registry import SeriesRegistry
 from storage.activity_store import LocalTempStorage, _model_to_dict
 
 
+def get_db_session_factory(request: Request):
+    """Retourne la factory de session DB ou lève HTTPException(500)."""
+    factory = getattr(request.app.state, "db_session_factory", None)
+    if factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+    return factory
+
+
 def resolve_activity_df(request: Request, activity_id: str) -> pd.DataFrame:
     """Resout un DataFrame d'activite avec fallback temp_storage.
 

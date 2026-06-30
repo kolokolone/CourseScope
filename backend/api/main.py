@@ -20,6 +20,17 @@ from config import get_activities_dir, get_data_dir, get_traces_dir
 from db.session import init_db, make_engine, make_session_factory
 
 
+def _read_version() -> str:
+    """Lit la version depuis le fichier VERSION à la racine du repo."""
+    version_file = Path(__file__).resolve().parent.parent.parent / "VERSION"
+    if version_file.exists():
+        return version_file.read_text(encoding="utf-8").strip()
+    return "0.0.0"  # fallback
+
+
+_APP_VERSION = _read_version()
+
+
 class _DefaultRequestIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:  # pragma: no cover
         if not hasattr(record, "request_id"):
@@ -91,9 +102,15 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CourseScope API",
     description="Analytics pour traces GPX/FIT",
-    version="1.2.0",
+    version=_APP_VERSION,
     lifespan=lifespan,
 )
+
+
+# Chemins de polling/santé — logués en DEBUG pour éviter le spam dans les logs.
+_QUIET_LOG_PATHS: set[str] = {
+    "/progress/index/status",
+}
 
 
 @app.middleware("http")
@@ -124,16 +141,19 @@ async def request_logging_middleware(request: Request, call_next):
     duration_ms = (time.perf_counter() - start) * 1000
     response.headers["X-Request-ID"] = request_id
 
-    logger.info(
-        "request",
-        extra={
-            "request_id": request_id,
-            "method": request.method,
-            "path": request.url.path,
-            "status": getattr(response, "status_code", None),
-            "duration_ms": round(duration_ms, 2),
-        },
-    )
+    log_extra = {
+        "request_id": request_id,
+        "method": request.method,
+        "path": request.url.path,
+        "status": getattr(response, "status_code", None),
+        "duration_ms": round(duration_ms, 2),
+    }
+
+    if request.url.path.rstrip("/") in _QUIET_LOG_PATHS:
+        logger.debug("request", extra=log_extra)
+    else:
+        logger.info("request", extra=log_extra)
+
     return response
 
 app.add_middleware(
@@ -188,7 +208,7 @@ app.include_router(geo_router, prefix="/api", include_in_schema=False)
 async def root():
     return {
         "message": "CourseScope API",
-        "version": "1.2.0",
+        "version": _APP_VERSION,
         "docs": "/docs",
         "status": "operational",
     }

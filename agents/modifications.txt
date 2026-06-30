@@ -1,1 +1,64 @@
-- incorporer les nouveaux KPI, comme décrit dans docs\audit_application.md dans la section 9. Opportunités de nouveaux KPI
+- lancer un audit du frontend pour voir ce qui est calculé à chaque fois qu'on se rend sur une page puis recalculé si on revient sur la meme page, cibler ce qui peut etre amélioré pour éviter ces recalculs redondants puis comment l'améliorer
+
+- analyser pourquoi j'ai ceci dans le log backend : "INFO:     127.0.0.1:56299 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+
+2026-07-01 00:13:34 INFO [coursescope] [request_id=5c920a50-eee9-457f-8b3e-638dac39ff3d] request
+
+INFO:     127.0.0.1:64726 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:36 INFO [coursescope] [request_id=13ad5049-d160-4cf9-b6b8-374e820b5608] request
+
+INFO:     127.0.0.1:49219 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:38 INFO [coursescope] [request_id=3f17368a-5fad-4bdb-acfa-3034b16491c2] request
+
+INFO:     127.0.0.1:58394 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:40 INFO [coursescope] [request_id=a87a0192-2f4f-461f-8f4e-292d919e48da] request
+
+INFO:     127.0.0.1:59165 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:42 INFO [coursescope] [request_id=f050f694-a4f5-46c1-a3b2-c42a25e069f7] request
+
+INFO:     127.0.0.1:49814 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:44 INFO [coursescope] [request_id=8320150b-f18e-4daa-bd2c-b8426de83df1] request
+
+INFO:     127.0.0.1:52304 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:46 INFO [coursescope] [request_id=5f644eb2-a78f-47b9-84a3-040abe00fff5] request
+
+INFO:     127.0.0.1:62360 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:48 INFO [coursescope] [request_id=f825e9d3-1ec6-4650-8126-0092f675c8f4] request
+
+INFO:     127.0.0.1:56915 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:50 INFO [coursescope] [request_id=75d24759-d8a9-4afc-bb9d-6d3c6236781f] request
+
+INFO:     127.0.0.1:51870 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:52 INFO [coursescope] [request_id=c40b65e4-5ae6-4ed2-beef-d90cce021975] request
+
+INFO:     127.0.0.1:56458 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:54 INFO [coursescope] [request_id=d92e130a-414d-493c-9465-1de8ddb7cb65] request
+
+INFO:     127.0.0.1:51088 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:56 INFO [coursescope] [request_id=844167e6-de41-4da5-949b-e76c1224f227] request
+
+INFO:     127.0.0.1:60297 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:13:58 INFO [coursescope] [request_id=237d0f8b-4e1f-4103-887f-3e36aa9bf1ab] request
+
+INFO:     127.0.0.1:59017 - "GET /progress/index/status HTTP/1.1" 200 OK
+
+2026-07-01 00:14:00 INFO [coursescope] [request_id=f8be4a44-379b-434a-befe-9fba56462e31] request
+
+INFO:     127.0.0.1:52987 - "GET /progress/index/status HTTP/1.1" 200 OK" 
+
+ - corriger/améliorer les monolithes backend
+
+- Comment gérer le numero de version de manière globale avec qu'un seul fichier ? comment font les vrais développeurs pour changer qu'une valeur qui se répercute partout ? je veux faire pareil

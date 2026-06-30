@@ -7,6 +7,7 @@ import {
   useProgressActivities,
   useProgressBestEfforts,
   useProgressHrAtPace,
+  useProgressIndexStatus,
   useProgressPaceAtHr,
   useProgressPaceHrWaterfall,
   useProgressSeries,
@@ -17,7 +18,6 @@ import { type HistoryRange, isoDateUtc, weekStartUtc, shiftRangeStart, formatDat
 import { rollingMean } from '@/lib/chartUtils';
 import type {
   ProgressActivity,
-  ProgressIndexStatusResponse,
   ProgressSeriesMetric,
   ProgressSessionTag,
   ProgressTerrainTag,
@@ -46,8 +46,8 @@ import { parseBucketStartMs, finiteNumber, paddedDomain } from '@/components/fea
 
 export default function ProgressPage() {
   const queryClient = useQueryClient();
-  const indexationStartedRef = React.useRef(false);
   const lastIndexationRefreshAtRef = React.useRef<string | null>(null);
+  const indexTriggeredRef = React.useRef(false);
   const [range, setRange] = React.useState<HistoryRange>('6m');
   const [volumeMetric, setVolumeMetric] = React.useState<ProgressSeriesMetric>('distance_m');
   const [bestDuration, setBestDuration] = React.useState(1200);
@@ -56,92 +56,30 @@ export default function ProgressPage() {
   const [waterfallSessionTag, setWaterfallSessionTag] = React.useState<'all' | ProgressSessionTag>('all');
   const [waterfallTerrainTag, setWaterfallTerrainTag] = React.useState<'all' | ProgressTerrainTag>('all');
   const [waterfallEnduranceOnly, setWaterfallEnduranceOnly] = React.useState(false);
-  const [indexationState, setIndexationState] = React.useState<ProgressIndexStatusResponse | null>(null);
 
+  // Trigger fast indexation once on mount
   React.useEffect(() => {
-    if (indexationStartedRef.current) return;
-    indexationStartedRef.current = true;
+    if (indexTriggeredRef.current) return;
+    indexTriggeredRef.current = true;
+    progressApi.indexFast({ reason: 'progress_page' }).catch(() => {
+      // Silent — status polling handles auto-triggered indexation.
+    });
+  }, []);
 
-    let cancelled = false;
-    let timer: number | null = null;
+  // Poll indexation status via React Query (stops automatically when not running)
+  const indexStatusQuery = useProgressIndexStatus();
+  const indexationState = indexStatusQuery.data ?? null;
 
-    const applyState = (state: ProgressIndexStatusResponse) => {
-      if (cancelled) return;
-
-      const finishedAt = state.last_finished_at_utc;
-      if (!state.running && finishedAt && lastIndexationRefreshAtRef.current !== finishedAt) {
-        lastIndexationRefreshAtRef.current = finishedAt;
-        void queryClient.invalidateQueries({ queryKey: ['progress'] });
-      }
-
-      setIndexationState(state);
-      if (!state.running && timer !== null) {
-        window.clearInterval(timer);
-        timer = null;
-      }
-    };
-
-    const pollStatus = async () => {
-      try {
-        const state = await progressApi.indexStatus();
-        applyState(state);
-      } catch {
-        // Keep silent: this status should not block chart rendering.
-      }
-    };
-
-    const startPolling = () => {
-      if (timer !== null) return;
-      timer = window.setInterval(() => {
-        void pollStatus();
-      }, 2000);
-    };
-
-    const startFastIndexation = async () => {
-      try {
-        const state = await progressApi.indexFast({ reason: 'progress_page' });
-        applyState(state);
-        if (state.running) {
-          startPolling();
-        }
-      } catch (error) {
-        setIndexationState((prev) =>
-          prev ?? {
-            running: false,
-            mode: null,
-            phase: null,
-            current_run_duration_ms: null,
-            progress_current: 0,
-            progress_total: 0,
-            percent: 0,
-            last_started_at_utc: null,
-            last_finished_at_utc: null,
-            last_error: error instanceof Error ? error.message : 'Impossible de lancer l indexation rapide automatique.',
-            last_result: null,
-            last_duration_ms: null,
-          }
-        );
-
-        // Fallback: still poll status for a short grace window in case
-        // backend auto-trigger starts from another /progress endpoint call.
-        startPolling();
-        void pollStatus();
-        window.setTimeout(() => {
-          if (timer !== null) {
-            window.clearInterval(timer);
-            timer = null;
-          }
-        }, 20000);
-      }
-    };
-
-    void startFastIndexation();
-
-    return () => {
-      cancelled = true;
-      if (timer !== null) window.clearInterval(timer);
-    };
-  }, [queryClient]);
+  // Invalidate progress data when indexation finishes
+  React.useEffect(() => {
+    const state = indexStatusQuery.data;
+    if (!state || state.running) return;
+    const finishedAt = state.last_finished_at_utc;
+    if (finishedAt && lastIndexationRefreshAtRef.current !== finishedAt) {
+      lastIndexationRefreshAtRef.current = finishedAt;
+      void queryClient.invalidateQueries({ queryKey: ['progress'] });
+    }
+  }, [indexStatusQuery.data, queryClient]);
 
   const now = React.useMemo(() => new Date(), []);
   const fromDate = React.useMemo(() => shiftRangeStart(now, range), [now, range]);

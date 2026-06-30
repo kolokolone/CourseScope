@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from api._helpers import get_db_session_factory
 from config import get_garmin_tokens_dir
 from db.repository import ActivityIndexRepository
 from integrations.garmin.client import GarminAuthError, GarminMfaState, resume_login_with_otp, start_login, connect_with_tokens
@@ -128,9 +129,7 @@ async def garmin_sync(request: Request):
         raise HTTPException(status_code=401, detail=f"reauth_required: {exc}")
 
     storage = request.app.state.storage
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     service = GarminSyncService(
         garmin_client=garmin,
@@ -158,9 +157,7 @@ async def garmin_reset(request: Request):
     Use this before a full resync.
     """
 
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     repo = ActivityIndexRepository()
     session = db_session_factory()

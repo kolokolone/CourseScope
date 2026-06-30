@@ -5,6 +5,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 
+from api._helpers import get_db_session_factory
 from api.schemas import GoalCreateRequest, GoalItem, GoalsListResponse, GoalUpdateRequest
 from db.goals_repository import GoalsRepository
 from db.models import utc_now_iso
@@ -14,10 +15,7 @@ router = APIRouter()
 
 
 def _session_factory(request: Request):
-    factory = getattr(request.app.state, "db_session_factory", None)
-    if factory is None:
-        raise HTTPException(status_code=500, detail="Database session factory is unavailable")
-    return factory
+    return get_db_session_factory(request)
 
 
 def _normalize_event_date(raw_value: str) -> str:

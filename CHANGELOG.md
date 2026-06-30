@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.1] - 2026-07-01
+
+### Changed
+- **Versioning** : centralisation de la version applicative via `VERSION` et synchronisation frontend.
+- **Performance frontend** : cache React Query global (`staleTime`, `gcTime`) et polling Progression basé sur `refetchInterval` conditionnel.
+- **Backend** : réduction du spam de logs pour `/progress/index/status` et extraction du helper `get_db_session_factory`.
+- **Refactor** : découpage incrémental de `metrics.py` et `progress/indexer.py` en helpers privés.
+
 ## [1.2.0] - 2026-07-01
 
 ### Added

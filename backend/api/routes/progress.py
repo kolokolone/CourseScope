@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.responses import JSONResponse
 
+from api._helpers import get_db_session_factory
 from db.models import ProgressActivityTag, utc_now_iso
 from db.progress_repository import ProgressRepository
 from db.settings_repository import SettingsRepository
@@ -88,9 +89,7 @@ def _to_indexation_status_payload(state) -> dict:
 
 @router.post("/progress/index/fast")
 async def trigger_fast_indexation(request: Request, payload: dict | None = None):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     body = payload or {}
     reason = str(body.get("reason") or "api_fast").strip() or "api_fast"
@@ -105,9 +104,7 @@ async def trigger_fast_indexation(request: Request, payload: dict | None = None)
 
 @router.post("/progress/index/slow")
 async def trigger_slow_indexation(request: Request, payload: dict | None = None):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     body = payload or {}
     strategy_raw = str(body.get("strategy") or "incremental").strip().lower()
@@ -132,9 +129,7 @@ async def trigger_slow_indexation(request: Request, payload: dict | None = None)
 
 @router.get("/progress/index/status")
 async def get_progress_index_status(request: Request):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     state = get_indexation_state()
     return _to_indexation_status_payload(state)
@@ -151,9 +146,7 @@ async def list_progress_activities(
     terrain_tag: str | None = Query(None),
     race_marker: bool | None = Query(None),
 ):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     repo = ProgressRepository()
     session = db_session_factory()
@@ -197,9 +190,7 @@ async def get_progress_series(
     to_ts: str | None = Query(None, alias="to"),
     activity_type: str | None = Query(None, alias="type"),
 ):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     allowed_metrics = {
         "distance_m",
@@ -248,9 +239,7 @@ async def get_progress_best_efforts(
     from_ts: str | None = Query(None, alias="from"),
     to_ts: str | None = Query(None, alias="to"),
 ):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     if kind != "pace_s_per_km":
         raise HTTPException(status_code=400, detail="Unsupported kind")
@@ -285,9 +274,7 @@ async def get_progress_hr_at_pace(
     terrain_tag: str | None = Query(None),
     endurance_only: bool = Query(False),
 ):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     if activity_type is not None and activity_type not in {"real", "theoretical"}:
         raise HTTPException(status_code=400, detail="Invalid type")
@@ -333,9 +320,7 @@ async def get_progress_pace_at_hr(
     terrain_tag: str | None = Query(None),
     endurance_only: bool = Query(False),
 ):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     if activity_type is not None and activity_type not in {"real", "theoretical"}:
         raise HTTPException(status_code=400, detail="Invalid type")
@@ -377,9 +362,7 @@ async def get_progress_session_taxonomy(
     to_ts: str | None = Query(None, alias="to"),
     activity_type: str | None = Query(None, alias="type"),
 ):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     if activity_type is not None and activity_type not in {"real", "theoretical"}:
         raise HTTPException(status_code=400, detail="Invalid type")
@@ -404,9 +387,7 @@ async def get_progress_session_taxonomy(
 
 @router.post("/progress/tags")
 async def upsert_progress_activity_tag(request: Request, payload: dict):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     activity_id = str(payload.get("activity_id") or "").strip()
     if not activity_id:
@@ -465,9 +446,7 @@ async def get_progress_pace_hr_waterfall(
     terrain_tag: str | None = Query(None),
     endurance_only: bool = Query(False),
 ):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     if activity_type is not None and activity_type not in {"real", "theoretical"}:
         raise HTTPException(status_code=400, detail="Invalid type")
@@ -508,9 +487,7 @@ async def get_training_load(
     to_ts: str | None = Query(None, alias="to"),
 ):
     """ACWR, monotonie d'entraînement, et strain à partir de la série TRIMP."""
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     from_ts_utc = _parse_ts_utc(from_ts, is_end=False)
     to_ts_utc = _parse_ts_utc(to_ts, is_end=True)
@@ -539,9 +516,7 @@ async def get_intensity_distribution(
     activity_type: str | None = Query(None, alias="type"),
 ):
     """Temps passé par zone de fréquence cardiaque (Z1-Z5) agrégé par semaine."""
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     if activity_type is not None and activity_type not in {"real", "theoretical"}:
         raise HTTPException(status_code=400, detail="Invalid type")
@@ -592,9 +567,7 @@ async def get_long_run_dose(
     to_ts: str | None = Query(None, alias="to"),
 ):
     """Distance et temps des sorties longues (tag long_run) agrégés par semaine."""
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     from_ts_utc = _parse_ts_utc(from_ts, is_end=False)
     to_ts_utc = _parse_ts_utc(to_ts, is_end=True)
@@ -627,9 +600,7 @@ async def get_vam_trend(
     to_ts: str | None = Query(None, alias="to"),
 ):
     """Tendance de VAM max (m/h) par activité contenant des montées."""
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     from_ts_utc = _parse_ts_utc(from_ts, is_end=False)
     to_ts_utc = _parse_ts_utc(to_ts, is_end=True)
@@ -654,9 +625,7 @@ async def get_calendar(
     year: int = Query(..., ge=2000, le=2100),
 ):
     """Données de heatmap calendrier pour une année donnée."""
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     from_ts = f"{year}-01-01T00:00:00Z"
     to_ts = f"{year}-12-31T23:59:59Z"

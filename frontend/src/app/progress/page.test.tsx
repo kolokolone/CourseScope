@@ -49,6 +49,27 @@ vi.mock('@/hooks/useProgress', () => ({
   useProgressPaceHrWaterfall: () => ({ data: { activities: [] }, isLoading: false, error: null }),
   useCalendar: () => ({ data: { days: [] }, isLoading: false, isError: false }),
   useTrainingLoad: () => ({ data: null, isLoading: false, isError: false }),
+  useProgressIntensityDistribution: () => ({ data: { points: [] }, isLoading: false, isError: false }),
+  useProgressLongRunDose: () => ({ data: [], isLoading: false, isError: false }),
+  useProgressVamTrend: () => ({ data: [], isLoading: false, isError: false }),
+  useProgressIndexStatus: () => ({
+    data: {
+      running: true,
+      mode: 'fast',
+      phase: 'scan_fs',
+      current_run_duration_ms: 240,
+      progress_current: 2,
+      progress_total: 3,
+      percent: 66.7,
+      last_started_at_utc: '2026-02-14T10:00:00Z',
+      last_finished_at_utc: null,
+      last_error: null,
+      last_result: null,
+      last_duration_ms: null,
+    },
+    isLoading: false,
+    error: null,
+  }),
 }));
 
 describe('ProgressPage', () => {

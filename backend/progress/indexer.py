@@ -312,6 +312,248 @@ def _build_pace_hr_bins(
     return rows
 
 
+def _upsert_latest_vo2max(session: Session, vo2max: float | None, indexed_at_ts: str) -> None:
+    if vo2max is None:
+        return
+
+    settings = session.get(UserSettings, 1)
+    if settings is None:
+        settings = UserSettings(
+            id=1,
+            vma_kmh=None,
+            vo2max_lastest=vo2max,
+            hr_max_manual_bpm=None,
+            hr_max_source="detected",
+            updated_at_utc=indexed_at_ts,
+        )
+        session.add(settings)
+    else:
+        settings.vo2max_lastest = vo2max
+        settings.updated_at_utc = indexed_at_ts
+
+
+def _upsert_auto_activity_tag(
+    repo: ProgressRepository,
+    session: Session,
+    *,
+    activity_id: str,
+    activity_type: str,
+    distance_m: float | None,
+    moving_time_s: float | None,
+    elevation_gain_m: float | None,
+    avg_pace_s_per_km: float | None,
+    best_pace_s_per_km: float | None,
+    pace_threshold_s_per_km: float | None,
+    stability_cv: float | None,
+    decoupling_pct: float | None,
+    indexed_at_ts: str,
+) -> None:
+    session_tag, terrain_tag = _classify_session_and_terrain(
+        activity_type=activity_type,
+        distance_m=distance_m,
+        moving_time_s=moving_time_s,
+        elevation_gain_m=elevation_gain_m,
+        avg_pace_s_per_km=avg_pace_s_per_km,
+        best_pace_s_per_km=best_pace_s_per_km,
+        pace_threshold_s_per_km=pace_threshold_s_per_km,
+        stability_cv=stability_cv,
+        decoupling_pct=decoupling_pct,
+    )
+    repo.upsert_activity_tag(
+        session,
+        row=ProgressActivityTag(
+            activity_id=activity_id,
+            session_tag=session_tag,
+            terrain_tag=terrain_tag,
+            race_marker=0,
+            source="auto",
+            updated_at_ts=indexed_at_ts,
+        ),
+        preserve_manual=True,
+    )
+
+
+def _replace_best_efforts(
+    repo: ProgressRepository,
+    session: Session,
+    *,
+    df: pd.DataFrame,
+    activity_id: str,
+    start_ts_utc: str,
+    has_hr: int,
+    has_power: int,
+) -> None:
+    durations_s = [60, 180, 300, 720, 1200, 1800, 3600]
+
+    best_time = compute_best_efforts_by_duration(df, durations_s=durations_s)
+    points: list[ProgressBestEffortPoint] = []
+    if best_time is not None and not best_time.empty:
+        for _, r in best_time.iterrows():
+            dur = int(r.get("duration_s") or 0)
+            pace = _finite_or_none(r.get("pace_s_per_km"))
+            if dur <= 0 or pace is None:
+                continue
+            points.append(
+                ProgressBestEffortPoint(
+                    activity_id=activity_id,
+                    start_ts_utc=start_ts_utc,
+                    effort_kind="pace_s_per_km",
+                    duration_s=dur,
+                    value=float(pace),
+                )
+            )
+    repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="pace_s_per_km", points=points)
+
+    if has_hr and "heart_rate" in df.columns:
+        try:
+            elapsed_h = df.get("elapsed_time_s")
+            if elapsed_h is None and "delta_time_s" in df.columns:
+                elapsed_h = df["delta_time_s"].fillna(0).cumsum()
+            if elapsed_h is not None:
+                elapsed_arr = pd.to_numeric(elapsed_h, errors="coerce").to_numpy(dtype=float)
+                hr_arr = pd.to_numeric(df["heart_rate"], errors="coerce").to_numpy(dtype=float)
+                hr_results = _best_value_by_duration(elapsed_arr, hr_arr, durations_s)
+                hr_points: list[ProgressBestEffortPoint] = []
+                if hr_results is not None and not hr_results.empty:
+                    for _, r in hr_results.iterrows():
+                        dur = int(r.get("duration_s") or 0)
+                        val = _finite_or_none(r.get("value"))
+                        if dur <= 0 or val is None:
+                            continue
+                        hr_points.append(ProgressBestEffortPoint(
+                            activity_id=activity_id, start_ts_utc=start_ts_utc,
+                            effort_kind="hr_bpm", duration_s=dur, value=float(val),
+                        ))
+                repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="hr_bpm", points=hr_points)
+        except Exception:
+            pass
+
+    if has_power and "power" in df.columns:
+        try:
+            elapsed_p = df.get("elapsed_time_s")
+            if elapsed_p is None and "delta_time_s" in df.columns:
+                elapsed_p = df["delta_time_s"].fillna(0).cumsum()
+            if elapsed_p is not None:
+                elapsed_arr = pd.to_numeric(elapsed_p, errors="coerce").to_numpy(dtype=float)
+                pwr_arr = pd.to_numeric(df["power"], errors="coerce").to_numpy(dtype=float)
+                pwr_results = _best_value_by_duration(elapsed_arr, pwr_arr, durations_s)
+                pwr_points: list[ProgressBestEffortPoint] = []
+                if pwr_results is not None and not pwr_results.empty:
+                    for _, r in pwr_results.iterrows():
+                        dur = int(r.get("duration_s") or 0)
+                        val = _finite_or_none(r.get("value"))
+                        if dur <= 0 or val is None:
+                            continue
+                        pwr_points.append(ProgressBestEffortPoint(
+                            activity_id=activity_id, start_ts_utc=start_ts_utc,
+                            effort_kind="power_w", duration_s=dur, value=float(val),
+                        ))
+                repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="power_w", points=pwr_points)
+        except Exception:
+            pass
+
+
+def _replace_activity_zones(
+    repo: ProgressRepository,
+    session: Session,
+    *,
+    activity_id: str,
+    garmin: dict[str, Any],
+) -> None:
+    hr_garmin = garmin.get("heart_rate") if isinstance(garmin, dict) else None
+    if isinstance(hr_garmin, dict):
+        hr_zones_df = hr_garmin.get("zones")
+        if hr_zones_df is not None and hasattr(hr_zones_df, "iterrows") and not hr_zones_df.empty:
+            zone_rows: list[ProgressActivityZone] = []
+            for _, zrow in hr_zones_df.iterrows():
+                range_low, range_high = _parse_zone_range(str(zrow.get("range") or ""))
+                zone_rows.append(ProgressActivityZone(
+                    activity_id=activity_id, zone_type="heart_rate",
+                    zone_name=str(zrow.get("zone") or ""),
+                    range_low=range_low, range_high=range_high,
+                    time_s=float(zrow.get("time_s") or 0),
+                    time_pct=float(zrow.get("time_pct") or 0),
+                ))
+            repo.replace_activity_zones(session, activity_id=activity_id, zone_type="heart_rate", zones=zone_rows)
+
+    pace_zones_df = garmin.get("pace_zones") if isinstance(garmin, dict) else None
+    if pace_zones_df is not None and hasattr(pace_zones_df, "iterrows") and not pace_zones_df.empty:
+        pz_rows: list[ProgressActivityZone] = []
+        for _, zrow in pace_zones_df.iterrows():
+            range_low, range_high = _parse_zone_range(str(zrow.get("range") or ""))
+            pz_rows.append(ProgressActivityZone(
+                activity_id=activity_id, zone_type="pace",
+                zone_name=str(zrow.get("zone") or ""),
+                range_low=range_low, range_high=range_high,
+                time_s=float(zrow.get("time_s") or 0),
+                time_pct=float(zrow.get("time_pct") or 0),
+            ))
+        repo.replace_activity_zones(session, activity_id=activity_id, zone_type="pace", zones=pz_rows)
+
+    power_garmin = garmin.get("power") if isinstance(garmin, dict) else None
+    if isinstance(power_garmin, dict):
+        pw_zones_df = power_garmin.get("zones")
+        if pw_zones_df is not None and hasattr(pw_zones_df, "iterrows") and not pw_zones_df.empty:
+            pw_rows: list[ProgressActivityZone] = []
+            for _, zrow in pw_zones_df.iterrows():
+                range_low, range_high = _parse_zone_range(str(zrow.get("range") or ""))
+                pw_rows.append(ProgressActivityZone(
+                    activity_id=activity_id, zone_type="power",
+                    zone_name=str(zrow.get("zone") or ""),
+                    range_low=range_low, range_high=range_high,
+                    time_s=float(zrow.get("time_s") or 0),
+                    time_pct=float(zrow.get("time_pct") or 0),
+                ))
+            repo.replace_activity_zones(session, activity_id=activity_id, zone_type="power", zones=pw_rows)
+
+
+def _replace_splits_and_climbs(
+    repo: ProgressRepository,
+    session: Session,
+    *,
+    df: pd.DataFrame,
+    activity_id: str,
+) -> None:
+    try:
+        splits_df = compute_splits(df, split_distance_km=1.0)
+        split_rows: list[ProgressActivitySplit] = []
+        if splits_df is not None and not splits_df.empty:
+            for _, srow in splits_df.iterrows():
+                split_rows.append(ProgressActivitySplit(
+                    activity_id=activity_id,
+                    split_index=int(srow.get("split_index") or 0),
+                    distance_km=float(srow.get("distance_km") or 0),
+                    time_s=float(srow.get("time_s") or 0),
+                    pace_s_per_km=_finite_or_none(srow.get("pace_s_per_km")),
+                    elevation_gain_m=_finite_or_none(srow.get("elevation_gain_m")),
+                ))
+        repo.replace_activity_splits(session, activity_id=activity_id, splits=split_rows)
+    except Exception:
+        pass
+
+    try:
+        climbs_list = compute_climbs(df)
+        climb_rows: list[ProgressActivityClimb] = []
+        if climbs_list:
+            for c in climbs_list:
+                if not isinstance(c, dict):
+                    continue
+                climb_rows.append(ProgressActivityClimb(
+                    activity_id=activity_id,
+                    distance_km=float(c.get("distance_km") or 0),
+                    elevation_gain_m=float(c.get("elevation_gain_m") or 0),
+                    avg_grade_percent=_finite_or_none(c.get("avg_grade_percent")),
+                    pace_s_per_km=_finite_or_none(c.get("pace_s_per_km")),
+                    vam_m_h=_finite_or_none(c.get("vam_m_h")),
+                    start_km=_finite_or_none(c.get("start_km")),
+                    end_km=_finite_or_none(c.get("end_km")),
+                    duration_s=_finite_or_none(c.get("duration_s")),
+                ))
+        repo.replace_activity_climbs(session, activity_id=activity_id, climbs=climb_rows)
+    except Exception:
+        pass
+
+
 def index_activity(
     session: Session,
     *,
@@ -483,23 +725,11 @@ def index_activity(
     )
     repo.upsert_activity_index(session, row)
 
-    if vo2max is not None:
-        settings = session.get(UserSettings, 1)
-        if settings is None:
-            settings = UserSettings(
-                id=1,
-                vma_kmh=None,
-                vo2max_lastest=vo2max,
-                hr_max_manual_bpm=None,
-                hr_max_source="detected",
-                updated_at_utc=indexed_at_ts,
-            )
-            session.add(settings)
-        else:
-            settings.vo2max_lastest = vo2max
-            settings.updated_at_utc = indexed_at_ts
-
-    session_tag, terrain_tag = _classify_session_and_terrain(
+    _upsert_latest_vo2max(session, vo2max, indexed_at_ts)
+    _upsert_auto_activity_tag(
+        repo,
+        session,
+        activity_id=activity_id,
         activity_type=activity_type,
         distance_m=distance_m,
         moving_time_s=moving_time_s,
@@ -509,180 +739,21 @@ def index_activity(
         pace_threshold_s_per_km=pace_threshold_s_per_km,
         stability_cv=stability_cv,
         decoupling_pct=decoupling_pct,
+        indexed_at_ts=indexed_at_ts,
     )
-    repo.upsert_activity_tag(
+
+    _replace_best_efforts(
+        repo,
         session,
-        row=ProgressActivityTag(
-            activity_id=activity_id,
-            session_tag=session_tag,
-            terrain_tag=terrain_tag,
-            race_marker=0,
-            source="auto",
-            updated_at_ts=indexed_at_ts,
-        ),
-        preserve_manual=True,
+        df=df,
+        activity_id=activity_id,
+        start_ts_utc=start_ts_utc,
+        has_hr=has_hr,
+        has_power=has_power,
     )
 
-    # Best-efforts timeline (pace) for standard durations.
-    durations_s = [60, 180, 300, 720, 1200, 1800, 3600]
-    best_time = compute_best_efforts_by_duration(df, durations_s=durations_s)
-    points: list[ProgressBestEffortPoint] = []
-    if best_time is not None and not best_time.empty:
-        for _, r in best_time.iterrows():
-            dur = int(r.get("duration_s") or 0)
-            pace = _finite_or_none(r.get("pace_s_per_km"))
-            if dur <= 0 or pace is None:
-                continue
-            points.append(
-                ProgressBestEffortPoint(
-                    activity_id=activity_id,
-                    start_ts_utc=start_ts_utc,
-                    effort_kind="pace_s_per_km",
-                    duration_s=dur,
-                    value=float(pace),
-                )
-            )
-    repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="pace_s_per_km", points=points)
-
-    # Best-efforts HR
-    if has_hr and "heart_rate" in df.columns:
-        try:
-            elapsed_h = df.get("elapsed_time_s")
-            if elapsed_h is None and "delta_time_s" in df.columns:
-                elapsed_h = df["delta_time_s"].fillna(0).cumsum()
-            if elapsed_h is not None:
-                elapsed_arr = pd.to_numeric(elapsed_h, errors="coerce").to_numpy(dtype=float)
-                hr_arr = pd.to_numeric(df["heart_rate"], errors="coerce").to_numpy(dtype=float)
-                hr_results = _best_value_by_duration(elapsed_arr, hr_arr, durations_s)
-                hr_points: list[ProgressBestEffortPoint] = []
-                if hr_results is not None and not hr_results.empty:
-                    for _, r in hr_results.iterrows():
-                        dur = int(r.get("duration_s") or 0)
-                        val = _finite_or_none(r.get("value"))
-                        if dur <= 0 or val is None:
-                            continue
-                        hr_points.append(ProgressBestEffortPoint(
-                            activity_id=activity_id, start_ts_utc=start_ts_utc,
-                            effort_kind="hr_bpm", duration_s=dur, value=float(val),
-                        ))
-                repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="hr_bpm", points=hr_points)
-        except Exception:
-            pass
-
-    # Best-efforts power
-    if has_power and "power" in df.columns:
-        try:
-            elapsed_p = df.get("elapsed_time_s")
-            if elapsed_p is None and "delta_time_s" in df.columns:
-                elapsed_p = df["delta_time_s"].fillna(0).cumsum()
-            if elapsed_p is not None:
-                elapsed_arr = pd.to_numeric(elapsed_p, errors="coerce").to_numpy(dtype=float)
-                pwr_arr = pd.to_numeric(df["power"], errors="coerce").to_numpy(dtype=float)
-                pwr_results = _best_value_by_duration(elapsed_arr, pwr_arr, durations_s)
-                pwr_points: list[ProgressBestEffortPoint] = []
-                if pwr_results is not None and not pwr_results.empty:
-                    for _, r in pwr_results.iterrows():
-                        dur = int(r.get("duration_s") or 0)
-                        val = _finite_or_none(r.get("value"))
-                        if dur <= 0 or val is None:
-                            continue
-                        pwr_points.append(ProgressBestEffortPoint(
-                            activity_id=activity_id, start_ts_utc=start_ts_utc,
-                            effort_kind="power_w", duration_s=dur, value=float(val),
-                        ))
-                repo.replace_best_efforts(session, activity_id=activity_id, effort_kind="power_w", points=pwr_points)
-        except Exception:
-            pass
-
-    # Zones — HR
-    hr_garmin = garmin.get("heart_rate") if isinstance(garmin, dict) else None
-    if isinstance(hr_garmin, dict):
-        hr_zones_df = hr_garmin.get("zones")
-        if hr_zones_df is not None and hasattr(hr_zones_df, "iterrows") and not hr_zones_df.empty:
-            zone_rows: list[ProgressActivityZone] = []
-            for _, zrow in hr_zones_df.iterrows():
-                range_low, range_high = _parse_zone_range(str(zrow.get("range") or ""))
-                zone_rows.append(ProgressActivityZone(
-                    activity_id=activity_id, zone_type="heart_rate",
-                    zone_name=str(zrow.get("zone") or ""),
-                    range_low=range_low, range_high=range_high,
-                    time_s=float(zrow.get("time_s") or 0),
-                    time_pct=float(zrow.get("time_pct") or 0),
-                ))
-            repo.replace_activity_zones(session, activity_id=activity_id, zone_type="heart_rate", zones=zone_rows)
-
-    # Zones — pace
-    pace_zones_df = garmin.get("pace_zones") if isinstance(garmin, dict) else None
-    if pace_zones_df is not None and hasattr(pace_zones_df, "iterrows") and not pace_zones_df.empty:
-        pz_rows: list[ProgressActivityZone] = []
-        for _, zrow in pace_zones_df.iterrows():
-            range_low, range_high = _parse_zone_range(str(zrow.get("range") or ""))
-            pz_rows.append(ProgressActivityZone(
-                activity_id=activity_id, zone_type="pace",
-                zone_name=str(zrow.get("zone") or ""),
-                range_low=range_low, range_high=range_high,
-                time_s=float(zrow.get("time_s") or 0),
-                time_pct=float(zrow.get("time_pct") or 0),
-            ))
-        repo.replace_activity_zones(session, activity_id=activity_id, zone_type="pace", zones=pz_rows)
-
-    # Zones — power
-    power_garmin = garmin.get("power") if isinstance(garmin, dict) else None
-    if isinstance(power_garmin, dict):
-        pw_zones_df = power_garmin.get("zones")
-        if pw_zones_df is not None and hasattr(pw_zones_df, "iterrows") and not pw_zones_df.empty:
-            pw_rows: list[ProgressActivityZone] = []
-            for _, zrow in pw_zones_df.iterrows():
-                range_low, range_high = _parse_zone_range(str(zrow.get("range") or ""))
-                pw_rows.append(ProgressActivityZone(
-                    activity_id=activity_id, zone_type="power",
-                    zone_name=str(zrow.get("zone") or ""),
-                    range_low=range_low, range_high=range_high,
-                    time_s=float(zrow.get("time_s") or 0),
-                    time_pct=float(zrow.get("time_pct") or 0),
-                ))
-            repo.replace_activity_zones(session, activity_id=activity_id, zone_type="power", zones=pw_rows)
-
-    # Splits
-    try:
-        splits_df = compute_splits(df, split_distance_km=1.0)
-        split_rows: list[ProgressActivitySplit] = []
-        if splits_df is not None and not splits_df.empty:
-            for _, srow in splits_df.iterrows():
-                split_rows.append(ProgressActivitySplit(
-                    activity_id=activity_id,
-                    split_index=int(srow.get("split_index") or 0),
-                    distance_km=float(srow.get("distance_km") or 0),
-                    time_s=float(srow.get("time_s") or 0),
-                    pace_s_per_km=_finite_or_none(srow.get("pace_s_per_km")),
-                    elevation_gain_m=_finite_or_none(srow.get("elevation_gain_m")),
-                ))
-        repo.replace_activity_splits(session, activity_id=activity_id, splits=split_rows)
-    except Exception:
-        pass
-
-    # Climbs
-    try:
-        climbs_list = compute_climbs(df)
-        climb_rows: list[ProgressActivityClimb] = []
-        if climbs_list:
-            for c in climbs_list:
-                if not isinstance(c, dict):
-                    continue
-                climb_rows.append(ProgressActivityClimb(
-                    activity_id=activity_id,
-                    distance_km=float(c.get("distance_km") or 0),
-                    elevation_gain_m=float(c.get("elevation_gain_m") or 0),
-                    avg_grade_percent=_finite_or_none(c.get("avg_grade_percent")),
-                    pace_s_per_km=_finite_or_none(c.get("pace_s_per_km")),
-                    vam_m_h=_finite_or_none(c.get("vam_m_h")),
-                    start_km=_finite_or_none(c.get("start_km")),
-                    end_km=_finite_or_none(c.get("end_km")),
-                    duration_s=_finite_or_none(c.get("duration_s")),
-                ))
-        repo.replace_activity_climbs(session, activity_id=activity_id, climbs=climb_rows)
-    except Exception:
-        pass
+    _replace_activity_zones(repo, session, activity_id=activity_id, garmin=garmin)
+    _replace_splits_and_climbs(repo, session, df=df, activity_id=activity_id)
 
     pace_hr_bins = _build_pace_hr_bins(
         df=df,

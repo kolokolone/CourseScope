@@ -10,6 +10,7 @@ import type {
   ProgressBestEffortsResponse,
   ProgressGroupBy,
   ProgressHrAtPaceResponse,
+  ProgressIndexStatusResponse,
   ProgressPaceAtHrResponse,
   ProgressPaceHrWaterfallResponse,
   ProgressSessionTag,
@@ -233,5 +234,14 @@ export function useProgressVamTrend(params: {
     queryFn: (): Promise<VamTrendPoint[]> => progressApi.vamTrend(params),
     enabled: Boolean(params.from && params.to),
     staleTime: 60 * 1000,
+  });
+}
+
+export function useProgressIndexStatus() {
+  return useQuery({
+    queryKey: [...progressKeys.all, 'index-status'],
+    queryFn: (): Promise<ProgressIndexStatusResponse> => progressApi.indexStatus(),
+    staleTime: 2_000,
+    refetchInterval: (query) => (query.state.data?.running ? 2_000 : false),
   });
 }

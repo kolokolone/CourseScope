@@ -4,6 +4,7 @@ from typing import Literal, cast
 
 from fastapi import APIRouter, HTTPException, Request
 
+from api._helpers import get_db_session_factory
 from api.schemas import PersonalSettingsPatchRequest, PersonalSettingsResponse
 from db.settings_repository import SettingsRepository
 from db.models import utc_now_iso
@@ -27,9 +28,7 @@ def _to_response(vma_kmh: float | None, vo2max_lastest: float | None, hr_manual:
 
 @router.get("/settings/personal", response_model=PersonalSettingsResponse)
 async def get_personal_settings(request: Request):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     session = db_session_factory()
     repo = SettingsRepository()
@@ -45,9 +44,7 @@ async def get_personal_settings(request: Request):
 
 @router.patch("/settings/personal", response_model=PersonalSettingsResponse)
 async def patch_personal_settings(request: Request, payload: PersonalSettingsPatchRequest):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     patch = payload.model_dump(exclude_unset=True)
     session = db_session_factory()
@@ -85,9 +82,7 @@ async def patch_personal_settings(request: Request, payload: PersonalSettingsPat
 
 @router.get("/settings/personal/hr-max-detected")
 async def get_detected_hr_max(request: Request):
-    db_session_factory = getattr(request.app.state, "db_session_factory", None)
-    if db_session_factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
+    db_session_factory = get_db_session_factory(request)
 
     session = db_session_factory()
     repo = SettingsRepository()

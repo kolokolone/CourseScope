@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
+from api._helpers import get_db_session_factory
 from api.schemas import TraceItem, TraceStatusResponse, TracesListResponse, TraceUploadResponse
 from db.models import Trace, utc_now_iso
 from db.trace_repository import TraceCreatePayload, TraceRepository
@@ -16,13 +17,6 @@ from traces.verify_traces import verify_traces
 
 
 router = APIRouter()
-
-
-def _get_db_session_factory(request: Request):
-    factory = getattr(request.app.state, "db_session_factory", None)
-    if factory is None:
-        raise HTTPException(status_code=500, detail="DB not initialized")
-    return factory
 
 
 def _get_trace_store(request: Request) -> TraceStore:
@@ -117,7 +111,7 @@ def _save_trace_payload(
 
 @router.get("/traces", response_model=TracesListResponse)
 async def list_traces(request: Request):
-    db_session_factory = _get_db_session_factory(request)
+    db_session_factory = get_db_session_factory(request)
 
     session = db_session_factory()
     repo = TraceRepository()
@@ -140,7 +134,7 @@ async def list_traces(request: Request):
 
 @router.delete("/traces")
 async def cleanup_traces(request: Request):
-    db_session_factory = _get_db_session_factory(request)
+    db_session_factory = get_db_session_factory(request)
     trace_store = _get_trace_store(request)
 
     session = db_session_factory()
@@ -177,7 +171,7 @@ async def upload_trace(
     if loaded.df is None:
         raise HTTPException(status_code=400, detail="Failed to parse activity")
 
-    db_session_factory = _get_db_session_factory(request)
+    db_session_factory = get_db_session_factory(request)
     trace_store = _get_trace_store(request)
     session = db_session_factory()
     repo = TraceRepository()
@@ -220,7 +214,7 @@ async def rename_trace(request: Request, trace_id: str, payload: dict):
         cleaned = str(name_raw).strip()
         name = cleaned if cleaned else None
 
-    db_session_factory = _get_db_session_factory(request)
+    db_session_factory = get_db_session_factory(request)
     session = db_session_factory()
     repo = TraceRepository()
     try:
@@ -238,7 +232,7 @@ async def rename_trace(request: Request, trace_id: str, payload: dict):
 
 @router.delete("/traces/{trace_id}")
 async def delete_trace(request: Request, trace_id: str):
-    db_session_factory = _get_db_session_factory(request)
+    db_session_factory = get_db_session_factory(request)
     trace_store = _get_trace_store(request)
     session = db_session_factory()
     repo = TraceRepository()
@@ -255,7 +249,7 @@ async def delete_trace(request: Request, trace_id: str):
 
 @router.post("/traces/{trace_id}/open")
 async def open_trace_for_theoretical(request: Request, trace_id: str):
-    db_session_factory = _get_db_session_factory(request)
+    db_session_factory = get_db_session_factory(request)
     trace_store = _get_trace_store(request)
     session = db_session_factory()
     repo = TraceRepository()
@@ -276,7 +270,7 @@ async def open_trace_for_theoretical(request: Request, trace_id: str):
 
 @router.get("/activity/{activity_id}/trace-status", response_model=TraceStatusResponse)
 async def get_activity_trace_status(request: Request, activity_id: str):
-    db_session_factory = _get_db_session_factory(request)
+    db_session_factory = get_db_session_factory(request)
     session = db_session_factory()
     repo = TraceRepository()
     try:
@@ -299,7 +293,7 @@ async def get_activity_trace_status(request: Request, activity_id: str):
 
 @router.post("/activity/{activity_id}/trace-save", response_model=TraceItem)
 async def save_activity_trace(request: Request, activity_id: str, payload: dict | None = None):
-    db_session_factory = _get_db_session_factory(request)
+    db_session_factory = get_db_session_factory(request)
     trace_store = _get_trace_store(request)
     session = db_session_factory()
     repo = TraceRepository()

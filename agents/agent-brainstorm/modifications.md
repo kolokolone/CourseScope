@@ -1,37 +1,56 @@
 # Modifications à implémenter — CourseScope
 
-Date : 2026-07-01 11:00
+Date : 2026-07-01 01:00
 Source : agents/modifications.txt
 Produit par : agents/agent-brainstorm.md
 Statut : prêt pour agent-dev
 
 ## 1. Résumé exécutif
 
-L'utilisateur demande d'incorporer les nouveaux KPI identifiés dans `docs/audit_application.md` section 9 (« Opportunités de nouveaux KPI »). L'audit a identifié 7 opportunités réparties en deux catégories : KPI déjà calculés mais non affichés, et KPI facilement calculables à partir des données existantes.
+L'utilisateur a formulé 4 demandes dans `agents/modifications.txt` :
 
-Après analyse du codebase, le bilan est le suivant :
+1. **Audit frontend** des recalculs redondants lors de la navigation entre pages, avec propositions d'amélioration.
+2. **Analyse du log spam backend** — l'endpoint `/progress/index/status` est appelé toutes les ~2 secondes même quand l'indexation est terminée.
+3. **Correction/amélioration des monolithes backend** — bien que le CHANGELOG v1.1.95 affirme des refactors, plusieurs fichiers ont regrossi ou restent problématiques.
+4. **Version unique centralisée** — remplacer les 4+ occurrences hardcodées de `"1.2.0"` par une source unique.
 
-- **Monotony / Strain** : déjà implémenté et affiché dans `TrainingLoadChart.tsx`. Aucun travail nécessaire.
-- **Session taxonomy** : backend + endpoint + hook existent. Aucun composant UI ne les affiche. **Travail : frontend uniquement.**
-- **Terrain tags** : même situation que session taxonomy (même endpoint).
-- **Activity tagging (manual)** : endpoint `POST /progress/tags` existe. Aucune UI de tagging manuel. **Travail : frontend uniquement.**
-- **Intensity distribution** : aucune infrastructure n'existe. **Travail : backend + frontend.**
-- **Long run dose** : tag `long_run` auto-assigné par l'indexeur. Compté dans session taxonomy mais pas de visualisation dédiée. **Travail : frontend principalement, backend mineur si série temporelle.**
-- **VAM trend** : VAM calculé par montée, stocké dans `ProgressActivityClimb`, mais jamais agrégé ni visualisé en tendance. **Travail : backend + frontend.**
+**Logique de priorisation** : Les demandes 2 et 4 sont P0 (corrections à fort impact / faible risque). La demande 3 est P1 (dette technique à résorber progressivement). La demande 1 est P1 (amélioration de performance et UX, mais non bloquante).
 
-**Priorisation** :
-- **P1** : Session taxonomy UI + Intensity distribution — plus fort impact utilisateur, données immédiatement utiles
-- **P2** : Long run dose + VAM trend — enrichissement du dashboard
-- **P3** : Activity tagging UI — fonctionnalité de confort
+**Résultat attendu** : 4 lots de modifications indépendants livrables séparément, chacun avec tests et vérifications.
+
+---
 
 ## 2. Demandes utilisateur extraites
 
-### Demande 1 — Incorporer les nouveaux KPI de l'audit
+### Demande 1 — Audit recalculs frontend
 
-- **Texte source** : « incorporer les nouveaux KPI, comme décrit dans docs\audit_application.md dans la section 9. Opportunités de nouveaux KPI »
-- **Interprétation** : L'utilisateur veut que tous les KPI listés dans la section 9 de l'audit soient rendus visibles et exploitables dans l'interface, en priorité sur la page Progression.
+- **Texte source** : « lancer un audit du frontend pour voir ce qui est calculé à chaque fois qu'on se rend sur une page puis recalculé si on revient sur la meme page, cibler ce qui peut etre amélioré pour éviter ces recalculs redondants puis comment l'améliorer »
+- **Interprétation** : L'utilisateur constate que les données sont refetchées inutilement lorsqu'il navigue entre pages ou revient sur une page déjà visitée. Il veut un diagnostic précis et des actions correctives.
 - **Statut** : retenue
-- **Justification** : La demande est explicite, les données sont déjà disponibles pour la plupart des KPI, et l'architecture existante (hooks React Query, composants de progression, service backend ProgressService) fournit un cadre cohérent pour l'ajout.
+- **Justification** : Problème réel confirmé par l'audit. Le QueryClient n'a pas de `staleTime` global (défaut 0), donc toutes les queries sont immédiatement périmées. Combiné à `refetchOnMount: true` (défaut), chaque navigation déclenche un refetch.
+
+### Demande 2 — Log spam `/progress/index/status`
+
+- **Texte source** : « analyser pourquoi j'ai ceci dans le log backend : "INFO: 127.0.0.1:56299 - GET /progress/index/status HTTP/1.1 200 OK" [toutes les ~2 secondes] »
+- **Interprétation** : L'utilisateur voit un déluge de logs pour un endpoint de statut d'indexation. Il veut comprendre pourquoi et corriger.
+- **Statut** : retenue
+- **Justification** : Deux causes identifiées : (a) le `request_logging_middleware` dans `main.py` log TOUTES les requêtes en INFO, y compris les requêtes de polling ; (b) le `useEffect` de la page Progress démarre un `setInterval` à 2s qui ne s'arrête que si `state.running === false`, mais même après arrêt, le middleware loggue chaque appel.
+
+### Demande 3 — Monolithes backend
+
+- **Texte source** : « corriger/améliorer les monolithes backend »
+- **Interprétation** : L'utilisateur sait que des refactors ont été faits (CHANGELOG v1.1.95) mais constate que le problème persiste ou est revenu. Il veut une action ciblée sur les vrais problèmes restants.
+- **Statut** : retenue, scope limité
+- **Justification** : 3 cibles prioritaires identifiées : (a) 16× duplication du pattern `db_session_factory` dans `routes/progress.py` ; (b) `core/metrics.py` (788 lignes, fonction god de 415 lignes) ; (c) `progress/indexation_runner.py` (777 lignes) et `progress/indexer.py` (734 lignes).
+
+### Demande 4 — Version unique centralisée
+
+- **Texte source** : « Comment gérer le numero de version de manière globale avec qu'un seul fichier ? comment font les vrais développeurs pour changer qu'une valeur qui se répercute partout ? je veux faire pareil »
+- **Interprétation** : L'utilisateur veut un fichier unique (ex: `VERSION` à la racine) dont la valeur est lue par le backend Python, le frontend Next.js, et idéalement le Dockerfile.
+- **Statut** : retenue
+- **Justification** : 4 fichiers contiennent `"1.2.0"` en dur : `backend/api/main.py` (×2), `frontend/package.json`, `CHANGELOG.md`. Pattern standard : fichier `VERSION` à la racine + scripts de synchronisation.
+
+---
 
 ## 3. Diagnostic de l'existant
 
@@ -40,403 +59,506 @@ Après analyse du codebase, le bilan est le suivant :
 - `agents/modifications.txt`
 - `AGENTS.md`
 - `README.md`
-- `docs/audit_application.md` — Section 9 (KPI), Section 5 (monolithes), Section 8 (endpoints inutilisés)
-- `docs/metrics_catalog.md` — Catalogue complet des métriques API
-- `docs/style-frontend-ui.md` — Guide UI normatif
-- `docs/documentation_update_runbook.md` — Procédure de mise à jour docs
-- `backend/api/routes/progress.py` — 559 lignes, 15+ endpoints, dont training-load, session-taxonomy, tags
-- `backend/api/schemas.py` — 291 lignes, schémas Pydantic
-- `backend/services/progress_service.py` — 462 lignes : `compute_training_load`, `compute_session_taxonomy`, `build_activity_list`, `merge_tag`, `compute_calendar`, `annotate_prs`
-- `backend/progress/indexation_runner.py` — 777 lignes, logique d'indexation avec auto-tagging session/terrain
-- `backend/progress/indexer.py` — indexation activity + climbs + daily aggregates
-- `backend/db/models.py` — `ProgressActivityIndex` (pas de colonne VAM), `ProgressActivityClimb` (colonne `vam_m_h`), `ProgressDailyAggregate` (pas de VAM)
-- `frontend/src/app/progress/page.tsx` — 477 lignes, 10 sections de graphes
-- `frontend/src/components/features/progress/TrainingLoadChart.tsx` — 219 lignes, ACWR + monotony + strain
-- `frontend/src/hooks/useProgress.ts` — hooks React Query dont `useTrainingLoad()`, `useProgressSessionTaxonomy()` (inutilisé)
-- `frontend/src/lib/api.ts` — 542 lignes, client API complet
-- `frontend/src/types/api.ts` — types TypeScript complets, `TrainingLoadResponse`, `ProgressSessionTaxonomyResponse`
-- `frontend/src/lib/metricsRegistry.ts` — registre de métriques, VAM présent en per-activity uniquement
-- `frontend/src/components/features/progress/` — composants existants : CalendarHeatmap, TrainingLoadChart, ProgressVolumeChart, ProgressTrimpChart, ProgressBestEffortsChart, ProgressEfficiencyCharts, ProgressHrPaceCharts, ProgressVo2maxChart, ProgressWaterfallCard
+- `CHANGELOG.md`
+- `docs/style-frontend-ui.md`
+- `backend/api/main.py`
+- `backend/api/routes/progress.py` (677 lignes)
+- `backend/progress/indexation_runner.py` (777 lignes)
+- `backend/progress/indexer.py` (734 lignes)
+- `backend/core/metrics.py` (788 lignes — partiellement)
+- `frontend/src/app/layout.tsx`
+- `frontend/src/app/providers.tsx`
+- `frontend/src/app/progress/page.tsx` (489 lignes)
+- `frontend/src/hooks/useProgress.ts` (237 lignes)
+- `frontend/src/hooks/useActivity.ts` (256 lignes)
+- `frontend/src/lib/api.ts` (partiellement)
+- `frontend/package.json`
 
 ### 3.2 Constats établis
 
-1. **Monotony et Strain sont déjà affichés** dans `TrainingLoadChart.tsx` sous forme de KPI cards avec valeurs actuelles. La colonne vertébrale ACWR est également présente. Aucun travail nécessaire.
-2. **L'endpoint `GET /progress/session-taxonomy` est complet** : il retourne `session_counts[]`, `terrain_counts[]`, `race_markers`, `total_tagged`. Le hook `useProgressSessionTaxonomy()` existe dans `useProgress.ts` mais n'est jamais appelé depuis `page.tsx`.
-3. **Les tags `long_run` sont auto-assignés** par l'indexeur (`indexer.py:188`) quand `distance >= 18km` OU `moving_time >= 5400s`. Ces activités sont comptabilisées dans session-taxonomy.
-4. **Aucune infrastructure d'intensity distribution n'existe** : pas de méthode dans `ProgressService`, pas d'endpoint, pas de hook, pas de composant. Les zones HR/pace/power sont calculées par activité dans `core/metrics.py` (`compute_garmin_like_stats`) mais jamais agrégées par période.
-5. **VAM est stocké par montée** dans `ProgressActivityClimb` (colonne `vam_m_h`) mais n'est pas agrégé au niveau activité (`ProgressActivityIndex` n'a pas de colonne VAM) ni au niveau quotidien (`ProgressDailyAggregate` non plus). L'endpoint `/progress/series` ne liste pas VAM dans ses `allowed_metrics`.
-6. **L'endpoint `POST /progress/tags` existe** pour le tagging manuel, mais aucune UI ne permet de modifier les tags d'une activité depuis la page progression ou la liste d'activités.
-7. **La page progression** (`page.tsx`) rend 10 composants dans un `div.space-y-4`. Les composants sont tous auto-portants (fetch leurs propres données via hooks). Le pattern d'ajout est bien établi.
+- **Fait 1** : Le `QueryClient` dans `providers.tsx` ne définit PAS `staleTime` → défaut 0ms → toute query est immédiatement stale après son premier fetch.
+- **Fait 2** : `refetchOnMount` n'est pas désactivé → défaut `true` → chaque montage de composant avec une query stale déclenche un refetch.
+- **Fait 3** : Le `request_logging_middleware` dans `main.py` (lignes 99-137) loggue TOUTES les requêtes en niveau INFO, sans filtrage par path ou fréquence.
+- **Fait 4** : La page Progress (`page.tsx` lignes 61-144) contient un `useEffect` qui démarre un `setInterval` à 2000ms pour poller `/progress/index/status`, et ne l'arrête que si `state.running === false`. La condition d'arrêt suppose que `running` passe à `false`, ce qui n'arrive que si l'indexation se termine normalement.
+- **Fait 5** : Même quand l'indexation est terminée, le composant `MaintenanceSettings` dans Settings utilise `refetchInterval` qui continue de poller toutes les 5s (ou 2s si running).
+- **Fait 6** : `backend/api/routes/progress.py` (677 lignes) contient 16 répétitions du pattern `db_session_factory = getattr(request.app.state, "db_session_factory", None); if db_session_factory is None: raise HTTPException(...)`. `traces.py` a déjà un helper `_get_db_session_factory` pour ce pattern.
+- **Fait 7** : `backend/core/metrics.py` (788 lignes) contient `compute_garmin_like_stats` (415 lignes, 293 appels, 41 `if`) — la plus grosse fonction du backend.
+- **Fait 8** : `backend/progress/indexer.py` (734 lignes) contient `index_activity` (379 lignes).
+- **Fait 9** : La version `"1.2.0"` est hardcodée dans `backend/api/main.py` lignes 93 et 191, `frontend/package.json` ligne 3, `CHANGELOG.md` ligne 7.
+- **Fait 10** : Aucun fichier `VERSION`, `pyproject.toml`, `setup.cfg` ou `__version__` n'existe côté backend.
+- **Fait 11** : Toutes les queries individuelles dans les hooks (`useActivity.ts`, `useProgress.ts`, etc.) ont leur propre `staleTime` explicite (1min, 5min, 10min selon le type) — ce qui mitige partiellement le problème du `staleTime: 0` global.
 
 ### 3.3 Hypothèses
 
-- Les tags automatiques (session/terrain) couvrent la majorité des activités réelles. Le tagging manuel viendrait en complément pour corriger ou annoter.
-- L'utilisateur consulte principalement la page Progression pour le suivi longitudinal. Les nouveaux KPI doivent donc s'intégrer dans cette page.
-- La distribution d'intensité la plus utile est par zone de fréquence cardiaque (car la FC est plus souvent disponible que la puissance).
+- **Hypothèse 1** : Le log spam est acceptable en environnement de développement mais gênant en production. Le middleware de logging est trop verbeux pour les endpoints de polling.
+- **Hypothèse 2** : Le `setInterval` de la page Progress ne s'arrête pas correctement si l'indexation échoue silencieusement ou si `state.running` reste bloqué. Le timeout de 20s en fallback est une rustine.
+- **Hypothèse 3** : Les monolithes listés (metrics.py, indexer.py, indexation_runner.py) n'ont pas été touchés lors du refactor v1.1.95 car ils étaient déjà "assez propres" — mais ce n'est plus le cas.
 
 ### 3.4 Incertitudes
 
-- **Performance de l'intensity distribution** : agréger les zones HR par période nécessite soit de lire les données d'activité une par une (lent si beaucoup d'activités), soit de pré-calculer et stocker dans l'index (modification du schéma DB). À trancher dans la spec.
-- **VAM trend** : faut-il agréger le VAM max par activité (meilleure performance de grimpe) ou le VAM moyen ? L'audit ne précise pas. Proposition : VAM max par activité (le plus parlant pour un coureur).
-- **Page overload** : la page progression a déjà 10 sections. Ajouter 3-4 nouvelles sections risque de la rendre trop longue. Solutions possibles : onglets, sections repliables, ou page dédiée.
+- **Incertitude 1** : Le `ProgressIndexationBanner` sur la page Settings (`MaintenanceSettings.tsx`) utilise `refetchInterval` sur une query `['progress', 'index-status']` avec un `staleTime` de 2s. Ce composant est-il toujours affiché quand l'utilisateur quitte la page ? Si oui, le polling continue en arrière-plan même sur d'autres pages → à vérifier (le composant est unmounté si on quitte `/settings`).
+- **Incertitude 2** : Le découpage de `compute_garmin_like_stats` (415 lignes) en sous-fonctions pourrait casser des dépendances implicites. Une analyse plus fine des appels internes est nécessaire avant split.
+- **Incertitude 3** : La version dans `CHANGELOG.md` doit-elle être automatisée ou rester manuelle ? Si automatisée, quel format (lien vers le fichier VERSION ? script de release ?).
+
+---
 
 ## 4. Spécification fonctionnelle cible
 
-### 4.1 Session Taxonomy — Répartition des types de séances
+### Lot 1 — Optimisation du cache React Query (Demande 1)
 
-**Comportement attendu** : Une nouvelle section sur la page Progression affiche la répartition des séances par type (easy, tempo, interval, long_run) et par terrain (flat, rolling, hilly), avec le nombre de courses (race_markers).
+**Comportement attendu** :
+- Naviguer vers une page déjà visitée dans les N dernières minutes ne déclenche PAS de refetch — les données en cache sont utilisées.
+- Les données de progression (volume, TRIMP, best efforts, HR@pace, etc.) restent fraîches 5 minutes après leur premier chargement.
+- Les données d'activité (analyse réelle, carte, séries) restent fraîches 10 minutes.
+- La liste d'activités reste fraîche 2 minutes (au lieu d'1 minute actuellement — compromis performance/fraîcheur).
+- Les requêtes dont les données n'ont pas changé (ex: version, configuration) ne sont pas refetchées à chaque navigation.
 
-**États** :
-- **Loading** : skeleton card avec placeholder
-- **Empty** : message « Aucune activité taguée sur cette période »
-- **Error** : message d'erreur avec bouton retry
-- **Normal** : bar chart horizontal ou donut chart pour les sessions + petit tableau pour les terrains
-
-**Données affichées** :
-- Nombre de séances par tag (barres horizontales, triées par count décroissant)
-- Pourcentage par tag
-- Total comptabilisé
-- Compteur de race markers
-- Filtrage par plage de dates (utiliser le `range` selector existant de la page)
-
-**Règles d'arrondi** : counts en entiers, pourcentages arrondis à 1 décimale.
-
-### 4.2 Intensity Distribution — Distribution du temps par zone
-
-**Comportement attendu** : Une nouvelle section affiche la distribution du temps passé dans chaque zone de fréquence cardiaque (Z1-Z5) agrégée par semaine.
-
-**États** :
-- **Loading** : skeleton card
-- **Empty** : message « Aucune donnée de fréquence cardiaque disponible »
-- **Error** : message d'erreur
-- **Normal** : stacked bar chart par semaine ou stacked area chart
-
-**Données affichées** :
-- Pour chaque semaine : temps (en minutes ou %) passé en Z1, Z2, Z3, Z4, Z5
-- Légende avec les plages de FC correspondantes (basées sur FC max effective)
-- Total indiqué
+**États à gérer** :
+- **Loading** : inchangé (les skeletons existants restent valides).
+- **Fresh data** : affichée depuis le cache sans refetch réseau.
+- **Stale data** : affichée depuis le cache + refetch silencieux en arrière-plan (comportement React Query par défaut avec `staleTime` configuré).
 
 **Règles** :
-- Activités sans HR exclues silencieusement
-- Zones calculées avec FC max effective (celle des settings)
-- Temps en minutes, arrondi à l'entier
+- Le `staleTime` global doit être configuré à une valeur raisonnable (30s recommandé) pour servir de filet de sécurité aux queries sans `staleTime` explicite.
+- Les `staleTime` existants par query (1min, 5min, 10min) restent inchangés ou sont légèrement augmentés.
+- `gcTime` (garbage collection) doit être configuré à au moins 30 minutes pour éviter de perdre le cache lors de navigations rapides.
 
-### 4.3 Long Run Dose — Dose de sorties longues
+### Lot 2 — Correction du log spam (Demande 2)
 
-**Comportement attendu** : Une section dédiée affiche l'évolution de la distance et du temps des sorties longues (tag `long_run`) par semaine.
+**Comportement attendu** :
+- Les logs backend ne montrent PLUS de lignes `GET /progress/index/status` toutes les 2 secondes quand l'utilisateur n'est PAS sur la page Progression ou Settings.
+- Quand l'indexation est terminée, le polling s'arrête définitivement et ne redémarre pas.
+- Les logs de requêtes de polling (status, health) sont en niveau DEBUG, pas INFO — ou filtrés par le middleware.
 
-**États** :
-- **Loading** : skeleton card
-- **Empty** : message « Aucune sortie longue détectée sur cette période »
-- **Error** : message d'erreur
-- **Normal** : bar chart distance par semaine + line chart temps par semaine (ou combo chart)
+**Parcours utilisateur** :
+1. L'utilisateur ouvre `/progress` → l'indexation est déjà faite → **aucun polling n'est lancé** (correction : actuellement le polling démarre même si `running=false` car le fallback timeout de 20s est toujours activé en cas d'erreur).
+2. L'utilisateur ouvre `/progress` → l'indexation est en cours → le polling démarre à 2s → l'indexation se termine → le polling s'arrête → **les logs redeviennent silencieux**.
+3. L'utilisateur quitte `/progress` → le polling est **immédiatement** nettoyé (clearInterval dans le cleanup de l'useEffect).
 
-**Données affichées** :
-- Distance totale en sortie longue par semaine (km)
-- Temps total en sortie longue par semaine (heures)
-- Compteur du nombre de sorties longues sur la période
-- Optionnel : distance de la plus longue sortie de la semaine
+### Lot 3 — Réduction ciblée des monolithes (Demande 3)
 
-**Règles** :
-- Une « sortie longue » est définie par le tag `long_run` (distance ≥ 18km ou temps ≥ 90 min)
-- Distance en km, arrondie à 1 décimale
-- Temps en heures, arrondi à 1 décimale
+**Comportement attendu** :
+- `backend/api/routes/progress.py` : le pattern `db_session_factory` est extrait dans un helper partagé → réduction de ~50 lignes de duplication.
+- `backend/core/metrics.py` : `compute_garmin_like_stats` (415 lignes) est découpée en sous-fonctions privées dans le même module (split horizontal, pas de nouveau fichier pour limiter le risque).
+- `backend/progress/indexer.py` : `index_activity` (379 lignes) est découpée en sous-fonctions privées.
+- Aucun endpoint, schéma ou contrat API n'est modifié.
 
-### 4.4 VAM Trend — Tendance de vitesse ascensionnelle
+### Lot 4 — Version unique centralisée (Demande 4)
 
-**Comportement attendu** : Une section affiche l'évolution du meilleur VAM par activité au fil du temps.
+**Comportement attendu** :
+- Un fichier unique `VERSION` à la racine du repo contient `1.2.0`.
+- `backend/api/main.py` lit ce fichier pour `FastAPI(version=...)` et `@app.get("/")`.
+- `frontend/package.json` peut être synchronisé via un script `npm run sync-version` (ou lu dynamiquement).
+- Le Dockerfile utilise `--build-arg VERSION` pour injecter la version.
+- `CHANGELOG.md` référence la version de manière manuelle (pas d'automatisation forcée).
 
-**États** :
-- **Loading** : skeleton card
-- **Empty** : message « Aucune montée détectée sur cette période »
-- **Error** : message d'erreur
-- **Normal** : scatter plot (points par activité) + trend line (moyenne glissante)
+**Valeur utilisateur** : Une seule ligne à changer pour bump la version partout. Cohérent avec les pratiques standard de l'industrie (fichier `VERSION`, `version.txt`, `pyproject.toml`, etc.).
 
-**Données affichées** :
-- VAM max (m/h) par activité contenant au moins une montée
-- Moyenne glissante sur 4-6 semaines
-- Unité : m/h
-
-**Règles** :
-- Activités sans montée exclues silencieusement
-- VAM max = valeur la plus élevée parmi les montées de l'activité
-- Arrondi à l'entier
+---
 
 ## 5. Spécification technique proposée
 
 ### 5.1 Frontend
 
-#### Pages à modifier
-- `frontend/src/app/progress/page.tsx` — ajouter 4 nouveaux composants dans le layout existant `div.space-y-4`
+#### Lot 1 — Optimisation React Query
 
-#### Composants à créer
+**Fichier à modifier** : `frontend/src/app/providers.tsx`
 
-1. **`frontend/src/components/features/progress/ProgressSessionTaxonomy.tsx`** (nouveau)
-   - Récupère les données via `useProgressSessionTaxonomy()`
-   - Affiche bar chart horizontal pour session_counts
-   - Affiche petit tableau pour terrain_counts
-   - Props : `from`, `to` (dates), `activityType` (optionnel)
-   - Utilise Recharts `BarChart` / `Bar` (horizontal)
-   - Suit le pattern visuel de `TrainingLoadChart.tsx` : Card wrapper, titre, contenu
+**Modification** : Ajouter `staleTime` et `gcTime` globaux dans `defaultOptions.queries` :
 
-2. **`frontend/src/components/features/progress/ProgressIntensityDistribution.tsx`** (nouveau)
-   - Récupère les données via un nouveau hook `useProgressIntensityDistribution()`
-   - Affiche stacked bar chart par semaine (Z1-Z5)
-   - Props : `from`, `to` (dates), `activityType` (optionnel)
-   - Utilise Recharts `BarChart` avec `stackId` pour les zones
-   - Couleurs : dégradé de vert à rouge pour Z1→Z5
-
-3. **`frontend/src/components/features/progress/ProgressLongRunDose.tsx`** (nouveau)
-   - Récupère les données via un nouveau hook `useProgressLongRunDose()`
-   - Affiche combo chart (barres = distance, ligne = temps)
-   - Props : `from`, `to` (dates)
-   - Utilise Recharts `ComposedChart`
-
-4. **`frontend/src/components/features/progress/ProgressVamTrend.tsx`** (nouveau)
-   - Récupère les données via un nouveau hook `useProgressVamTrend()`
-   - Affiche scatter plot + trend line
-   - Props : `from`, `to` (dates)
-   - Utilise Recharts `ScatterChart` + `Line` pour la tendance
-
-#### Hooks à créer
-
-1. **`useProgressIntensityDistribution(from, to, activityType?)`** — dans `useProgress.ts`
-   - Appelle un nouvel endpoint `GET /progress/intensity-distribution`
-   - Retourne `{ data, isLoading, error }` avec le type approprié
-
-2. **`useProgressLongRunDose(from, to)`** — dans `useProgress.ts`
-   - Appelle un nouvel endpoint `GET /progress/long-run-dose` (ou réutilise `/progress/series` filtré)
-
-3. **`useProgressVamTrend(from, to)`** — dans `useProgress.ts`
-   - Appelle un nouvel endpoint `GET /progress/vam-trend`
-
-#### Types à ajouter (dans `types/api.ts`)
-
-```typescript
-// Intensity Distribution
-interface IntensityDistributionPoint {
-  bucket_start: string;       // "YYYY-MM-DD"
-  z1_time_min: number;        // minutes
-  z2_time_min: number;
-  z3_time_min: number;
-  z4_time_min: number;
-  z5_time_min: number;
-  total_time_min: number;
-}
-interface IntensityDistributionResponse {
-  points: IntensityDistributionPoint[];
-  zone_thresholds_bpm: { z1: number; z2: number; z3: number; z4: number; z5: number };
-}
-
-// Long Run Dose
-interface LongRunDosePoint {
-  bucket_start: string;
-  distance_km: number;
-  moving_time_h: number;
-  activity_count: number;
-  max_distance_km: number;
-}
-
-// VAM Trend
-interface VamTrendPoint {
-  activity_id: string;
-  start_ts_utc: string;
-  vam_max_m_h: number;
-}
+```tsx
+new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      staleTime: 30 * 1000,        // 30 secondes par défaut
+      gcTime: 30 * 60 * 1000,      // 30 minutes de garbage collection
+    },
+  },
+})
 ```
 
-#### Contraintes UI à respecter
-- Suivre `docs/style-frontend-ui.md` : pas de header local, utiliser `Card`, tokens Tailwind existants
-- Cohérence avec les composants existants : même rythme `space-y-4`, même style de Card
-- Responsive : `grid-cols-1 md:grid-cols-2` pour les paires de charts si pertinent
-- Couleurs de zones : utiliser un schéma lisible et accessible (contraste suffisant)
-- États loading/error/empty pour chaque composant
+**Fichiers à vérifier (pas de modification nécessaire, juste vérification)** :
+- `frontend/src/hooks/useActivity.ts` — les `staleTime` explicites (1min, 2min, 5min, 10min) écrasent déjà le défaut global → OK.
+- `frontend/src/hooks/useProgress.ts` — idem avec 1min → OK.
+- `frontend/src/hooks/useGoals.ts` — à vérifier que le staleTime est bien défini.
+- `frontend/src/hooks/useTraces.ts` — à vérifier.
+- `frontend/src/hooks/useSettings.ts` — à vérifier.
+
+**Hooks à ajuster si staleTime absent** :
+- Vérifier chaque hook et ajouter `staleTime` là où il manque (le défaut global de 30s couvre les oublis, mais explicite est mieux).
+
+**Contraintes UI** : Aucun changement visuel. Respecte `docs/style-frontend-ui.md`.
+
+#### Lot 2 — Correction polling
+
+**Fichier à modifier** : `frontend/src/app/progress/page.tsx`
+
+**Modifications** :
+
+1. **Ligne 74** : Remplacer l'invalidation large `['progress']` par des invalidations ciblées :
+```tsx
+// AVANT (trop large)
+void queryClient.invalidateQueries({ queryKey: ['progress'] });
+
+// APRÈS (ciblé)
+void queryClient.invalidateQueries({ queryKey: progressKeys.series() });
+void queryClient.invalidateQueries({ queryKey: progressKeys.bestEfforts() });
+void queryClient.invalidateQueries({ queryKey: progressKeys.activities() });
+// etc. pour chaque sous-groupe nécessaire
+```
+
+2. **Lignes 84-136** : Réécrire la logique de polling pour :
+   - Ne PAS démarrer le polling si l'indexation n'est pas `running` après l'appel initial.
+   - Supprimer le fallback timeout de 20s (lignes 129-134) qui force 20s de polling même sans indexation.
+   - S'assurer que le `clearInterval` est appelé dans le `return` de cleanup du `useEffect`.
+
+3. **Alternative recommandée** : Remplacer le `setInterval` manuel par une query React Query avec `refetchInterval` conditionnel (comme le fait déjà `MaintenanceSettings.tsx`). Cela unifie le pattern et bénéficie du cache React Query.
+
+```tsx
+// Pattern recommandé (cohérent avec MaintenanceSettings)
+const indexStatusQuery = useQuery({
+  queryKey: ['progress', 'index-status'],
+  queryFn: () => progressApi.indexStatus(),
+  staleTime: 2_000,
+  refetchInterval: (query) => {
+    const state = query.state.data;
+    return state?.running ? 2_000 : false; // false = stop polling
+  },
+});
+```
+
+**Fichier à vérifier** : `frontend/src/components/features/settings/MaintenanceSettings.tsx` — confirmer que son `refetchInterval` ne pollue pas les logs quand l'utilisateur n'est pas sur `/settings`.
 
 ### 5.2 Backend
 
-#### Nouveaux endpoints
+#### Lot 2 — Log spam (côté backend)
 
-1. **`GET /progress/intensity-distribution`** (nouveau)
-   - Routeur : `progress.py`
-   - Query params : `from`, `to` (dates), `activity_type` (optionnel)
-   - Logique : pour chaque activité entre `from` et `to` avec HR, agréger le temps par zone (Z1-Z5) par semaine
-   - Schéma de zone : `<60%`, `60-70%`, `70-80%`, `80-90%`, `>90%` de FC max effective
-   - Utiliser FC max effective depuis settings (ou fallback 220-age)
-   - Méthode : `ProgressService.compute_intensity_distribution(rows, hr_max)`
+**Fichier à modifier** : `backend/api/main.py`
 
-2. **`GET /progress/long-run-dose`** (nouveau)
-   - Routeur : `progress.py`
-   - Query params : `from`, `to` (dates)
-   - Logique : filtrer les activités avec `session_tag == 'long_run'`, agréger distance et temps par semaine
-   - Méthode : `ProgressService.compute_long_run_dose(rows)`
-   - Alternative si léger : réutiliser `/progress/activities?session_tag=long_run` et agréger côté frontend. **Recommandation : endpoint dédié pour la propreté.**
-
-3. **`GET /progress/vam-trend`** (nouveau)
-   - Routeur : `progress.py`
-   - Query params : `from`, `to` (dates)
-   - Logique : pour chaque activité, lire `ProgressActivityClimb` et prendre le `MAX(vam_m_h)`, retourner les points triés par date
-   - Méthode : nouvelle query dans `ProgressRepository` + `ProgressService.compute_vam_trend(rows)`
-   - Ajouter `vam_max_m_h` aux `allowed_metrics` de `/progress/series` si on veut aussi le graphique existant (optionnel P2)
-
-#### Méthodes à ajouter dans `ProgressService`
+**Modification** : Ajouter un filtre dans `request_logging_middleware` pour logger les endpoints de polling/health en DEBUG au lieu de INFO :
 
 ```python
-# backend/services/progress_service.py
-
-@staticmethod
-def compute_intensity_distribution(rows, hr_max: float) -> dict:
-    """Agrège le temps par zone HR par semaine."""
-    # rows = liste d'objets avec .start_ts_utc, .z1_time_s, .z2_time_s... ou lit depuis les bins
-    
-@staticmethod
-def compute_long_run_dose(rows) -> dict:
-    """Agrège distance/temps des long runs par semaine."""
-
-@staticmethod
-def compute_vam_trend(rows) -> dict:
-    """Formate les points VAM max par activité."""
+# Lignes 127-136, remplacer par :
+_polling_paths = {"/progress/index/status", "/health"}
+if request.url.path.rstrip("/") in _polling_paths:
+    logger.debug("request", extra={...})  # DEBUG au lieu de INFO
+else:
+    logger.info("request", extra={...})
 ```
 
-#### Approche données pour l'intensity distribution
+Alternative plus propre : créer un set configurable de paths à logger en `DEBUG` (`COURSESCOPE_LOG_QUIET_PATHS`).
 
-Deux options :
-- **Option A (recommandée)** : Ajouter les colonnes `z1_time_s` à `z5_time_s` dans `ProgressActivityIndex` lors de l'indexation (comme le TRIMP). Stocker le temps passé dans chaque zone HR par activité. L'agrégation par semaine devient un simple SUM groupé.
-- **Option B** : Calculer à la volée en lisant les données parquet de chaque activité. Plus lent mais sans modification du schéma DB.
+#### Lot 3 — Monolithes
 
-**Recommandation : Option A**, car :
-- Cohérent avec l'approche existante (TRIMP, EF, etc. sont déjà dans l'index)
-- Performant pour les requêtes dashboard
-- La modification du schéma DB est minime (ajout de 5 colonnes float)
-- Nécessite une réindexation slow après migration
+**Fichier à créer** : `backend/api/_helpers.py` (ou utiliser l'existant s'il est déjà créé)
 
-#### Modifications DB (Option A)
+**Contenu** : Extraire le helper `get_db_session_factory` (déjà présent dans `traces.py` en local) :
 
-- **`ProgressActivityIndex`** (`backend/db/models.py` vers ligne 175) : ajouter 5 colonnes :
-  ```python
-  z1_time_s = Column(Float)
-  z2_time_s = Column(Float)
-  z3_time_s = Column(Float)
-  z4_time_s = Column(Float)
-  z5_time_s = Column(Float)
-  ```
-- **`indexer.py`** : dans `index_activity()`, après le calcul des zones HR, stocker le temps par zone dans l'index
-- **`recompute_daily_aggregates()`** (`indexer.py:669`) : ajouter les sommes par zone
+```python
+from fastapi import HTTPException, Request
 
+def get_db_session_factory(request: Request):
+    factory = getattr(request.app.state, "db_session_factory", None)
+    if factory is None:
+        raise HTTPException(status_code=500, detail="DB not initialized")
+    return factory
+```
 
-#### Modifications DB (VAM)
+**Fichiers à modifier** :
+1. `backend/api/routes/progress.py` : remplacer les 16 occurrences du pattern par `from api._helpers import get_db_session_factory` + appel `db_session_factory = get_db_session_factory(request)`. Gain : ~48 lignes supprimées.
+2. `backend/api/routes/settings.py` : remplacer 3 occurrences.
+3. `backend/api/routes/garmin_integration.py` : remplacer 3 occurrences.
+4. `backend/api/routes/activities.py` : remplacer 1 occurrence.
+5. `backend/api/routes/traces.py` : remplacer le helper local `_get_db_session_factory` par l'import partagé.
 
-- **Option simple** : Nouvel endpoint qui lit `ProgressActivityClimb` directement (pas de modification DB nécessaire)
-- **Repo** : Ajouter une méthode `list_climb_max_vam(session, from_ts, to_ts)` dans `ProgressRepository`
+**Fichier à modifier** : `backend/core/metrics.py`
+
+**Modification** : Découper `compute_garmin_like_stats` en sous-fonctions privées :
+- `_compute_hr_zones(df, hr_max, hr_rest)` → stats FC (zones, moyenne, max)
+- `_compute_pace_zones(df, pace_zones)` → stats allure
+- `_compute_power_zones(df, ftp)` → stats puissance (si données)
+- `_compute_cadence_stats(df)` → stats cadence
+- `_compute_running_dynamics(df)` → dynamique de course
+- `_compute_training_load_metrics(df, hr_max, hr_rest)` → TRIMP, charge
+- `compute_garmin_like_stats(...)` → orchestre les appels ci-dessus (~30 lignes)
+
+**Contrainte** : Toutes les sous-fonctions restent dans `metrics.py` (pas de nouveaux fichiers pour cette itération). Le contrat de la fonction publique `compute_garmin_like_stats` reste inchangé. Le dictionnaire retourné doit être strictement identique.
+
+**Fichier à modifier** : `backend/progress/indexer.py`
+
+**Modification** : Découper `index_activity` en sous-fonctions privées :
+- `_classify_and_tag(session, df, meta, activity_id)` → classification + tags auto
+- `_compute_progress_bins(session, df, activity_id, hr_max)` → bins HR/pace
+- `_persist_progress_index(session, index_row, zones, splits, climbs, ...)` → écriture DB
+- `index_activity(...)` → orchestrateur (~30 lignes)
+
+#### Lot 4 — Version centralisée
+
+**Fichier à créer** : `VERSION` (racine du repo)
+
+**Contenu** :
+```
+1.2.0
+```
+
+**Fichier à modifier** : `backend/api/main.py`
+
+**Modification** (lignes 6-7 et 91-96 et 188-194) :
+
+```python
+# En haut du fichier, ajouter :
+from pathlib import Path
+
+def _read_version() -> str:
+    """Lit la version depuis le fichier VERSION à la racine du repo."""
+    version_file = Path(__file__).resolve().parent.parent.parent / "VERSION"
+    if version_file.exists():
+        return version_file.read_text(encoding="utf-8").strip()
+    return "0.0.0"  # fallback
+
+_APP_VERSION = _read_version()
+
+# Ligne 94 : remplacer version="1.2.0" par version=_APP_VERSION
+app = FastAPI(
+    title="CourseScope API",
+    description="Analytics pour traces GPX/FIT",
+    version=_APP_VERSION,
+    lifespan=lifespan,
+)
+
+# Ligne 191 : remplacer "version": "1.2.0" par "version": _APP_VERSION
+```
+
+**Fichier à vérifier** : `frontend/package.json`
+
+**Approche recommandée** : Ajouter un script npm `sync-version` qui lit `VERSION` et met à jour `package.json`. Exécuter ce script dans `run_win.bat` / `run_linux.sh` au démarrage.
+
+```json
+// package.json
+"scripts": {
+  "sync-version": "node -e \"const v=require('fs').readFileSync('../VERSION','utf8').trim();const p=require('./package.json');p.version=v;require('fs').writeFileSync('./package.json',JSON.stringify(p,null,2)+'\\n')\""
+}
+```
+
+**Fichier à vérifier** : `Dockerfile` — ajouter `ARG VERSION` et le passer au build si pertinent.
+
+**Fichier NON modifié** : `CHANGELOG.md` — reste manuel (les entrées de changelog sont rédigées par un humain).
 
 ### 5.3 Données et métriques
 
-| Métrique | Unité | Source | Fallback si absent |
-|---|---|---|---|
-| Session counts | nombre entier | `ProgressActivityTag.session_tag` | "unknown" |
-| Terrain counts | nombre entier | `ProgressActivityTag.terrain_tag` | "unknown" |
-| Zone HR time | minutes | Zones calculées depuis HR + FC max | Série vide (activité sans HR exclue) |
-| Long run distance | km | `ProgressActivityIndex.distance_m / 1000` filtré `long_run` | 0 |
-| Long run time | heures | `ProgressActivityIndex.moving_time_s / 3600` filtré `long_run` | 0 |
-| VAM max | m/h | `MAX(ProgressActivityClimb.vam_m_h)` par activité | null (activité sans montée exclue) |
+Aucun changement de métrique, schéma ou endpoint dans ces 4 lots. Tous les changements sont structurels (refactor, config, logging).
 
 ### 5.4 Documentation
 
-- **`docs/metrics_catalog.md`** : ajouter les 3 nouveaux endpoints (intensity-distribution, long-run-dose, vam-trend) avec leurs métriques, types et unités
-- **`CHANGELOG.md`** : ajouter entrée v1.1.96 mentionnant les nouveaux KPI
+- **`docs/metrics_catalog.md`** : Pas de mise à jour nécessaire (aucun endpoint modifié).
+- **`README.md`** : Pas de mise à jour nécessaire (pas de nouvelle fonctionnalité).
+- **`docs/style-frontend-ui.md`** : Pas de mise à jour nécessaire.
+- **`CHANGELOG.md`** : À mettre à jour manuellement après implémentation (nouvelle entrée `1.2.1` ou `1.3.0`).
+- **`docs/documentation_update_runbook.md`** : Pas de mise à jour nécessaire.
+
+---
 
 ## 6. Plan d'implémentation pour agent-dev
 
-### Étape 1 — Session Taxonomy UI (frontend only)
+### Étape 1 — Version unique centralisée (Lot 4, P0)
 
-- **Objectif** : Afficher la répartition des types de séances sur la page Progression
-- **Fichiers probables** :
-  - `frontend/src/components/features/progress/ProgressSessionTaxonomy.tsx` (créer)
-  - `frontend/src/app/progress/page.tsx` (modifier : import + rendu)
-- **Détails d'implémentation** :
-  1. Créer `ProgressSessionTaxonomy.tsx` : Card avec bar chart horizontal (Recharts `BarChart` layout="vertical")
-  2. Utiliser `useProgressSessionTaxonomy(from, to)` (hook existant)
-  3. Afficher barres pour `session_counts` (easy, tempo, interval, long_run, unknown)
-  4. Sous-section compacte pour `terrain_counts` et `race_markers`
-  5. Ajouter dans `page.tsx` après `TrainingLoadChart` (ou après `ProgressTrimpChart`)
-- **Tests à prévoir** : test unitaire du composant (mock du hook)
-- **Risques** : faibles — hook déjà testé, composant purement visuel
+**Objectif** : Créer le fichier `VERSION` et faire lire la version par le backend.
 
-### Étape 2 — Intensity Distribution (backend + frontend)
+**Fichiers** :
+- `VERSION` (créer)
+- `backend/api/main.py` (modifier, ~10 lignes changées)
 
-- **Objectif** : Afficher l'évolution du temps passé par zone HR par semaine
-- **Fichiers probables** :
-  - `backend/db/models.py` (modifier : ajout colonnes z1-z5 sur ProgressActivityIndex)
-  - `backend/progress/indexer.py` (modifier : stocker temps par zone dans l'index)
-  - `backend/services/progress_service.py` (modifier : ajouter `compute_intensity_distribution`)
-  - `backend/api/routes/progress.py` (modifier : ajouter endpoint)
-  - `frontend/src/types/api.ts` (modifier : ajouter types)
-  - `frontend/src/lib/api.ts` (modifier : ajouter méthode `intensityDistribution()`)
-  - `frontend/src/hooks/useProgress.ts` (modifier : ajouter hook)
-  - `frontend/src/components/features/progress/ProgressIntensityDistribution.tsx` (créer)
-  - `frontend/src/app/progress/page.tsx` (modifier)
-- **Détails d'implémentation** :
-  1. Ajouter `z1_time_s` à `z5_time_s` (Float, nullable) dans `ProgressActivityIndex`
-  2. Dans `indexer.py:index_activity()` : après appel à `compute_garmin_like_stats()` qui retourne les zones HR, calculer le temps par zone et le stocker
-  3. Dans `ProgressService` : `compute_intensity_distribution(rows)` agrégeant par semaine
-  4. Endpoint `GET /progress/intensity-distribution` : query params `from`, `to`, `activity_type`, appelle le service
-  5. Frontend : hook → composant stacked bar chart → ajout au `page.tsx`
-- **Tests à prévoir** : test unitaire du service, test du endpoint, test composant frontend
-- **Risques** :
-  - Modification du schéma DB → nécessite réindexation slow. **Garde-fou** : les colonnes sont nullable, l'app est rétrocompatible sans réindexation immédiate.
-  - Le calcul des zones HR dépend de `hr_max` dans settings → **Garde-fou** : utiliser `hr_max_effective_bpm` si disponible, sinon fallback 220-age.
+**Détails d'implémentation** :
+1. Créer `VERSION` à la racine avec `1.2.0`.
+2. Dans `main.py`, ajouter `_read_version()` qui lit `VERSION`.
+3. Remplacer les 2 occurrences hardcodées par `_APP_VERSION`.
+4. Ajouter le script `sync-version` dans `frontend/package.json`.
 
-### Étape 3 — Long Run Dose (backend mineur + frontend)
+**Tests à prévoir** :
+- `python -c "from backend.api.main import _APP_VERSION; print(_APP_VERSION)"` → doit afficher `1.2.0`.
+- `curl http://localhost:8000/ | grep version` → doit contenir `1.2.0`.
+- `curl http://localhost:8000/docs` → le Swagger doit afficher `1.2.0`.
 
-- **Objectif** : Afficher la progression des sorties longues
-- **Fichiers probables** :
-  - `backend/services/progress_service.py` (modifier)
-  - `backend/api/routes/progress.py` (modifier)
-  - `frontend/src/types/api.ts` (modifier)
-  - `frontend/src/lib/api.ts` (modifier)
-  - `frontend/src/hooks/useProgress.ts` (modifier)
-  - `frontend/src/components/features/progress/ProgressLongRunDose.tsx` (créer)
-  - `frontend/src/app/progress/page.tsx` (modifier)
-- **Détails d'implémentation** :
-  1. Backend : endpoint `GET /progress/long-run-dose` filtre `session_tag == 'long_run'` et agrège distance/temps par semaine
-  2. Frontend : hook → composant combo chart → ajout au `page.tsx`
-- **Tests à prévoir** : test service, test composant
-- **Risques** : faibles — données déjà taguées, pas de modification DB
+**Risques** : Très faible. La fonction `_read_version` a un fallback `"0.0.0"` si le fichier est absent.
 
-### Étape 4 — VAM Trend (backend + frontend)
+---
 
-- **Objectif** : Afficher la tendance de VAM max par activité
-- **Fichiers probables** :
-  - `backend/db/progress_repository.py` (modifier : ajouter query climbs)
-  - `backend/services/progress_service.py` (modifier)
-  - `backend/api/routes/progress.py` (modifier)
-  - `frontend/src/types/api.ts` (modifier)
-  - `frontend/src/lib/api.ts` (modifier)
-  - `frontend/src/hooks/useProgress.ts` (modifier)
-  - `frontend/src/components/features/progress/ProgressVamTrend.tsx` (créer)
-  - `frontend/src/app/progress/page.tsx` (modifier)
-- **Détails d'implémentation** :
-  1. `ProgressRepository.list_climb_max_vam(session, from_ts, to_ts)` : `SELECT activity_id, start_ts_utc, MAX(vam_m_h) FROM progress_activity_climbs JOIN ... GROUP BY activity_id`
-  2. `ProgressService.compute_vam_trend(rows)` : formate en `[{activity_id, start_ts_utc, vam_max_m_h}]`
-  3. Endpoint `GET /progress/vam-trend` avec `from`/`to`
-  4. Frontend : hook → scatter plot + trend line → ajout au `page.tsx`
-- **Tests à prévoir** : test repository, test service, test composant
-- **Risques** :
-  - Performances si beaucoup de climbs → **Garde-fou** : `GROUP BY` SQL natif, pas de boucle Python
+### Étape 2 — Correction log spam backend (Lot 2 partie backend, P0)
 
-### Étape 5 — Mise à jour documentation
+**Objectif** : Réduire le niveau de log des endpoints de polling à DEBUG.
 
-- **Objectif** : Ajouter les nouveaux endpoints au catalogue de métriques
-- **Fichiers probables** : `docs/metrics_catalog.md`, `CHANGELOG.md`
-- **Détails** : suivre `docs/documentation_update_runbook.md`
+**Fichiers** :
+- `backend/api/main.py` (modifier, ~5 lignes)
+
+**Détails d'implémentation** :
+1. Dans `request_logging_middleware`, ajouter un set `_quiet_log_paths` contenant `/progress/index/status`.
+2. Si le path est dans ce set, utiliser `logger.debug()` au lieu de `logger.info()`.
+
+**Tests à prévoir** :
+- Démarrer le backend, appeler `/progress/index/status` → vérifier qu'aucun log INFO n'apparaît pour cet appel (vérifier dans `data/logs/`).
+- Vérifier que les autres endpoints continuent de logger en INFO.
+
+**Risques** : Faible. Si le set est vide ou le path mal normalisé, le comportement existant est préservé.
+
+---
+
+### Étape 3 — Correction polling frontend (Lot 2 partie frontend, P0)
+
+**Objectif** : Remplacer le `setInterval` manuel par une query React Query avec `refetchInterval`, et éviter le polling inutile.
+
+**Fichiers** :
+- `frontend/src/app/progress/page.tsx` (modifier, ~50 lignes)
+- `frontend/src/hooks/useProgress.ts` (ajouter le hook `useProgressIndexStatus` si absent)
+
+**Détails d'implémentation** :
+1. Créer ou vérifier l'existence du hook `useProgressIndexStatus` dans `useProgress.ts` :
+```tsx
+export function useProgressIndexStatus() {
+  return useQuery({
+    queryKey: ['progress', 'index-status'],
+    queryFn: () => progressApi.indexStatus(),
+    staleTime: 2_000,
+    refetchInterval: (query) => query.state.data?.running ? 2_000 : false,
+  });
+}
+```
+2. Dans `progress/page.tsx`, remplacer le `useEffect` + `setInterval` + `useState` par l'utilisation de `useProgressIndexStatus`.
+3. Remplacer `queryClient.invalidateQueries({ queryKey: ['progress'] })` par des invalidations ciblées par sous-groupe de clés.
+4. Supprimer les refs `indexationStartedRef`, `lastIndexationRefreshAtRef` et le state `indexationState` (remplacés par la query).
+
+**Tests à prévoir** :
+- `cd frontend && npm test` — les tests existants de la page Progress doivent passer.
+- Vérification manuelle : ouvrir `/progress`, constater qu'aucun polling n'est lancé si l'indexation est déjà faite.
+- Vérifier les logs backend : plus de lignes `GET /progress/index/status` en continu.
+
+**Risques** : Moyen. Le `useEffect` actuel a une logique complexe (fallback timeout, refs, indexation auto). La migration vers React Query doit préserver le comportement exact : lancer l'indexation rapide au montage, puis afficher la progression.
+
+---
+
+### Étape 4 — Optimisation cache React Query (Lot 1, P1)
+
+**Objectif** : Configurer un `staleTime` global de 30s et un `gcTime` de 30min.
+
+**Fichiers** :
+- `frontend/src/app/providers.tsx` (modifier, ~3 lignes)
+
+**Détails d'implémentation** :
+1. Ajouter `staleTime: 30 * 1000` dans `defaultOptions.queries`.
+2. Ajouter `gcTime: 30 * 60 * 1000` dans `defaultOptions.queries`.
+3. Vérifier que tous les hooks ont un `staleTime` explicite ≥ 30s (sinon, ils héritent du défaut 30s).
+
+**Fichiers à vérifier (lecture seule)** :
+- `frontend/src/hooks/useActivity.ts`
+- `frontend/src/hooks/useProgress.ts`
+- `frontend/src/hooks/useGoals.ts`
+- `frontend/src/hooks/useTraces.ts`
+- `frontend/src/hooks/useSettings.ts`
+- `frontend/src/hooks/useGeo.ts`
+
+**Tests à prévoir** :
+- `cd frontend && npm test` — vérifier que les tests passent (certains tests mockent les timers).
+- `cd frontend && npm run build` — le build doit réussir.
+- Vérification manuelle : naviguer entre les pages, constater via les DevTools Network que les requêtes sont servies depuis le cache (pas de refetch).
+
+**Risques** : Faible. Les `staleTime` explicites par hook (1min, 5min, 10min) écrasent le défaut global. Le défaut global de 30s ne fait que couvrir les queries sans `staleTime`.
+
+---
+
+### Étape 5 — Extraction du helper db_session_factory (Lot 3 partie 1, P1)
+
+**Objectif** : Éliminer les 16+ répétitions du pattern `db_session_factory` dans les routes.
+
+**Fichiers** :
+- `backend/api/_helpers.py` (créer)
+- `backend/api/routes/progress.py` (modifier, ~50 lignes supprimées)
+- `backend/api/routes/settings.py` (modifier, ~10 lignes)
+- `backend/api/routes/garmin_integration.py` (modifier, ~8 lignes)
+- `backend/api/routes/activities.py` (modifier, ~3 lignes)
+- `backend/api/routes/traces.py` (modifier, ~5 lignes — remplacer le helper local)
+
+**Détails d'implémentation** :
+1. Créer `backend/api/_helpers.py` avec `get_db_session_factory(request)`.
+2. Dans chaque fichier de routes, remplacer le pattern dupliqué par l'import et l'appel.
+3. Dans `traces.py`, remplacer le helper local `_get_db_session_factory` par l'import partagé.
+
+**Tests à prévoir** :
+- `python -m compileall backend` — doit passer.
+- `python -m pytest tests/pytest/ -x -q` — les tests d'intégration doivent passer.
+- `python -m pytest tests/unit/ -x -q` — les tests unitaires doivent passer.
+
+**Risques** : Faible. Le helper est identique au pattern existant. Aucun changement de comportement.
+
+---
+
+### Étape 6 — Découpage de metrics.py (Lot 3 partie 2, P2)
+
+**Objectif** : Découper `compute_garmin_like_stats` (415 lignes) en sous-fonctions privées.
+
+**Fichiers** :
+- `backend/core/metrics.py` (modifier, restructuration interne)
+
+**Détails d'implémentation** :
+1. Extraire `_compute_hr_stats(df, hr_max, hr_rest)` → stats FC (zones, moyenne, max).
+2. Extraire `_compute_pace_stats(df, pace_zones)` → stats allure (zones, paces).
+3. Extraire `_compute_power_stats(df, ftp)` → stats puissance.
+4. Extraire `_compute_cadence_stats(df)` → stats cadence.
+5. Extraire `_compute_training_load(df, hr_max, hr_rest)` → TRIMP, charge.
+6. `compute_garmin_like_stats` devient un orchestrateur (~30 lignes) qui appelle les sous-fonctions et assemble le résultat.
+
+**Contrainte** : Le dictionnaire retourné doit être **strictement identique** (mêmes clés, mêmes types, mêmes valeurs). Tests de non-régression obligatoires.
+
+**Tests à prévoir** :
+- `python -m pytest tests/unit/test_metrics.py -x -v` (ou créer ce fichier s'il n'existe pas).
+- Test de non-régression : comparer la sortie de `compute_garmin_like_stats` avant/après sur un DF de référence.
+- `python -m pytest tests/pytest/ -x -q` — tests d'intégration.
+
+**Risques** : Moyen. La fonction est critique (utilisée par l'analyse réelle). Le découpage doit être validé par des tests comparatifs. Ne PAS changer la signature publique.
+
+---
+
+### Étape 7 — Découpage de indexer.py (Lot 3 partie 3, P2)
+
+**Objectif** : Découper `index_activity` (379 lignes) en sous-fonctions privées.
+
+**Fichiers** :
+- `backend/progress/indexer.py` (modifier, restructuration interne)
+
+**Détails d'implémentation** :
+1. Extraire `_classify_and_tag(session, df, meta, activity_id)` → classification d'activité + tags auto.
+2. Extraire `_compute_progress_bins(session, df, activity_id, hr_max)` → bins HR/pace.
+3. Extraire `_persist_progress_index(session, index_row, zones, splits, climbs, ...)` → écriture DB.
+4. `index_activity` devient un orchestrateur (~30 lignes).
+
+**Contrainte** : Même principe que metrics.py — sortie strictement identique.
+
+**Tests à prévoir** :
+- Tests existants dans `tests/pytest/test_progress_indexation.py` (ou similaire).
+- `python -m pytest tests/pytest/ -x -q -k progress`.
+
+**Risques** : Moyen. L'indexation est une opération sensible (données persistées). Bien vérifier le rollback en cas d'erreur.
+
+---
 
 ## 7. Tests et vérifications attendus
 
 ### Backend
 
 ```bash
+# Vérification syntaxe
 python -m compileall backend
-python -m pytest tests/unit/ -q
-python -m pytest tests/pytest/ -q
+
+# Tests unitaires
+python -m pytest tests/unit/ -x -q
+
+# Tests d'intégration
+python -m pytest tests/pytest/ -x -q
+
+# Vérification spécifique version
+python -c "from backend.api.main import _APP_VERSION; assert _APP_VERSION == '1.2.0', f'Expected 1.2.0, got {_APP_VERSION}'; print('OK:', _APP_VERSION)"
+
+# Vérification endpoint racine
+curl -s http://localhost:8000/ | python -c "import sys,json; d=json.load(sys.stdin); assert d['version']=='1.2.0'"
 ```
 
 ### Frontend
@@ -445,55 +567,77 @@ python -m pytest tests/pytest/ -q
 cd frontend
 npm test
 npm run build
+npm run lint
 ```
 
 ### Vérifications manuelles
-- [ ] Page Progression : les 4 nouvelles sections s'affichent sans erreur
-- [ ] Session Taxonomy : les compteurs correspondent aux tags dans la DB
-- [ ] Intensity Distribution : les zones sont correctement réparties (vérifier avec une activité connue)
-- [ ] Long Run Dose : les long runs sont correctement filtrés
-- [ ] VAM Trend : les points correspondent aux VAM des montées
-- [ ] Responsive mobile : pas de débordement horizontal
-- [ ] États vides : message approprié quand pas de données
-- [ ] Pas de régression sur les sections existantes
+
+- [ ] Naviguer Accueil → Progression → Accueil → Progression : vérifier dans les DevTools Network que les queries Progress sont servies depuis le cache (pas de refetch si < 1min).
+- [ ] Ouvrir Progression quand l'indexation est déjà faite : vérifier qu'aucun polling `/progress/index/status` n'est lancé.
+- [ ] Vérifier `data/logs/backend_*.log` : plus de spam `GET /progress/index/status`.
+- [ ] Changer `VERSION` de `1.2.0` à `1.2.0-test`, redémarrer le backend, vérifier que `curl localhost:8000/` renvoie `1.2.0-test`. Revenir à `1.2.0`.
+- [ ] Vérifier que le Swagger (`/docs`) affiche la version correcte.
+
+---
 
 ## 8. Critères d'acceptation
 
-1. **Session Taxonomy** : la section affiche un bar chart avec les 5 types de session, les compteurs sont corrects
-2. **Intensity Distribution** : le stacked bar chart montre l'évolution hebdomadaire du temps par zone HR
-3. **Long Run Dose** : le combo chart affiche distance et temps des long runs par semaine
-4. **VAM Trend** : le scatter plot montre les points VAM par activité avec une trend line lissée
-5. Tous les nouveaux endpoints sont documentés dans `metrics_catalog.md`
-6. `npm run build` passe sans erreur
-7. `python -m pytest -q` passe sans régression
-8. La page Progression reste navigable et performante (< 2s de chargement initial)
-9. Aucun anti-pattern UI : pas de header local, pas de container racine dupliqué, utilisation des tokens Tailwind
+### Lot 1 — Cache React Query
+- [ ] `staleTime` global = 30s, `gcTime` = 30min dans `providers.tsx`.
+- [ ] Navigation entre pages dans un intervalle < 30s ne déclenche pas de refetch pour les queries avec `staleTime` ≥ 30s.
+- [ ] `npm test` et `npm run build` passent.
+- [ ] Aucune régression visuelle ou fonctionnelle.
+
+### Lot 2 — Log spam
+- [ ] Les appels à `/progress/index/status` ne génèrent PLUS de logs INFO dans `data/logs/`.
+- [ ] Les autres endpoints continuent de logger en INFO normalement.
+- [ ] Le polling s'arrête quand l'indexation est terminée (vérifiable via DevTools Network : plus de requêtes après `running: false`).
+- [ ] Le polling s'arrête quand on quitte la page Progression (cleanup du useEffect / query).
+
+### Lot 3 — Monolithes
+- [ ] `routes/progress.py` : plus aucune répétition du pattern `getattr(request.app.state, "db_session_factory", None)` — remplacé par l'appel au helper.
+- [ ] `metrics.py` : `compute_garmin_like_stats` ≤ 50 lignes (orchestrateur), sous-fonctions privées ≤ 80 lignes chacune.
+- [ ] `indexer.py` : `index_activity` ≤ 50 lignes (orchestrateur).
+- [ ] Tous les tests backend passent.
+- [ ] Aucune modification du contrat API (endpoints, schémas).
+
+### Lot 4 — Version centralisée
+- [ ] Le fichier `VERSION` existe à la racine et contient `1.2.0`.
+- [ ] `backend/api/main.py` lit la version depuis `VERSION` (pas de hardcodage).
+- [ ] `curl localhost:8000/ | jq .version` renvoie `"1.2.0"`.
+- [ ] Le script `npm run sync-version` fonctionne (met à jour `package.json` depuis `VERSION`).
+- [ ] Changer `VERSION` + redémarrer → la nouvelle version est visible partout.
+
+---
 
 ## 9. Risques et garde-fous
 
-- **Risque 1 — Surcharge de la page Progression** : 4 nouvelles sections ajoutées à une page qui en a déjà 10. **Garde-fou** : les composants sont légers (pas de calculs lourds côté frontend). Si la page devient trop longue, proposer dans une itération future de grouper les sections en onglets.
-- **Risque 2 — Réindexation nécessaire pour intensity distribution** : l'ajout de colonnes z1-z5 dans `ProgressActivityIndex` nécessite une réindexation slow pour les activités existantes. **Garde-fou** : les colonnes sont `nullable`. Les activités non réindexées auront `NULL` → le frontend les exclut du calcul. Pas de données erronées.
-- **Risque 3 — Performance des queries climbs pour VAM trend** : si beaucoup d'activités avec montées, la query pourrait être lente. **Garde-fou** : la query utilise un `GROUP BY` SQL natif avec index sur `activity_id`. Limiter le range par défaut à 6 mois.
-- **Risque 4 — FC max non configurée** : l'intensity distribution nécessite la FC max pour calculer les zones. **Garde-fou** : si `hr_max_effective_bpm` est null, utiliser `hr_max_detected_bpm`, puis fallback 220-30=190. Si toujours pas de FC max, l'endpoint retourne une liste vide avec un message.
+- **Risque 1** : Le `staleTime` global de 30s pourrait cacher des queries sans `staleTime` explicite qui nécessitent des données fraîches. **Garde-fou** : Vérifier chaque hook et s'assurer qu'un `staleTime` explicite est défini partout. Les queries de type "statut" (Garmin sync, indexation) doivent garder un `staleTime` court (2-10s).
+- **Risque 2** : Le découpage de `compute_garmin_like_stats` pourrait introduire un bug subtil si une sous-fonction modifie le DataFrame en place ou dépend d'un état partagé. **Garde-fou** : Écrire un test de non-régression comparant la sortie avant/après sur le même jeu de données. Revenir au code original si le test échoue.
+- **Risque 3** : La migration du `useEffect` + `setInterval` vers `refetchInterval` dans la page Progress pourrait casser le flux d'indexation automatique. **Garde-fou** : Tester les 3 scénarios : (a) indexation déjà faite → pas de polling, (b) indexation en cours → polling + progression, (c) indexation terminée pendant qu'on est sur la page → arrêt du polling + rafraîchissement des données.
+- **Risque 4** : Le fichier `VERSION` pourrait être oublié lors d'un déploiement Docker. **Garde-fou** : Ajouter `COPY VERSION /app/VERSION` dans le Dockerfile et documenter dans le README.
+- **Risque 5** : Le `CHANGELOG.md` ne sera pas synchronisé automatiquement avec `VERSION`. **Garde-fou** : C'est intentionnel. Le changelog est rédigé manuellement. Documenter dans `docs/documentation_update_runbook.md` la procédure de release (bump VERSION + ajout entrée CHANGELOG).
+
+---
 
 ## 10. Décisions prises par agent-brainstorm
 
-1. **Monotony/Strain ignorés** : déjà implémentés et affichés. Inutile de les refaire.
-2. **Intensity distribution = zones HR uniquement** : les zones pace et power sont optionnelles (données pas toujours disponibles). La FC est la métrique la plus universelle pour le running. Ajouter pace/power plus tard si demandé.
-3. **Option A pour l'intensity distribution** : ajouter colonnes dans `ProgressActivityIndex` plutôt que calcul à la volée. Plus performant et cohérent avec l'architecture d'indexation existante.
-4. **VAM max par activité** plutôt que VAM moyen : le VAM max (meilleure performance de grimpe) est plus parlant pour suivre la progression en montée.
-5. **Pas d'onglets pour l'instant** : ajouter les sections dans le flux existant de la page Progression. Réévaluer la nécessité d'onglets après usage.
-6. **Long run dose = endpoint dédié** : plutôt que de réutiliser `/progress/activities?session_tag=long_run` et agréger côté frontend, un endpoint dédié est plus propre et plus performant.
-7. **Tagging manuel UI repoussé en P3** : complexité UI plus élevée (modale ou formulaire inline, sélection d'activité, etc.). Non prioritaire pour cette itération.
+- **Décision 1** : Les 4 lots sont indépendants et peuvent être implémentés dans n'importe quel ordre. Priorité recommandée : Lot 4 → Lot 2 → Lot 1 → Lot 3. **Justification** : Lot 4 (version) est le plus simple et sans risque. Lot 2 (log spam) résout un problème visible immédiatement. Lot 1 (cache) améliore la performance globale. Lot 3 (monolithes) est le plus lourd.
+- **Décision 2** : Le `staleTime` global est fixé à 30s (pas plus). **Justification** : 30s est un bon compromis — assez long pour éviter les refetchs lors de navigations rapides, assez court pour que les données restent raisonnablement fraîches. Les queries critiques ont déjà leur propre `staleTime` plus long (1-10min).
+- **Décision 3** : Le fichier `VERSION` est placé à la racine (pas dans `backend/` ou `frontend/`). **Justification** : C'est la convention standard (utilisée par des projets comme React, Kubernetes, etc.). La racine est accessible depuis tous les contextes (backend, frontend, Docker, CI).
+- **Décision 4** : Le découpage de `metrics.py` et `indexer.py` se fait dans le même fichier (sous-fonctions privées), pas dans de nouveaux modules. **Justification** : Réduit le risque de régression. Un split en nouveaux fichiers pourra être fait dans une itération ultérieure si nécessaire.
+- **Décision 5** : Le `CHANGELOG.md` n'est pas automatisé. **Justification** : Les entrées de changelog nécessitent un jugement humain (catégorisation Added/Changed/Fixed, description). L'automatisation complète produirait des entrées de faible qualité.
+- **Décision 6** : Le helper `get_db_session_factory` va dans `backend/api/_helpers.py` (nouveau fichier). **Justification** : `traces.py` a déjà ce pattern en local. Le centraliser dans `api/_helpers.py` le rend disponible pour toutes les routes sans dépendance circulaire.
+
+---
 
 ## 11. Points à ne pas faire
 
-- **Ne pas modifier `compute_training_load`** : la méthode est complète et fonctionnelle
-- **Ne pas refactorer `page.tsx` au-delà de l'ajout des composants** : le découpage a déjà été fait
-- **Ne pas toucher aux endpoints existants** : tous les nouveaux endpoints sont des ajouts, pas des modifications
-- **Ne pas modifier les contrats API existants** : rétrocompatibilité obligatoire
-- **Ne pas créer de nouvelle page** : tout s'intègre dans la page Progression existante
-- **Ne pas ajouter de dépendance npm ou pip**
-- **Ne pas modifier `docs/style-frontend-ui.md`** sauf si une décision UI le justifie
-- **Ne pas modifier `TrainingLoadChart.tsx`** : monotony/strain y sont déjà
-- **Ne pas supprimer les endpoints inutilisés (`/progress/verify`, etc.)** : cf. audit section 8, décision de les garder
+- **NE PAS** modifier `frontend/src/app/layout.tsx` ou `AppShell.tsx` — le problème de cache n'est pas lié à la structure des pages mais à la config React Query.
+- **NE PAS** supprimer le `request_logging_middleware` — il est utile pour le debugging. Juste réduire son niveau pour les chemins de polling.
+- **NE PAS** splitter `metrics.py` ou `indexer.py` en nouveaux fichiers — rester dans le même module avec des sous-fonctions privées (réduction du risque).
+- **NE PAS** modifier les endpoints API, les schémas Pydantic, ou les contrats de service — tous les changements sont internes.
+- **NE PAS** changer le comportement du polling dans `MaintenanceSettings.tsx` (page Settings) — ce composant a sa propre logique de polling légitime pour le suivi d'indexation manuelle.
+- **NE PAS** toucher à `data/`, `tests/` (sauf ajout de tests), `docs/*.md` (sauf `CHANGELOG.md` manuellement).
+- **NE PAS** introduire de nouvelle dépendance Python ou npm.
+- **NE PAS** modifier le `staleTime` des queries Garmin (sync status, credentials) — elles nécessitent une fraîcheur élevée.

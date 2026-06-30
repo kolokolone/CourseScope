@@ -368,6 +368,242 @@ def estimate_zone_inputs(df: pd.DataFrame, moving_mask: pd.Series) -> Dict[str, 
     return values
 
 
+def _empty_garmin_like_stats() -> Dict[str, Any]:
+    return {
+        "summary": {},
+        "heart_rate": None,
+        "cadence": None,
+        "power": None,
+        "pace_zones": None,
+        "running_dynamics": None,
+        "training_load": None,
+        "power_advanced": None,
+        "pacing": {},
+    }
+
+
+def _compute_running_dynamics_section(
+    df: pd.DataFrame,
+    weights: np.ndarray,
+    step_length_est_m: float,
+) -> dict[str, float] | None:
+    running_dynamics = _compute_running_dynamics_section(df, weights, step_length_est_m)
+
+    return running_dynamics
+
+
+def _compute_heart_rate_section(
+    df: pd.DataFrame,
+    weights: np.ndarray,
+    delta_dist: np.ndarray,
+    mask: np.ndarray,
+    pace_for_ratio: np.ndarray,
+    hr_max: float | None,
+    hr_rest: float | None,
+    use_hrr: bool,
+) -> tuple[dict[str, Any] | None, float, float]:
+    heart_rate = None
+    cardiac_drift_pct = math.nan
+    cardiac_drift_slope_pct = math.nan
+    if "heart_rate" in df and df["heart_rate"].notna().any():
+        hr_values = df["heart_rate"].to_numpy(dtype=float)
+        hr_mask = np.isfinite(hr_values) & (weights > 0)
+        hr_max_obs = float(np.nanmax(hr_values[hr_mask])) if hr_mask.any() else math.nan
+        hr_min_obs = float(np.nanmin(hr_values[hr_mask])) if hr_mask.any() else math.nan
+        hr_max_used = float(hr_max) if hr_max and hr_max > 0 else hr_max_obs
+        hr_mean = _weighted_mean(hr_values, weights)
+        ratio_first = _half_overlap_ratio(delta_dist * mask)
+        ratio_second = np.zeros_like(ratio_first, dtype=float)
+        valid_dist = (delta_dist * mask) > 0
+        ratio_second[valid_dist] = 1.0 - ratio_first[valid_dist]
+        hr_pace_ratio = np.full_like(hr_values, np.nan, dtype=float)
+        valid_ratio = np.isfinite(hr_values) & np.isfinite(pace_for_ratio) & (pace_for_ratio > 0)
+        np.divide(hr_values, pace_for_ratio, out=hr_pace_ratio, where=valid_ratio)
+        ratio_first_mean = _weighted_mean(hr_pace_ratio, weights * ratio_first)
+        ratio_second_mean = _weighted_mean(hr_pace_ratio, weights * ratio_second)
+        if ratio_first_mean == ratio_first_mean and ratio_first_mean > 0 and ratio_second_mean == ratio_second_mean:
+            cardiac_drift_pct = ((ratio_second_mean - ratio_first_mean) / ratio_first_mean) * 100.0
+        valid_slope = valid_ratio & (weights > 0) & mask
+        if valid_slope.any():
+            cum_dist = np.cumsum(delta_dist * mask) / 1000.0
+            x = cum_dist[valid_slope]
+            y = hr_pace_ratio[valid_slope]
+            w = weights[valid_slope]
+            if len(x) >= 2 and np.nanmax(x) > np.nanmin(x):
+                slope = float(np.polyfit(x, y, 1, w=w)[0])
+                mean_ratio = _weighted_mean(y, w)
+                dist_span = float(np.nanmax(x) - np.nanmin(x))
+                if mean_ratio > 0 and dist_span > 0:
+                    cardiac_drift_slope_pct = (slope * dist_span / mean_ratio) * 100.0
+        hr_ratio = np.full_like(hr_values, np.nan, dtype=float)
+        if hr_max_used and hr_max_used > 0:
+            if use_hrr and hr_rest is not None and hr_rest < hr_max_used:
+                hr_ratio = (hr_values - hr_rest) / (hr_max_used - hr_rest)
+            else:
+                hr_ratio = hr_values / hr_max_used
+        hr_ratio = np.where(hr_ratio < 0, np.nan, hr_ratio)
+        hr_zones = _build_zone_table(
+            hr_ratio,
+            weights,
+            HR_ZONES,
+            lambda low, high: f">= {int(low*100)}%" if math.isinf(high) else f"{int(low*100)}-{int(high*100)}%",
+        )
+        heart_rate = {
+            "mean_bpm": float(hr_mean),
+            "max_bpm": float(hr_max_obs),
+            "min_bpm": float(hr_min_obs),
+            "hr_max_used": float(hr_max_used) if hr_max_used == hr_max_used else math.nan,
+            "zones": hr_zones,
+        }
+
+    return heart_rate, cardiac_drift_pct, cardiac_drift_slope_pct
+
+
+def _compute_training_load_section(heart_rate: dict[str, Any] | None) -> dict[str, float | str] | None:
+    if heart_rate is not None and heart_rate.get("zones") is not None:
+        trimp = _edwards_trimp_from_zones(heart_rate["zones"])
+        if trimp == trimp:
+            return {"trimp": float(trimp), "method": "edwards"}
+    return None
+
+
+def _compute_cadence_section(
+    df: pd.DataFrame,
+    weights: np.ndarray,
+    cadence_target: float | None,
+) -> dict[str, float] | None:
+    if "cadence" not in df or not df["cadence"].notna().any():
+        return None
+
+    cad_values = df["cadence"].to_numpy(dtype=float)
+    cad_mean = _weighted_mean(cad_values, weights)
+    cad_max = float(np.nanmax(cad_values)) if np.isfinite(cad_values).any() else math.nan
+    above_pct = math.nan
+    if cadence_target is not None and cadence_target > 0:
+        mask_target = np.isfinite(cad_values) & (weights > 0) & (cad_values >= cadence_target)
+        total = float(weights[np.isfinite(cad_values) & (weights > 0)].sum())
+        above = float(weights[mask_target].sum())
+        above_pct = (above / total) * 100.0 if total > 0 else math.nan
+    return {
+        "mean_spm": float(cad_mean),
+        "max_spm": float(cad_max),
+        "target_spm": float(cadence_target) if cadence_target else math.nan,
+        "above_target_pct": float(above_pct),
+    }
+
+
+def _compute_power_section(
+    df: pd.DataFrame,
+    delta_time: np.ndarray,
+    mask: np.ndarray,
+    weights: np.ndarray,
+    moving_time_s: float,
+    ftp_w: float | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    if "power" not in df or not df["power"].notna().any():
+        return None, None
+
+    power_values = df["power"].to_numpy(dtype=float)
+    power_mean = _weighted_mean(power_values, weights)
+    power_max = float(np.nanmax(power_values)) if np.isfinite(power_values).any() else math.nan
+    ftp_used = float(ftp_w) if ftp_w and ftp_w > 0 else math.nan
+    if ftp_used != ftp_used:
+        ftp_mask = np.isfinite(power_values) & (weights > 0)
+        ftp_used = float(np.nanpercentile(power_values[ftp_mask], 95)) if ftp_mask.any() else math.nan
+        ftp_estimated = True
+    else:
+        ftp_estimated = False
+    power_ratio = np.full_like(power_values, np.nan, dtype=float)
+    if ftp_used and ftp_used > 0:
+        power_ratio = power_values / ftp_used
+    power_zones = _build_zone_table(
+        power_ratio,
+        weights,
+        POWER_ZONES,
+        lambda low, high: f">= {int(low*100)}% FTP" if math.isinf(high) else f"{int(low*100)}-{int(high*100)}% FTP",
+    )
+    power = {
+        "mean_w": float(power_mean),
+        "max_w": float(power_max),
+        "ftp_w": float(ftp_used),
+        "ftp_estimated": ftp_estimated,
+        "zones": power_zones,
+    }
+
+    power_series_1hz = _resample_series_1hz(power_values, delta_time, mask)
+    normalized_power_w = _normalized_power_from_series(power_series_1hz)
+    intensity_factor = (
+        float(normalized_power_w / ftp_used)
+        if normalized_power_w == normalized_power_w and ftp_used == ftp_used and ftp_used > 0
+        else math.nan
+    )
+    tss = (
+        (moving_time_s * normalized_power_w * intensity_factor) / (ftp_used * 3600.0) * 100.0
+        if normalized_power_w == normalized_power_w
+        and intensity_factor == intensity_factor
+        and ftp_used == ftp_used
+        and ftp_used > 0
+        and moving_time_s > 0
+        else math.nan
+    )
+    power_advanced = {
+        "normalized_power_w": float(normalized_power_w),
+        "intensity_factor": float(intensity_factor),
+        "tss": float(tss),
+    }
+    power_curve_durations = _build_power_peak_durations(len(power_series_1hz))
+    power_curve = _compute_power_duration_curve_from_series(power_series_1hz, power_curve_durations)
+    if power_curve:
+        power_advanced["power_duration_curve"] = power_curve
+
+    return power, power_advanced
+
+
+def _compute_pace_zones_section(
+    pace: np.ndarray,
+    pace_threshold: float | None,
+    pace_mask: np.ndarray,
+    weights: np.ndarray,
+) -> pd.DataFrame | None:
+    if pace_threshold and pace_threshold > 0 and pace_mask.any():
+        pace_ratio = pace / pace_threshold
+        return _build_zone_table(
+            pace_ratio,
+            weights,
+            PACE_ZONES,
+            lambda low, high: f">= {int(low*100)}% seuil"
+            if math.isinf(high)
+            else f"{int(low*100)}-{int(high*100)}% seuil",
+        )
+    return None
+
+
+def _compute_pacing_section(
+    pace_first: float,
+    pace_second: float,
+    pace_delta: float,
+    drift: float,
+    cardiac_drift_pct: float,
+    cardiac_drift_slope_pct: float,
+    stability_cv: float,
+    stability_iqr: float,
+    gap_residual: float,
+    pace_threshold: float | None,
+) -> dict[str, float]:
+    return {
+        "pace_first_half_s_per_km": float(pace_first),
+        "pace_second_half_s_per_km": float(pace_second),
+        "pace_delta_s_per_km": float(pace_delta),
+        "drift_s_per_km_per_km": float(drift),
+        "cardiac_drift_pct": float(cardiac_drift_pct),
+        "cardiac_drift_slope_pct": float(cardiac_drift_slope_pct),
+        "stability_cv": float(stability_cv),
+        "stability_iqr_ratio": float(stability_iqr),
+        "gap_residual_median_s": float(gap_residual),
+        "pace_threshold_s_per_km": float(pace_threshold) if pace_threshold == pace_threshold else math.nan,
+    }
+
+
 def compute_garmin_like_stats(
     df: pd.DataFrame,
     moving_mask: pd.Series,
@@ -382,17 +618,7 @@ def compute_garmin_like_stats(
     use_moving_time: bool = True,
 ) -> Dict[str, Any]:
     if df.empty:
-        return {
-            "summary": {},
-            "heart_rate": None,
-            "cadence": None,
-            "power": None,
-            "pace_zones": None,
-            "running_dynamics": None,
-            "training_load": None,
-            "power_advanced": None,
-            "pacing": {},
-        }
+        return _empty_garmin_like_stats()
 
     total_time_s, total_distance_m = _time_and_distance(df)
 
@@ -609,168 +835,29 @@ def compute_garmin_like_stats(
         else math.nan,
     }
 
-    heart_rate = None
-    cardiac_drift_pct = math.nan
-    cardiac_drift_slope_pct = math.nan
-    if "heart_rate" in df and df["heart_rate"].notna().any():
-        hr_values = df["heart_rate"].to_numpy(dtype=float)
-        hr_mask = np.isfinite(hr_values) & (weights > 0)
-        hr_max_obs = float(np.nanmax(hr_values[hr_mask])) if hr_mask.any() else math.nan
-        hr_min_obs = float(np.nanmin(hr_values[hr_mask])) if hr_mask.any() else math.nan
-        hr_max_used = float(hr_max) if hr_max and hr_max > 0 else hr_max_obs
-        hr_mean = _weighted_mean(hr_values, weights)
-        ratio_first = _half_overlap_ratio(delta_dist * mask)
-        ratio_second = np.zeros_like(ratio_first, dtype=float)
-        valid_dist = (delta_dist * mask) > 0
-        ratio_second[valid_dist] = 1.0 - ratio_first[valid_dist]
-        hr_pace_ratio = np.full_like(hr_values, np.nan, dtype=float)
-        valid_ratio = np.isfinite(hr_values) & np.isfinite(pace_for_ratio) & (pace_for_ratio > 0)
-        np.divide(hr_values, pace_for_ratio, out=hr_pace_ratio, where=valid_ratio)
-        ratio_first_mean = _weighted_mean(hr_pace_ratio, weights * ratio_first)
-        ratio_second_mean = _weighted_mean(hr_pace_ratio, weights * ratio_second)
-        if ratio_first_mean == ratio_first_mean and ratio_first_mean > 0 and ratio_second_mean == ratio_second_mean:
-            cardiac_drift_pct = ((ratio_second_mean - ratio_first_mean) / ratio_first_mean) * 100.0
-        valid_slope = valid_ratio & (weights > 0) & mask
-        if valid_slope.any():
-            cum_dist = np.cumsum(delta_dist * mask) / 1000.0
-            x = cum_dist[valid_slope]
-            y = hr_pace_ratio[valid_slope]
-            w = weights[valid_slope]
-            if len(x) >= 2 and np.nanmax(x) > np.nanmin(x):
-                slope = float(np.polyfit(x, y, 1, w=w)[0])
-                mean_ratio = _weighted_mean(y, w)
-                dist_span = float(np.nanmax(x) - np.nanmin(x))
-                if mean_ratio > 0 and dist_span > 0:
-                    cardiac_drift_slope_pct = (slope * dist_span / mean_ratio) * 100.0
-        hr_ratio = np.full_like(hr_values, np.nan, dtype=float)
-        if hr_max_used and hr_max_used > 0:
-            if use_hrr and hr_rest is not None and hr_rest < hr_max_used:
-                hr_ratio = (hr_values - hr_rest) / (hr_max_used - hr_rest)
-            else:
-                hr_ratio = hr_values / hr_max_used
-        hr_ratio = np.where(hr_ratio < 0, np.nan, hr_ratio)
-        hr_zones = _build_zone_table(
-            hr_ratio,
-            weights,
-            HR_ZONES,
-            lambda low, high: f">= {int(low*100)}%" if math.isinf(high) else f"{int(low*100)}-{int(high*100)}%",
-        )
-        heart_rate = {
-            "mean_bpm": float(hr_mean),
-            "max_bpm": float(hr_max_obs),
-            "min_bpm": float(hr_min_obs),
-            "hr_max_used": float(hr_max_used) if hr_max_used == hr_max_used else math.nan,
-            "zones": hr_zones,
-        }
+    heart_rate, cardiac_drift_pct, cardiac_drift_slope_pct = _compute_heart_rate_section(
+        df, weights, delta_dist, mask, pace_for_ratio, hr_max, hr_rest, use_hrr
+    )
+    training_load = _compute_training_load_section(heart_rate)
+    cadence = _compute_cadence_section(df, weights, cadence_target)
+    power, power_advanced = _compute_power_section(df, delta_time, mask, weights, moving_time_s, ftp_w)
 
-    training_load = None
-    if heart_rate is not None and heart_rate.get("zones") is not None:
-        trimp = _edwards_trimp_from_zones(heart_rate["zones"])
-        if trimp == trimp:
-            training_load = {"trimp": float(trimp), "method": "edwards"}
-
-    cadence = None
-    if "cadence" in df and df["cadence"].notna().any():
-        cad_values = df["cadence"].to_numpy(dtype=float)
-        cad_mean = _weighted_mean(cad_values, weights)
-        cad_max = float(np.nanmax(cad_values)) if np.isfinite(cad_values).any() else math.nan
-        above_pct = math.nan
-        if cadence_target is not None and cadence_target > 0:
-            mask_target = np.isfinite(cad_values) & (weights > 0) & (cad_values >= cadence_target)
-            total = float(weights[np.isfinite(cad_values) & (weights > 0)].sum())
-            above = float(weights[mask_target].sum())
-            above_pct = (above / total) * 100.0 if total > 0 else math.nan
-        cadence = {
-            "mean_spm": float(cad_mean),
-            "max_spm": float(cad_max),
-            "target_spm": float(cadence_target) if cadence_target else math.nan,
-            "above_target_pct": float(above_pct),
-        }
-
-    power = None
-    ftp_used = math.nan
-    power_advanced = None
-    if "power" in df and df["power"].notna().any():
-        power_values = df["power"].to_numpy(dtype=float)
-        power_mean = _weighted_mean(power_values, weights)
-        power_max = float(np.nanmax(power_values)) if np.isfinite(power_values).any() else math.nan
-        ftp_used = float(ftp_w) if ftp_w and ftp_w > 0 else math.nan
-        if ftp_used != ftp_used:
-            ftp_mask = np.isfinite(power_values) & (weights > 0)
-            ftp_used = float(np.nanpercentile(power_values[ftp_mask], 95)) if ftp_mask.any() else math.nan
-            ftp_estimated = True
-        else:
-            ftp_estimated = False
-        power_ratio = np.full_like(power_values, np.nan, dtype=float)
-        if ftp_used and ftp_used > 0:
-            power_ratio = power_values / ftp_used
-        power_zones = _build_zone_table(
-            power_ratio,
-            weights,
-            POWER_ZONES,
-            lambda low, high: f">= {int(low*100)}% FTP" if math.isinf(high) else f"{int(low*100)}-{int(high*100)}% FTP",
-        )
-        power = {
-            "mean_w": float(power_mean),
-            "max_w": float(power_max),
-            "ftp_w": float(ftp_used),
-            "ftp_estimated": ftp_estimated,
-            "zones": power_zones,
-        }
-
-        power_series_1hz = _resample_series_1hz(power_values, delta_time, mask)
-        normalized_power_w = _normalized_power_from_series(power_series_1hz)
-        intensity_factor = (
-            float(normalized_power_w / ftp_used)
-            if normalized_power_w == normalized_power_w and ftp_used == ftp_used and ftp_used > 0
-            else math.nan
-        )
-        tss = (
-            (moving_time_s * normalized_power_w * intensity_factor) / (ftp_used * 3600.0) * 100.0
-            if normalized_power_w == normalized_power_w
-            and intensity_factor == intensity_factor
-            and ftp_used == ftp_used
-            and ftp_used > 0
-            and moving_time_s > 0
-            else math.nan
-        )
-        power_advanced = {
-            "normalized_power_w": float(normalized_power_w),
-            "intensity_factor": float(intensity_factor),
-            "tss": float(tss),
-        }
-        power_curve_durations = _build_power_peak_durations(len(power_series_1hz))
-        power_curve = _compute_power_duration_curve_from_series(power_series_1hz, power_curve_durations)
-        if power_curve:
-            power_advanced["power_duration_curve"] = power_curve
-
-    pace_zones = None
     pace_threshold = pace_threshold_s_per_km
     if pace_threshold is None or pace_threshold != pace_threshold:
         pace_threshold = pace_median
-    if pace_threshold and pace_threshold > 0 and pace_mask.any():
-        pace_ratio = pace / pace_threshold
-        pace_zones = _build_zone_table(
-            pace_ratio,
-            weights,
-            PACE_ZONES,
-            lambda low, high: f">= {int(low*100)}% seuil"
-            if math.isinf(high)
-            else f"{int(low*100)}-{int(high*100)}% seuil",
-        )
-
-    pacing = {
-        "pace_first_half_s_per_km": float(pace_first),
-        "pace_second_half_s_per_km": float(pace_second),
-        "pace_delta_s_per_km": float(pace_delta),
-        "drift_s_per_km_per_km": float(drift),
-        "cardiac_drift_pct": float(cardiac_drift_pct),
-        "cardiac_drift_slope_pct": float(cardiac_drift_slope_pct),
-        "stability_cv": float(stability_cv),
-        "stability_iqr_ratio": float(stability_iqr),
-        "gap_residual_median_s": float(gap_residual),
-        "pace_threshold_s_per_km": float(pace_threshold) if pace_threshold == pace_threshold else math.nan,
-    }
+    pace_zones = _compute_pace_zones_section(pace, pace_threshold, pace_mask, weights)
+    pacing = _compute_pacing_section(
+        pace_first,
+        pace_second,
+        pace_delta,
+        drift,
+        cardiac_drift_pct,
+        cardiac_drift_slope_pct,
+        stability_cv,
+        stability_iqr,
+        gap_residual,
+        pace_threshold,
+    )
 
     return {
         "summary": summary,
