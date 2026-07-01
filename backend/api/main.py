@@ -107,6 +107,14 @@ app = FastAPI(
 )
 
 
+def get_activity_storage():
+    return app.state.storage
+
+
+def get_series_registry():
+    return app.state.registry
+
+
 # Chemins de polling/santé — logués en DEBUG pour éviter le spam dans les logs.
 _QUIET_LOG_PATHS: set[str] = {
     "/progress/index/status",
@@ -212,6 +220,21 @@ async def root():
         "docs": "/docs",
         "status": "operational",
     }
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Docker healthcheck."""
+    try:
+        storage = get_activity_storage()
+        registry = get_series_registry()
+        return {
+            "status": "healthy",
+            "storage": "operational",
+            "registry": "operational",
+        }
+    except Exception:
+        raise HTTPException(status_code=503, detail="Service unavailable")
 
 
 if __name__ == "__main__":

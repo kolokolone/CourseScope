@@ -382,16 +382,6 @@ def _empty_garmin_like_stats() -> Dict[str, Any]:
     }
 
 
-def _compute_running_dynamics_section(
-    df: pd.DataFrame,
-    weights: np.ndarray,
-    step_length_est_m: float,
-) -> dict[str, float] | None:
-    running_dynamics = _compute_running_dynamics_section(df, weights, step_length_est_m)
-
-    return running_dynamics
-
-
 def _compute_heart_rate_section(
     df: pd.DataFrame,
     weights: np.ndarray,
