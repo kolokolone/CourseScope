@@ -6,8 +6,7 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
-# Audit de sécurité : correction auto des vulnérabilités safe, puis blocage si critical+
-RUN npm audit fix --production --omit=dev || echo "audit-fix: continuing"
+# Audit de sécurité read-only : ne pas retirer les devDependencies avant le build.
 RUN npm audit --omit=dev --audit-level=critical || exit 1
 
 ENV NEXT_TELEMETRY_DISABLED=1
