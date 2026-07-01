@@ -86,7 +86,7 @@ if [ "$MODE" = "docker" ]; then
   echo "[INFO] Running in docker mode"
 
   echo "[INFO] Starting API: http://127.0.0.1:8000"
-  "$PYTHON_BIN" -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 &
+  "$PYTHON_BIN" -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 --forwarded-allow-ips='*' &
   API_PID=$!
 
   if wait_for_backend_health; then
