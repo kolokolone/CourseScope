@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const devOrigins: string[] = [
-  "http://127.0.0.1:3000",
-  "http://localhost:3000",
+  "127.0.0.1",
+  "localhost",
   process.env.COURSESCOPE_DEV_ORIGIN,
 ].filter(Boolean) as string[];
 
