@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.4] - 2026-07-01
+
+### Changed
+- **Infrastructure** : activation du mode standalone Next.js (`output: standalone`) — réduction de la taille de l'image Docker finale.
+- **Infrastructure** : silence Debian (`DEBIAN_FRONTEND=noninteractive`) + désactivation télémétrie Next.js dans le Dockerfile.
+
 ## [1.2.3] - 2026-07-01
 
 ### Changed
