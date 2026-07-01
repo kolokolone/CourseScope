@@ -1,0 +1,483 @@
+# Audit Docker — Correctifs proposés vs code actuel
+
+**Projet** : CourseScope v1.2.2  
+**Date** : 2026-07-01  
+**Source** : Log GitHub Actions `build-and-push` (run #50) + codebase analysée localement
+
+---
+
+## Résumé de l'état actuel
+
+Le build Docker passe et l'image est poussée sur GHCR. Mais le workflow ne valide que la **compilation**, pas le **fonctionnement runtime**. La pipeline CI (`ci_cd.yml`) tourne Node 20 et Python 3.11 séparément — elle ne teste pas l'image Docker elle-même. Plusieurs fragilités existent : version Node non alignée, vulnérabilités npm, absence de cache, image monocouche sans user non-root, pas de scan de sécurité.
+
+---
+
+## 1. Passer Node 20 → Node 22
+
+### Constat
+
+Deux occurrences de `node:20-bookworm-slim` dans le Dockerfile (lignes 3 et 13). Le log montre :
+
+```
+npm warn EBADENGINE Unsupported engine {
+  package: 'camera-controls@3.1.2',
+  required: { node: '>=22.0.0' },
+  current: { node: 'v20.20.2' }
+}
+```
+
+GitHub Actions force déjà Node 24 pour ses propres actions (message répété 8× dans le log). La CI `ci_cd.yml` utilise aussi `setup-node@v4` avec `node-version: "20"`.
+
+### Répercussions
+
+| Correctif | Impact |
+|---|---|
+| Remplacer `node:20-bookworm-slim` → `node:22-bookworm-slim` | Résout le warning EBADENGINE. Compatibilité garantie avec `camera-controls@3.1.2`. Next.js 16.1.5 supporte Node 22. |
+| Remplacer → `node:24-bookworm-slim` | Aligné avec l'environnement GitHub Actions. Plus récent, mais vérifier que toutes les dépendances npm supportent Node 24. Risque faible. |
+| Dans `ci_cd.yml`, passer `node-version: "22"` | Cohérence entre CI et Docker. |
+
+**Recommandation** : Node 22 (LTS actuel, plus stable que Node 24 en production). Node 24 n'est pas encore LTS et bien que GitHub Actions l'utilise, Next.js 16.1.5 est officiellement testé sur Node 22. Le log montre que `camera-controls@3.1.2` demande `>=22.0.0` — Node 22 suffit.
+
+### Aucun changement de code applicatif nécessaire
+Next.js, React, Three.js et toutes les dépendances actuelles (`next.config.ts`, `package.json`) restent identiques. Le changement se limite aux lignes 3 et 13 du Dockerfile + la version dans `ci_cd.yml`.
+
+---
+
+## 2. Traiter les vulnérabilités npm proprement
+
+### Constat
+
+Log : `16 vulnerabilities (1 low, 6 moderate, 8 high, 1 critical)`
+
+La CI ne bloque pas sur les vulnérabilités. Le Dockerfile fait un `npm ci` silencieux.
+
+### Répercussions
+
+Un `npm audit fix --force` est dangereux : il peut casser Next.js 16.1.5, Three.js, React 19.2.3, etc. en forçant des mises à jour majeures non testées.
+
+**Procédure recommandée (hors audit, action manuelle)** :
+
+```bash
+cd frontend
+npm audit --omit=dev          # vulnérabilités runtime uniquement
+npm audit fix --production    # correctifs safe runtime seulement
+```
+
+Puis ajouter dans le Dockerfile **après** `npm ci` :
+
+```dockerfile
+RUN npm audit --omit=dev --audit-level=high || exit 1
+```
+
+Cela bloque le build si une vulnérabilité runtime **high** ou **critical** persiste.
+
+**⚠️ Attention** : certaines vulnérabilités peuvent être dans des dépendances transitives de Next.js lui-même. Si `npm audit fix --production` ne résout pas tout, il faudra soit :
+- Surcharger la version dans `package.json` via `overrides` (ou `resolutions` si yarn)
+- Accepter le risque si la vulnérabilité n'est pas exploitable dans le contexte de l'app
+- Attendre un correctif amont
+
+**Ce correctif n'affecte pas le code applicatif** (sauf si `overrides` sont ajoutés dans `package.json`).
+
+---
+
+## 3. Ajouter un vrai smoke test du conteneur avant publication
+
+### Constat
+
+Le workflow est configuré avec `load: false` (pas de chargement dans le daemon Docker du runner). Aucune étape de test après build. L'image est directement poussée sur GHCR.
+
+### Répercussions
+
+Si `run_linux.sh` est cassé, si uvicorn ne démarre pas, si la base SQLite n'est pas accessible, l'image est publiée quand même — et l'utilisateur la tire avec une app qui ne répond pas.
+
+**Plan d'action** :
+1. Ajouter une étape `load: true` avec un tag temporaire (`coursescope:test-${{ github.sha }}`)
+2. Démarrer le conteneur en arrière-plan
+3. Tester avec curl :
+   ```bash
+   docker run -d --name coursescope-test -p 3000:3000 coursescope:test-...
+   sleep 5
+   curl -fsS http://127.0.0.1:3000 || exit 1        # frontend
+   curl -fsS http://127.0.0.1:3000/api/health || exit 1  # proxy
+   ```
+4. Ne push sur GHCR que si les deux curls passent
+
+**⚠️ Attention** : Le HEALTHCHECK actuel pointe sur `http://localhost:8000/health` (port backend direct). Le smoke test devrait valider via le port exposé **3000** (frontend + proxy `/api/health`), ce qui teste la chaîne complète.
+
+### Impact sur le workflow
+Le fichier `.github/workflows/docker-image.yml` doit être modifié pour ajouter ces étapes. Aucun impact sur le code applicatif.
+
+---
+
+## 4. Séparer "build réussi" et "runtime fonctionnel"
+
+### Constat
+
+Le Dockerfile ne contient pas de script de validation runtime. `run_linux.sh` fait un `wait_for_backend_health` en Python, mais uniquement quand l'app est lancée interactivement — pas en CI.
+
+### Répercussions
+
+Un `docker build` réussi ne garantit pas que :
+- le backend démarre (`uvicorn` importe-t-il correctement ?)
+- SQLite est initialisé (`init_db`)
+- les fichiers de configuration sont accessibles
+- le frontend Next.js runtime trouve ses fichiers build
+
+**Créer `scripts/smoke_docker.sh`** qui :
+1. Lance le conteneur
+2. Vérifie que le port 3000 répond
+3. Vérifie `/api/health` retourne 200
+4. Vérifie les logs pour absence d'erreur critique
+5. Nettoie le conteneur
+
+Ce script est utilisable **localement** et en **CI** — pas de duplication logique.
+
+---
+
+## 5. Activer le cache Docker BuildKit GitHub Actions
+
+### Constat
+
+Log : `Post cache: State not set` — le cache GitHub Actions n'est pas configuré. Chaque build rebuild intégrablement npm et pip.
+
+### Répercussions
+
+Builds plus longs (le log montre ~22s pour `npm ci` et ~29s pour `pip install`). Risque accru de timeout sur runners lents ou pour les gros changements.
+
+**Correctif** dans `docker-image.yml` :
+
+```yaml
+- name: Build and push
+  uses: docker/build-push-action@v6
+  with:
+    cache-from: type=gha
+    cache-to: type=gha,mode=max
+```
+
+**Ce correctif n'affecte que le workflow CI**, aucun code applicatif.
+
+---
+
+## 6. Durcir les tags Docker publiés
+
+### Constat
+
+Tags actuels :
+- `ghcr.io/kolokolone/coursescope:main` (mouvant)
+- `ghcr.io/kolokolone/coursescope:sha-b10297...` (fixe, illisible)
+
+### Répercussions
+
+Pas de tag versionné, pas de `latest` stable. Difficile de rollback ou de déployer une version spécifique.
+
+**Correctif** dans `docker-image.yml` — déclencher le push aussi sur les tags git `v*` :
+
+```yaml
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+```
+
+Puis dans les tags publiés :
+
+```yaml
+tags: |
+  ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:main
+  ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+  ${{ startsWith(github.ref, 'refs/tags/v') && format('{0}/{1}/{2}:latest', env.REGISTRY, github.repository_owner, env.IMAGE_NAME) || '' }}
+  ${{ startsWith(github.ref, 'refs/tags/v') && format('{0}/{1}/{2}:{3}', env.REGISTRY, github.repository_owner, env.IMAGE_NAME, github.ref_name) || '' }}
+  ${{ startsWith(github.ref, 'refs/tags/v') && format('{0}/{1}/{2}:{3}', env.REGISTRY, github.repository_owner, env.IMAGE_NAME, github.ref_name | split('.') | first) || '' }}
+```
+
+**⚠️** : `latest` ne doit pointer que sur des versions stables. Ne pas mettre `latest` sur chaque commit de `main`.
+
+---
+
+## 7. Protéger la branche main
+
+### Constat
+
+Le workflow a `packages: write`. Tout push sur `main` publie une image GHCR.
+
+### Répercussions
+
+Un push direct sur `main` (sans PR) ou un merge avec une régression peut publier une image cassée. Il n'y a pas de gate.
+
+**Correctif** (côté GitHub, pas dans le code) :
+- Activer "Require pull request reviews before merging" sur `main`
+- Activer "Require status checks" (exiger le succès de la CI + smoke test)
+- Optionnel : réserver la publication d'images stables aux tags `v*`
+
+**Ce correctif ne touche pas le code.**
+
+---
+
+## 8. Ajouter un scan de sécurité d'image Docker
+
+### Constat
+
+Le Dockerfile installe via `apt` : python3, pip, curl, openssl, tini et leurs dépendances (45 paquets). Le `requirements.txt` contient 20 dépendances Python. L'image embarque également tout l'écosystème Node/Next.js.
+
+### Répercussions
+
+Aucune visibilité sur les CVEs de l'image finale. Une faille critique dans OpenSSL, Python, ou une lib partagée peut passer inaperçue.
+
+**Correctif** dans `docker-image.yml` — ajouter une étape Trivy :
+
+```yaml
+- name: Scan image with Trivy
+  uses: aquasecurity/trivy-action@master
+  with:
+    image-ref: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+    format: 'table'
+    exit-code: '1'
+    severity: 'CRITICAL'
+```
+
+Politique de sévérité suggérée :
+- **CRITICAL** → fail du workflow
+- **HIGH** → warning (puis fail quand le bruit est nettoyé)
+- **MEDIUM/LOW** → rapport seulement, pas bloquant
+
+**⚠️** : Trivy peut remonter des faux positifs dans l'image Debian Bookworm de base. Un premier scan est nécessaire pour évaluer le bruit.
+
+---
+
+## 9. Nettoyer les warnings Debian pendant le build
+
+### Constat
+
+Log :
+```
+debconf: unable to initialize frontend: Dialog
+debconf: (TERM is not set, so the dialog frontend is not available.)
+debconf: falling back to frontend: Readline
+debconf: unable to initialize frontend: Readline
+```
+
+### Répercussions
+
+Bruit dans les logs, pas de blocage. Mais cela masque les vrais problèmes.
+
+**Correctif** dans le Dockerfile, avant `RUN apt-get update` :
+
+```dockerfile
+ENV DEBIAN_FRONTEND=noninteractive
+```
+
+Ajouter une ligne après `FROM node:...` dans l'étage runtime (ligne 13). Idéalement aussi dans l'étage web-build, même si celui-ci n'utilise pas apt.
+
+---
+
+## 10. Désactiver la télémétrie Next.js dans Docker
+
+### Constat
+
+Log :
+```
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+```
+
+### Répercussions
+
+Pas de risque de sécurité, mais une image de production doit être silencieuse et prévisible.
+
+**Correctif** dans le Dockerfile, dans l'étage **web-build** (avant `npm run build`) et dans l'étage **runtime** (avant `npm run start`) :
+
+```dockerfile
+ENV NEXT_TELEMETRY_DISABLED=1
+```
+
+Aucun impact sur le code applicatif.
+
+---
+
+## 11. Réduire l'image finale (Next.js standalone)
+
+### Constat
+
+Le `next.config.ts` n'a pas `output: "standalone"`. Le Dockerfile copie tout le dossier `/app/frontend` depuis l'étage web-build :
+
+```dockerfile
+COPY --from=web-build /app/frontend /app/frontend
+```
+
+Cela copie aussi `node_modules`, les fichiers source, les caches de build, etc.
+
+### Répercussions
+
+Image plus lourde que nécessaire. Next.js standalone produit un dossier `.next/standalone/` qui ne contient que le strict nécessaire (code JS compilé, `node_modules` optimisé, fichier `server.js`).
+
+**Correctif** :
+
+1. Dans `next.config.ts` :
+```typescript
+const nextConfig: NextConfig = {
+  output: "standalone",
+  // ... reste des configs
+};
+```
+
+2. Dans le Dockerfile (étage runtime) :
+```dockerfile
+COPY --from=web-build /app/frontend/.next/standalone /app/frontend
+COPY --from=web-build /app/frontend/.next/static /app/frontend/.next/static
+COPY --from=web-build /app/frontend/public /app/frontend/public
+```
+
+**⚠️** : `output: "standalone"` modifie le comportement de `next build`. Il faut vérifier que les `rewrites` et `redirects` (notamment le proxy `/api/*` → backend) fonctionnent toujours en mode standalone. Next.js génère un fichier `server.js` autonome qui doit être lancé avec Node (et non `next start`). Il faut donc adapter le `run_linux.sh` pour la partie frontend :
+
+```bash
+# Avant
+npm run start -- -H 0.0.0.0 -p 3000
+
+# Après (standalone)
+node .next/standalone/server.js --port 3000
+```
+
+**Avec ce changement, le dossier `public` doit être copié explicitement car standalone ne l'inclut pas automatiquement dans le build.**
+
+---
+
+## 12. Séparer les dépendances Python runtime/dev/optionnelles
+
+### Constat
+
+`requirements.txt` contient tout : production + tests :
+```
+gpxpy, fitparse, pandas, numpy, plotly, pytest, fastapi, uvicorn,
+python-multipart, pydantic, httpx, pyarrow, garminconnect, garth,
+SQLAlchemy, psycopg[binary]
+```
+
+`pytest` et `httpx` (si utilisé pour les tests) sont installés dans l'image de production.
+
+### Répercussions
+
+- L'image finale contient des paquets inutiles en production (`pytest`)
+- Surface d'attaque légèrement augmentée
+- Image plus lourde
+- Possibilité de dépendances dev avec des vulnérabilités
+
+**Correctif** :
+
+```
+requirements.txt              → production uniquement
+requirements-dev.txt          → pytest, httpx (si test), outils de lint
+requirements-optional.txt     → connecteurs optionnels
+```
+
+Le Dockerfile doit n'installer que `requirements.txt`.
+
+**Quels paquets sont runtime uniquement ?**
+
+Production : `fastapi`, `uvicorn[standard]`, `python-multipart`, `pydantic`, `pyarrow`, `garminconnect==0.2.25`, `garth`, `SQLAlchemy>=2.0`, `psycopg[binary]>=3.1,<3.3`, `gpxpy`, `fitparse`, `pandas`, `numpy`, `plotly`
+
+Dev seulement : `pytest`
+
+Incertain : `httpx` — vérifier si utilisé dans les tests ou en production
+
+---
+
+## 13. HEALTHCHECK Docker
+
+### Constat
+
+Le HEALTHCHECK existe (ajouté récemment) :
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+```
+
+Il vérifie le backend directement (port 8000), pas la chaîne complète via le proxy frontend (port 3000).
+
+### Répercussions
+
+- Le HEALTHCHECK valide que uvicorn répond, mais pas que le frontend Next.js est en vie
+- Si le frontend crashe mais que le backend tient, Docker considère le conteneur healthy → incohérent
+- Le `start-period=10s` peut être trop court si uvicorn met du temps à charger les dépendances (pandas, numpy, pyarrow sont lourds). Voir le log : pip prend 29s, mais le démarrage de l'app n'est pas mesuré.
+
+**Correctif recommandé** :
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
+```
+
+- Vérifie la chaîne complète : frontend → proxy → backend
+- `--start-period=30s` pour laisser le temps à uvicorn de charger pandas/numpy
+- `--timeout=10s` pour laisser le temps à la réponse
+
+**⚠️** : Actuellement le HEALTHCHECK utilise `localhost:8000`, qui est l'IP du backend (`127.0.0.1`). Si on passe par `localhost:3000/api/health`, on teste aussi le proxy Next.js. C'est plus complet mais peut échouer si Next.js est encore en cours d'initialisation.
+
+---
+
+## 14. Forcer l'exécution non-root
+
+### Constat
+
+Le Dockerfile n'a pas de directive `USER`. Le conteneur tourne en root.
+
+### Répercussions
+
+- Risque de sécurité : si une vulnérabilité est exploitée dans l'app, l'attaquant a les droits root dans le conteneur
+- Les fichiers créés dans `/data` (SQLite, logs) appartiendront à root → incompatibles avec des montages de volumes où l'UID hôte est différent
+
+**Correctif** :
+
+```dockerfile
+RUN useradd -r -u 10001 -g root coursescope && \
+    mkdir -p /data && \
+    chown -R coursescope:root /data /app
+
+USER coursescope
+```
+
+**⚠️** : Vérifier que `/data` et `/app` sont tous les deux accessibles en écriture par l'utilisateur `coursescope`. Le `run_linux.sh` crée des fichiers dans `/app/frontend` (non, en mode docker, il fait `cd frontend && npm run start` — lecture seule, OK). Les logs sont écrits dans `get_data_dir() / "logs"` qui pointe vers `/data/logs` → accessible.
+
+**⚠️** : Si on utilise `USER coursescope` avec un volume monté dans `/data`, le répertoire monté doit avoir les permissions 10001:root ou être world-writable. Docker résout le UID, pas le nom d'utilisateur.
+
+---
+
+## Tableau de bord des correctifs
+
+| # | Correctif | Effort | Impact code | Risque | Priorité |
+|---|---|---|---|---|---|
+| 1 | Node 20 → 22 | Trivial | Dockerfile + CI | Faible | **Haute** |
+| 2 | Vulnérabilités npm | Moyen | Dockerfile + package.json (overrides) | Moyen | **Haute** |
+| 3 | Smoke test CI | Moyen | Workflow | Faible | **Haute** |
+| 4 | Script smoke_docker.sh | Faible | Nouveau fichier scripts/ | Faible | Haute |
+| 5 | Cache BuildKit | Trivial | Workflow | Faible | Moyenne |
+| 6 | Tags versionnés | Faible | Workflow | Faible | Moyenne |
+| 7 | Protection main | Nul | GitHub settings | Aucun | **Haute** |
+| 8 | Scan Trivy | Faible | Workflow | Faible | Moyenne |
+| 9 | DEBIAN_FRONTEND | Trivial | Dockerfile | Aucun | Faible |
+| 10 | NEXT_TELEMETRY_DISABLED | Trivial | Dockerfile | Aucun | Faible |
+| 11 | Standalone Next.js | **Moyen/Élevé** | next.config.ts + Dockerfile + run_linux.sh | **Moyen** | Moyenne |
+| 12 | Séparation requirements | Faible | requirements.txt + Dockerfile | Faible | Faible |
+| 13 | HEALTHCHECK amélioré | Trivial | Dockerfile | Faible | Moyenne |
+| 14 | Non-root user | Faible | Dockerfile | Faible | Moyenne |
+
+---
+
+## Recommandations immédiates (Sprint actuel)
+
+1. **Node 20 → 22** — 5 minutes, résout le warning EBADENGINE, aligne avec les prérequis de `camera-controls`
+2. **Smoke test CI** — 30 minutes, évite de publier une image non fonctionnelle
+3. **Cache BuildKit** — 2 minutes, accélère les builds suivants
+4. **DEBIAN_FRONTEND + NEXT_TELEMETRY_DISABLED** — 2 minutes, silence le build
+5. **HEALTHCHECK amélioré** — 2 minutes, meilleure détection des problèmes
+
+## Recommandations sprint suivant
+
+6. **Vulnérabilités npm** — à analyser avec `npm audit --omit=dev`
+7. **Non-root user** — sécurise le conteneur
+8. **Tags versionnés** — facilite les rollbacks
+9. **Scan Trivy** — ajoute de la visibilité sécurité
+
+## À faire plus tard (quand le temps le permet)
+
+10. **Next.js standalone** — bonne optimisation mais nécessite des tests de non-régression sur le proxy
+11. **Séparation requirements.txt** — ménage de printemps des dépendances
+12. **Script smoke_docker.sh mutualisé** — utopie du "marche aussi en local"

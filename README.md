@@ -32,7 +32,7 @@ Le projet est composé d'un **frontend Next.js** (UI) et d'une **API FastAPI** (
 
 ### Prérequis
 - Python 3.11+
-- Node.js 20+ (22 recommandé)
+- Node.js 22+
 
 ### Lancement en développement
 

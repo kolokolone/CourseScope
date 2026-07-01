@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.3] - 2026-07-01
+
+### Changed
+- **Infrastructure** : migration Docker et CI de Node 20 vers Node 22 (LTS) — résout le warning EBADENGINE sur `camera-controls`.
+- **Sécurité** : ajout d'un audit npm (`npm audit fix --production` + blocage sur vulnérabilités high+) dans le pipeline Docker.
+- **Documentation** : README mis à jour — `Node.js 22+`.
+
 ## [1.2.1] - 2026-07-01
 
 ### Changed

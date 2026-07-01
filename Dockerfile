@@ -1,16 +1,20 @@
 # syntax=docker/dockerfile:1
 
-FROM node:20-bookworm-slim AS web-build
+FROM node:22-bookworm-slim AS web-build
 WORKDIR /app/frontend
 
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
+# Audit de sécurité : correction auto des vulnérabilités safe, puis blocage si high+ persistent
+RUN npm audit fix --production --omit=dev || echo "audit-fix: continuing"
+RUN npm audit --omit=dev --audit-level=high || exit 1
+
 COPY frontend ./
 RUN npm run build
 
 
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 
