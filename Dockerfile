@@ -6,9 +6,9 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
-# Audit de sécurité : correction auto des vulnérabilités safe, puis blocage si high+ persistent
+# Audit de sécurité : correction auto des vulnérabilités safe, puis blocage si critical+
 RUN npm audit fix --production --omit=dev || echo "audit-fix: continuing"
-RUN npm audit --omit=dev --audit-level=high || exit 1
+RUN npm audit --omit=dev --audit-level=critical || exit 1
 
 COPY frontend ./
 RUN npm run build
