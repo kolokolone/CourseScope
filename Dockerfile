@@ -10,6 +10,8 @@ RUN npm ci
 RUN npm audit fix --production --omit=dev || echo "audit-fix: continuing"
 RUN npm audit --omit=dev --audit-level=critical || exit 1
 
+ENV NEXT_TELEMETRY_DISABLED=1
+
 COPY frontend ./
 RUN npm run build
 
@@ -19,7 +21,9 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 
 ENV NODE_ENV=production \
-    COURSESCOPE_DATA_DIR=/data
+    COURSESCOPE_DATA_DIR=/data \
+    DEBIAN_FRONTEND=noninteractive \
+    NEXT_TELEMETRY_DISABLED=1
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -39,8 +43,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY VERSION ./
 COPY backend ./backend
 
-# Frontend runtime (includes node_modules + .next from build stage)
-COPY --from=web-build /app/frontend /app/frontend
+# Frontend runtime (standalone : only compiled code + static assets + public)
+COPY --from=web-build /app/frontend/.next/standalone /app/frontend
+COPY --from=web-build /app/frontend/.next/static /app/frontend/.next/static
+COPY --from=web-build /app/frontend/public /app/frontend/public
 
 COPY run_linux.sh /app/run_linux.sh
 

@@ -98,7 +98,7 @@ if [ "$MODE" = "docker" ]; then
 
   echo "[INFO] Starting Frontend (production): http://0.0.0.0:3000"
   cd frontend
-  npm run start -- -H 0.0.0.0 -p 3000
+  PORT=3000 node server.js
   exit 0
 fi
 
