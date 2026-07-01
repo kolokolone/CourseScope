@@ -16,7 +16,7 @@ COPY frontend ./
 RUN npm run build
 
 
-FROM node:22-bookworm-slim
+FROM python:3.13-slim-bookworm
 
 WORKDIR /app
 
@@ -25,13 +25,14 @@ ENV NODE_ENV=production \
     DEBIAN_FRONTEND=noninteractive \
     NEXT_TELEMETRY_DISABLED=1
 
+# Install Node.js 22 via NodeSource
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    python3-venv \
-    tini \
     curl \
+    ca-certificates \
+    tini \
+  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+  && apt-get install -y --no-install-recommends nodejs \
   && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m venv /opt/venv

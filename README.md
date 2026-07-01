@@ -3,7 +3,7 @@
 Application web locale d'analyse de traces running **GPX/FIT** avec mode théorique pour estimer un temps sur parcours.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![Python 3.13+](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 
 ## Pourquoi ?
@@ -31,7 +31,7 @@ Le projet est composé d'un **frontend Next.js** (UI) et d'une **API FastAPI** (
 ## Démarrage rapide
 
 ### Prérequis
-- Python 3.11+
+- Python 3.13+
 - Node.js 22+
 
 ### Lancement en développement
@@ -212,7 +212,7 @@ npm run lint       # ESLint
 
 ## Déploiement
 
-Image unique multi-stage publiée sur GHCR. Le build compile le frontend Next.js puis assemble backend Python + frontend statique dans une image `node:20-bookworm-slim`.
+Image unique multi-stage publiée sur GHCR. Le build compile le frontend Next.js puis assemble backend Python + frontend statique dans une image `python:3.13-slim-bookworm` avec Node.js 22.
 
 ```bash
 docker build -t coursescope .
@@ -253,4 +253,4 @@ MIT — voir [LICENSE](LICENSE).
 
 ---
 
-Stack : **Python 3.11+ / FastAPI / pandas** + **Next.js 16 / React 19 / Tailwind 4 / Recharts / Leaflet**
+Stack : **Python 3.13+ / FastAPI / pandas** + **Next.js 16 / React 19 / Tailwind 4 / Recharts / Leaflet**
