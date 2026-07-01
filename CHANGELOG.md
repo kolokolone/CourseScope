@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.5] - 2026-07-02
+
+### Changed
+- **Dépendances** : remplacement de `garth` par `garth-ng>=1.1` tout en conservant `import garth`.
+- **Frontend** : mise à jour Next.js / `eslint-config-next` vers `^16.2.10` et ajout de `allowedDevOrigins`.
+- **Infrastructure** : runtime Docker aligné sur Python 3.13 avec Node.js 22 ; README mis à jour pour Python 3.13+.
+
 ## [1.2.4] - 2026-07-01
 
 ### Changed
