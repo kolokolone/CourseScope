@@ -1,7 +1,6 @@
 import {
   ActivityLoadResponse,
   RealActivityResponse,
-  TheoreticalActivityResponse,
   SeriesResponse,
   ActivityMapResponse,
   ActivityMetadata,
@@ -39,9 +38,19 @@ import {
   GeoCitiesResponse,
   RealActivityBinsResponse,
   TraceItem,
-  TraceOpenResponse,
   TracesListResponse,
   TraceUploadResponse,
+  ActivityId,
+  TraceId,
+  RacePlanId,
+  RaceScenarioId,
+  TraceDetailResponse,
+  RacePlan,
+  RacePlanPreview,
+  RaceScenario,
+  RaceStop,
+  RaceObjectiveType,
+  RaceStopType,
 } from '@/types/api';
 
 // Base URL strategy:
@@ -152,7 +161,7 @@ export const activityApi = {
   load: async (
     file: File,
     name: string,
-    options?: { activity_type?: 'real' | 'theoretical' }
+    options?: { activity_type?: 'real' }
   ) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -169,12 +178,12 @@ export const activityApi = {
   },
 
   list: async () => apiRequest<{ activities: ActivityMetadata[] }>('/activities'),
-  rename: async (activityId: string, name: string | null) =>
+  rename: async (activityId: ActivityId, name: string | null) =>
     apiRequest<{ id: string; name: string | null }>(`/activities/${activityId}`, {
       method: 'PATCH',
       body: JSON.stringify({ name }),
     }),
-  delete: async (activityId: string) => apiRequest<{ message: string }>(`/activity/${activityId}`, { method: 'DELETE' }),
+  delete: async (activityId: ActivityId) => apiRequest<{ message: string }>(`/activity/${activityId}`, { method: 'DELETE' }),
   cleanup: async () => apiRequest<{ message: string }>('/activities', { method: 'DELETE' }),
 };
 
@@ -253,28 +262,9 @@ export const garminApi = {
 };
 
 export const analysisApi = {
-  getReal: async (activityId: string) => apiRequest<RealActivityResponse>(`/activity/${activityId}/real`),
-  getRealBins: async (activityId: string) => apiRequest<RealActivityBinsResponse>(`/activity/${activityId}/real-bins`),
-  getTheoretical: async (
-    activityId: string,
-    params?: {
-      target_mode?: 'pace' | 'time';
-      target_pace?: string;
-      target_time?: string;
-      vma_kmh?: number;
-      grade_model?: 'pro_ref' | 'grade_table_v1';
-    }
-  ) => {
-    const sp = new URLSearchParams();
-    if (params?.target_mode) sp.append('target_mode', params.target_mode);
-    if (params?.target_pace) sp.append('target_pace', params.target_pace);
-    if (params?.target_time) sp.append('target_time', params.target_time);
-    if (typeof params?.vma_kmh === 'number') sp.append('vma_kmh', String(params.vma_kmh));
-    if (params?.grade_model) sp.append('grade_model', params.grade_model);
-    const suffix = sp.toString();
-    return apiRequest<TheoreticalActivityResponse>(`/activity/${activityId}/theoretical${suffix ? `?${suffix}` : ''}`);
-  },
-  getPaceVsGrade: async (activityId: string) => apiRequest<PaceVsGradeResponse>(`/activity/${activityId}/pace-vs-grade`),
+  getReal: async (activityId: ActivityId) => apiRequest<RealActivityResponse>(`/activity/${activityId}/real`),
+  getRealBins: async (activityId: ActivityId) => apiRequest<RealActivityBinsResponse>(`/activity/${activityId}/real-bins`),
+  getPaceVsGrade: async (activityId: ActivityId) => apiRequest<PaceVsGradeResponse>(`/activity/${activityId}/pace-vs-grade`),
 };
 
 export const tracesApi = {
@@ -292,24 +282,49 @@ export const tracesApi = {
     });
   },
 
-  rename: async (traceId: string, name: string | null) =>
+  detail: async (traceId: TraceId) => apiRequest<TraceDetailResponse>(`/traces/${traceId}`),
+
+  preview: async (traceId: TraceId, payload: Record<string, unknown>) =>
+    apiRequest<RacePlanPreview>(`/traces/${traceId}/plan-preview`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  rename: async (traceId: TraceId, name: string | null) =>
     apiRequest<TraceItem>(`/traces/${traceId}`, {
       method: 'PATCH',
       body: JSON.stringify({ name }),
     }),
 
-  remove: async (traceId: string) => apiRequest<{ deleted: boolean }>(`/traces/${traceId}`, { method: 'DELETE' }),
+  remove: async (traceId: TraceId) => apiRequest<{ deleted: boolean; trace_id: TraceId }>(`/traces/${traceId}`, { method: 'DELETE' }),
 
-  open: async (traceId: string) => apiRequest<TraceOpenResponse>(`/traces/${traceId}/open`, { method: 'POST' }),
-
-  getActivityTraceStatus: async (activityId: string) =>
-    apiRequest<{ saved: boolean; trace_id?: string; trace_name?: string }>(`/activity/${activityId}/trace-status`),
-
-  saveActivityTrace: async (activityId: string, name?: string) =>
-    apiRequest<TraceItem>(`/activity/${activityId}/trace-save`, {
-      method: 'POST',
-      body: JSON.stringify(name ? { name } : {}),
-    }),
+  listPlans: async (traceId: TraceId) => apiRequest<{ plans: RacePlan[] }>(`/traces/${traceId}/plans`),
+  getPlan: async (traceId: TraceId, planId: RacePlanId) => apiRequest<RacePlan>(`/traces/${traceId}/plans/${planId}`),
+  createPlan: async (traceId: TraceId, payload: Record<string, unknown>) => apiRequest<RacePlan>(`/traces/${traceId}/plans`, {
+    method: 'POST', body: JSON.stringify(payload),
+  }),
+  updatePlan: async (traceId: TraceId, planId: RacePlanId, payload: Record<string, unknown>) => apiRequest<{ plan: RacePlan; preview_required: true }>(`/traces/${traceId}/plans/${planId}`, {
+    method: 'PATCH', body: JSON.stringify(payload),
+  }),
+  createScenario: async (traceId: TraceId, planId: RacePlanId, payload: { name: string; objective_type: RaceObjectiveType; target_value: number; slope_model: 'minetti'; vma_kmh?: number | null; is_active?: boolean }) => apiRequest<{ scenario: RaceScenario; preview_required: true }>(`/traces/${traceId}/plans/${planId}/scenarios`, {
+    method: 'POST', body: JSON.stringify(payload),
+  }),
+  updateScenario: async (traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId, payload: Partial<{ name: string; objective_type: RaceObjectiveType; target_value: number; vma_kmh: number | null; calibration_factor: number; is_active: boolean; strategy_segments: RacePlanPreview['calculated_strategy']; nutrition: import('@/types/api').RaceNutritionItem[] }>) => apiRequest<{ scenario: RaceScenario; preview_required: true }>(`/traces/${traceId}/plans/${planId}/scenarios/${scenarioId}`, {
+    method: 'PATCH', body: JSON.stringify(payload),
+  }),
+  createStop: async (traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId, payload: { distance_km: number; stop_type: RaceStopType; duration_s: number; notes?: string }) => apiRequest<{ stop: RaceStop; preview_required: true }>(`/traces/${traceId}/plans/${planId}/scenarios/${scenarioId}/stops`, {
+    method: 'POST', body: JSON.stringify(payload),
+  }),
+  updateStop: async (traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId, stopId: string, payload: Partial<{ distance_km: number; stop_type: RaceStopType; duration_s: number; notes: string | null }>) => apiRequest<{ stop: RaceStop; preview_required: true }>(`/traces/${traceId}/plans/${planId}/scenarios/${scenarioId}/stops/${stopId}`, {
+    method: 'PATCH', body: JSON.stringify(payload),
+  }),
+  deleteStop: async (traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId, stopId: string) => apiRequest<{ deleted: true }>(`/traces/${traceId}/plans/${planId}/scenarios/${scenarioId}/stops/${stopId}`, {
+    method: 'DELETE',
+  }),
+  compare: async (traceId: TraceId, planId: RacePlanId, scenarioIds: RaceScenarioId[]) => apiRequest<{ scenarios: Array<{ scenario: RaceScenario; totals: RacePlanPreview['totals']; delta_vs_first: { running_time_s: number; elapsed_time_s: number; stop_time_s: number } }> }>(`/traces/${traceId}/plans/${planId}/compare`, {
+    method: 'POST',
+    body: JSON.stringify({ scenario_ids: scenarioIds }),
+  }),
 };
 
 export const settingsApi = {

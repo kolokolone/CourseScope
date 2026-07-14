@@ -17,7 +17,7 @@ La documentation doit permettre à un nouveau développeur (ou à un agent IA) d
 | **Référence technique** | `docs/` | Développeurs | `metrics_catalog.md`, `pace_vs_grade.md` |
 | **Guide normatif** | `docs/` | Développeurs, agents | `style-frontend-ui.md`, `design.md` |
 | **Procédure** | `docs/` | Opérateurs, agents | `documentation_update_runbook.md` |
-| **Rapport** | `docs/` | Développeurs, utilisateurs | `audit_application.md` |
+| **Référence de domaine** | `docs/` | Développeurs, utilisateurs | `race-planning.md` |
 | **Règles agent** | `agents/` | Agents IA | `AGENTS.md`, `agent-brainstorm.md` |
 | **Meta-documentation** | `docs/` | Mainteneurs | Ce fichier |
 
@@ -74,8 +74,8 @@ Utiliser un vocabulaire cohérent dans toute la documentation :
 
 | Terme | Définition |
 |---|---|
-| **Activité** | Une activité de course importée (GPX ou FIT) |
-| **Trace** | Un parcours GPX/FIT sauvegardé pour analyse théorique |
+| **Activité** | Une activité réelle enregistrée, identifiée par `activity_id` |
+| **Trace** | Un parcours GPX/FIT théorique, identifié par `trace_id` |
 | **Analyse réelle** | Analyse d'une activité déjà effectuée |
 | **Analyse théorique** | Estimation de temps/allure sur un parcours futur |
 | **Série** | Une colonne de données temporelles (pace, HR, elevation...) |
@@ -101,8 +101,8 @@ Quand modifier la documentation :
 | Changement d'algorithme | Document technique correspondant (`pace_vs_grade.md`, `climbs.md`, etc.) |
 | Changement de commande ou port | `README.md` |
 | Nouvelle règle agent | `agents/AGENTS.md` |
-| Changement de workflow | `agent-workflow.md` |
-| Refacto majeur | `audit_application.md` (mise à jour) |
+| Changement du domaine trace | `race-planning.md` |
+| Refacto majeur | document de référence du domaine concerné |
 
 Suivre la procédure détaillée dans `documentation_update_runbook.md`.
 

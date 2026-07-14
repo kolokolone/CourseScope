@@ -622,7 +622,7 @@ La carte Leaflet pour le tracé GPS est un composant signature. Le fond de carte
 ### Data-Density Philosophy
 CourseScope est conçu pour afficher beaucoup d'informations sans submerger l'utilisateur. Les patterns qui permettent cette densité :
 - **Sections conditionnelles** : Running Dynamics, Puissance avancée, etc. n'apparaissent que si les données sont disponibles — pas de placeholders vides.
-- **Tabs pour les modes** : "Analyse réelle" vs "Analyse théorique" en tabs, plutôt qu'en pages séparées.
+- **Domaines séparés** : une activité réelle reste sous `/activities/{activity_id}` ; une trace et sa préparation restent sous `/traces/{trace_id}`.
 - **Grilles responsives** : 4 KPIs en desktop large, 2 en tablette, 1 en mobile — l'information se réorganise sans se perdre.
 
 ## Page-Specific Patterns
@@ -639,7 +639,7 @@ CourseScope est conçu pour afficher beaucoup d'informations sans submerger l'ut
 
 ### Analyse d'activité (`/activities/[id]`)
 - Conteneur `wide`.
-- Deux modes par tabs : "Analyse réelle" et "Analyse théorique".
+- Analyse d'une activité réelle uniquement.
 - KPIs en grille 2-4 colonnes.
 - Graphiques Recharts en cartes pleine largeur ou demi-largeur.
 - Carte Leaflet pour le tracé GPS.
@@ -648,8 +648,11 @@ CourseScope est conçu pour afficher beaucoup d'informations sans submerger l'ut
 
 ### Traces GPX (`/traces`, `/traces/[id]`)
 - Conteneur `default` (liste), `wide` (analyse).
-- Même structure que les activités mais orienté "prévision".
-- Simulation avancée : météo, split bias, cap d'allure.
+- Import partagé entre l'accueil et `/traces` via `TraceUpload`.
+- Hero et KPI, sous-navigation sticky et cartes `AnalysisCard` partagées avec l'architecture d'`/activities-beta`.
+- Grille responsive, carte et profil synchronisés, tableaux mobiles avec défilement horizontal.
+- Paramètres persistés : objectif, date/départ, scénarios, pauses, stratégie, nutrition et matériel.
+- Les trois graphiques reçoivent leurs séries du backend ; aucun calcul métier n'est dupliqué dans la page.
 
 ### Progression (`/progress`)
 - Conteneur `default`.

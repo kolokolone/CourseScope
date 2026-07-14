@@ -2,11 +2,11 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useDropzone } from 'react-dropzone';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useDeleteTrace, useRenameTrace, useTraceList, useUploadTrace } from '@/hooks/useTraces';
+import { TraceUpload } from '@/components/upload/TraceUpload';
+import { useDeleteTrace, useRenameTrace, useTraceList } from '@/hooks/useTraces';
 import { formatNumber } from '@/lib/metricsFormat';
 import { getTraceDetailPath } from '@/lib/routes';
 
@@ -21,36 +21,11 @@ function toTimestamp(value: string) {
 export default function TracesPage() {
   const router = useRouter();
   const tracesQuery = useTraceList();
-  const uploadMutation = useUploadTrace();
   const renameMutation = useRenameTrace();
   const deleteMutation = useDeleteTrace();
 
   const [sortKey, setSortKey] = React.useState<SortKey>('created');
   const [sortDir, setSortDir] = React.useState<SortDir>('desc');
-
-  const onDrop = React.useCallback(
-    async (acceptedFiles: File[]) => {
-      const file = acceptedFiles[0];
-      if (!file) return;
-      if (!file.name.toLowerCase().endsWith('.gpx') && !file.name.toLowerCase().endsWith('.fit')) {
-        alert('Formats autorises: .gpx et .fit');
-        return;
-      }
-      const result = await uploadMutation.mutateAsync({ file, name: file.name });
-      router.push(getTraceDetailPath(result.trace.id));
-    },
-    [router, uploadMutation]
-  );
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    multiple: false,
-    disabled: uploadMutation.isPending,
-    accept: {
-      'application/gpx+xml': ['.gpx'],
-      'application/octet-stream': ['.fit'],
-    },
-  });
 
   const toggleSort = (next: SortKey) => {
     setSortKey((prev) => {
@@ -87,22 +62,7 @@ export default function TracesPage() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base">Uploader un trace</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <div
-            {...getRootProps()}
-            className={`rounded-md border-2 border-dashed px-4 py-8 text-center text-sm transition-colors ${
-              isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'
-            }`}
-          >
-            <input {...getInputProps()} />
-            {uploadMutation.isPending ? 'Upload en cours...' : 'Glisse un GPX/FIT ici ou clique pour selectionner'}
-          </div>
-        </CardContent>
-      </Card>
+      <TraceUpload onUploadSuccess={(traceId) => router.push(getTraceDetailPath(traceId))} />
 
       <Card>
         <CardHeader className="py-3 px-4">

@@ -15,10 +15,13 @@ Compiled from API schemas and backend metric builders (`backend/api/schemas.py`,
 
 ### Request fields
 
+Requête multipart persistée dans le domaine des activités réelles.
+
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `persist_to_disk` | bool | false | store activity on disk (otherwise in-memory only) |
-| `activity_type` | string | (auto) | force `real` vs `theoretical` (bypass auto-detection) |
+| `file` | GPX/FIT | requis | fichier d'une activité réellement enregistrée |
+| `name` | string | nom du fichier | nom affiché |
+| `activity_type` | `real` | `real` | seule valeur acceptée ; une trace théorique utilise `POST /traces/upload` |
 
 ### Sidebar stats
 
@@ -350,34 +353,9 @@ Series metadata:
 | `limits.returned_points` | int | - | returned points |
 | `limits.note` | string | - | note |
 
-## Theoretical Activity Metrics (GET /activity/{id}/theoretical)
+## Activité théorique historique
 
-### Infos de course
-
-| Path | Type | Unit | Description |
-| --- | --- | --- | --- |
-| `summary.total_time_s` | float | s | total time s |
-| `summary.total_distance_km` | float | km | total distance km |
-| `summary.average_pace_s_per_km` | float | s/km | average pace s per km |
-| `summary.elevation_gain_m` | float | m | elevation gain m |
-
-### Series index
-
-| Path | Type | Unit | Description |
-| --- | --- | --- | --- |
-| `series_index.available[]` | array<object> | - | available series |
-| `series_index.available[].name` | string | - | series name |
-| `series_index.available[].unit` | string | - | unit |
-| `series_index.available[].x_axes[]` | array | - | allowed x axes |
-| `series_index.available[].default` | bool | - | default series |
-
-### Limits
-
-| Path | Type | Unit | Description |
-| --- | --- | --- | --- |
-| `limits.downsampled` | bool | - | downsampled |
-| `limits.original_points` | int | - | original points |
-| `limits.note` | string | - | note |
+`GET /activity/{activity_id}/theoretical` est déprécié et répond HTTP 410. Une préparation théorique est identifiée exclusivement par `trace_id` et calculée avec `POST /traces/{trace_id}/plan-preview`.
 
 ## Progression API (GET /progress/*)
 
@@ -400,7 +378,7 @@ Progression endpoints are backed by the SQLite progression index (computed artif
 
 Query params:
 - `from`, `to` (date or ISO datetime)
-- `type` (`real`/`theoretical`)
+- `type` (`real` pour les nouveaux imports ; `theoretical` uniquement pour d'anciens index)
 - `limit` (max rows)
 - `session_tag`, `terrain_tag`, `race_marker` (optional filters)
 
@@ -491,7 +469,9 @@ Returns binned Pace\u2194HR curves per activity for 3D rendering.
 | `name` | string\|null | - | nom mis à jour (PATCH) |
 | `message` | string | - | message de confirmation (DELETE) |
 
-## Traces (GET /traces, POST /traces/upload, PATCH /traces/{id}, DELETE /traces/{id}, DELETE /traces)
+## Traces et préparation de course
+
+Contrat détaillé, pipeline et exemples : [race-planning.md](race-planning.md).
 
 ### Liste (GET /traces)
 
@@ -520,7 +500,7 @@ Requête multipart: `file` (GPX/FIT), `name` (optionnel).
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |
 | `trace` | object | - | TraceItem (memes champs que ci-dessus) |
-| `activity_id` | string | - | UUID de l'activite theorique ouverte |
+La réponse contient `trace`, sans `activity_id`. L'import crée aussi un plan et un scénario par défaut.
 
 ### Rename (PATCH /traces/{id})
 
@@ -538,22 +518,60 @@ Requête: `{ "name": "nouveau nom" }`. Retourne un `TraceItem`.
 | --- | --- | --- | --- |
 | `deleted` | int | - | nombre de traces supprimees |
 
-### Open for theoretical (POST /traces/{id}/open)
+### Détail (GET /traces/{trace_id})
 
 | Path | Type | Unit | Description |
-| --- | --- | --- | --- |
-| `activity_id` | string | - | UUID de l'activite theorique creee |
-| `trace_id` | string | - | UUID de la trace |
+|---|---|---|---|
+| `trace.id` | string | - | `trace_id`, jamais un identifiant d'activité |
+| `file.parquet_source` | `parquet`\|`rebuilt` | - | source effectivement chargée |
+| `file.parquet_rebuild_reason` | string\|null | - | raison d'une reconstruction |
+| `file.dataframe_schema_version` | string | - | version du DataFrame canonique |
+| `file.parquet_generated_at_utc` | string\|null | - | date ISO de génération |
+| `static_metrics.distance_km` | float | km | distance du profil normalisé |
+| `quality` | object | - | densité, interpolation, trous et avertissements |
+| `active_plan` | object\|null | - | référence du plan actif |
+| `plans[]` | array<object> | - | plans et scénarios minimaux |
 
-### Trace status / save on activity (GET /activity/{id}/trace-status, POST /activity/{id}/trace-save)
+### Prévisualisation (POST /traces/{trace_id}/plan-preview)
+
+Le corps accepte soit `plan_id`/`scenario_id`, soit un plan et un scénario structurés. `target_value` est exprimé en `s/km` pour `pace`, en secondes pour `time`, et en ratio pour `effort`.
 
 | Path | Type | Unit | Description |
-| --- | --- | --- | --- |
-| `saved` | bool | - | deja sauvegarde comme trace |
-| `trace_id` | string\|null | - | UUID de la trace (si saved=true) |
-| `trace_name` | string\|null | - | nom de la trace (si saved=true) |
+|---|---|---|---|
+| `units` | object | - | unités explicites de la réponse |
+| `totals.running_time_s` | float | s | temps de course |
+| `totals.stop_time_s` | float | s | somme des pauses |
+| `totals.elapsed_time_s` | float | s | course et pauses |
+| `totals.arrival_time_iso` | string\|null | - | arrivée dans le fuseau du plan |
+| `profile[].distance_km` | float | km | distance d'affichage |
+| `profile[].pace_s_per_km` | float | s/km | allure Minetti non écrêtée |
+| `profile[].grade_robust_pct` | float | % | pente du calcul métier |
+| `passages[]` | array<object> | - | passages kilométriques et personnalisés |
+| `splits[]` | array<object> | - | splits kilométriques |
+| `climbs[]` | array<object> | - | ascensions détectées |
+| `histograms.pace` | object | - | classes complètes/affichées et temps masqué |
+| `histograms.grade` | object | - | temps/distance par pente et temps masqué |
+| `alerts[]` | array<object> | - | diagnostics exploitables |
+| `quality` | object | - | qualité du profil source |
 
-POST trace-save accepte un body optionnel `{ "name": "..." }`. Retourne un `TraceItem`.
+### Persistance et comparaison
+
+| Méthode | Route |
+|---|---|
+| `GET`, `POST` | `/traces/{trace_id}/plans` |
+| `GET`, `PATCH`, `DELETE` | `/traces/{trace_id}/plans/{plan_id}` |
+| `POST` | `/traces/{trace_id}/plans/{plan_id}/scenarios` |
+| `PATCH`, `DELETE` | `/traces/{trace_id}/plans/{plan_id}/scenarios/{scenario_id}` |
+| `POST` | `/traces/{trace_id}/plans/{plan_id}/scenarios/{scenario_id}/stops` |
+| `PATCH`, `DELETE` | `/traces/{trace_id}/plans/{plan_id}/scenarios/{scenario_id}/stops/{stop_id}` |
+| `POST` | `/traces/{trace_id}/plans/{plan_id}/compare` |
+| `GET` | `/traces/{trace_id}/calibration` |
+
+Les mutations retournent l'objet modifié et `preview_required: true` lorsqu'un nouveau calcul est nécessaire.
+
+### Routes dépréciées
+
+`POST /traces/{trace_id}/open`, `GET /activity/{activity_id}/trace-status` et `POST /activity/{activity_id}/trace-save` répondent HTTP 410 et ne créent aucune activité temporaire.
 
 ## Goals (GET /goals, POST /goals, PATCH /goals/{id}, DELETE /goals/{id}, DELETE /goals)
 

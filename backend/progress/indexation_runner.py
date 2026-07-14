@@ -443,6 +443,7 @@ def _run_slow_indexation_once(
     skipped = 0
 
     activities = list(session.execute(select(Activity).order_by(Activity.created_at_utc.asc())).scalars().all())
+    _check_deadline(deadline_ts)
     total = len(activities)
     _set_phase(MODE_SLOW, PHASE_RECOMPUTE, progress_current=0, progress_total=max(1, total))
 
@@ -523,10 +524,13 @@ def _run_slow_indexation_once(
             _rollback_quiet(session)
 
         _set_progress(progress_current=idx, progress_total=max(1, total))
+        _check_deadline(deadline_ts)
 
+    _check_deadline(deadline_ts)
     _sync_vo2max_latest_from_index(session)
     recompute_daily_aggregates(session)
     _commit_with_retry(session)
+    _check_deadline(deadline_ts)
     return IndexationResult(
         scanned=scanned,
         indexed=indexed,

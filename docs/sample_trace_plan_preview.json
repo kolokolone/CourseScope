@@ -1,0 +1,111 @@
+{
+  "pipeline_version": "race-planning-v2",
+  "scenario_hash": "example-sha256",
+  "units": {
+    "distance": "km",
+    "internal_distance": "m",
+    "elevation": "m",
+    "pace": "s/km",
+    "time": "s",
+    "grade": "%"
+  },
+  "totals": {
+    "distance_km": 13.4,
+    "elevation_gain_m": 420.0,
+    "elevation_loss_m": 418.0,
+    "base_pace_s_per_km": 330.0,
+    "average_pace_s_per_km": 365.2,
+    "running_time_s": 4893.68,
+    "stop_time_s": 120.0,
+    "elapsed_time_s": 5013.68,
+    "start_time_iso": "2026-09-12T08:00:00+02:00",
+    "arrival_time_iso": "2026-09-12T09:23:33.680000+02:00",
+    "effort_distance_km": 17.6
+  },
+  "profile": [
+    {
+      "distance_km": 0.0,
+      "pace_s_per_km": 330.0,
+      "elevation_m": 128.0,
+      "grade_pct": 0.0,
+      "grade_robust_pct": 0.0,
+      "elapsed_time_s": 0.0,
+      "passage_time_iso": "2026-09-12T08:00:00+02:00",
+      "lat": 45.0,
+      "lon": 6.0
+    }
+  ],
+  "passages": [
+    {
+      "distance_km": 1.0,
+      "running_time_s": 350.0,
+      "stop_time_s": 0.0,
+      "elapsed_time_s": 350.0,
+      "passage_time_iso": "2026-09-12T08:05:50+02:00",
+      "elevation_m": 160.0
+    }
+  ],
+  "splits": [
+    {
+      "index": 1,
+      "start_distance_km": 0.0,
+      "end_distance_km": 1.0,
+      "distance_km": 1.0,
+      "running_time_s": 350.0,
+      "stop_time_s": 0.0,
+      "elapsed_time_s": 350.0,
+      "pace_s_per_km": 350.0
+    }
+  ],
+  "climbs": [],
+  "segments": [],
+  "stops": [
+    {
+      "distance_km": 8.0,
+      "stop_type": "water",
+      "duration_s": 120.0,
+      "notes": "Remplir les flasques",
+      "sort_order": 0
+    }
+  ],
+  "histograms": {
+    "pace": {
+      "unit": "s",
+      "bin_width_s_per_km": 15.0,
+      "display_min_time_s": 90.0,
+      "display_max_pace_factor": 1.75,
+      "complete_classes": [],
+      "display_classes": [],
+      "total_time_s": 4893.68,
+      "displayed_time_s": 4700.0,
+      "hidden_time_s": 193.68
+    },
+    "grade": {
+      "time_unit": "s",
+      "distance_unit": "km",
+      "bin_width_pct": 0.5,
+      "visual_range_pct": [-20.0, 20.0],
+      "display_min_time_s": 90.0,
+      "complete_classes": [],
+      "display_classes": [],
+      "total_time_s": 4893.68,
+      "displayed_time_s": 4600.0,
+      "hidden_time_s": 293.68
+    }
+  },
+  "alerts": [],
+  "calculated_strategy": [],
+  "weather": {
+    "status": "unavailable",
+    "source": null,
+    "data": null,
+    "adjustment_factor": 1.0
+  },
+  "quality": {
+    "profile_version": "course-profile-v2",
+    "grid_step_m": 10.0,
+    "interpolated_elevation_ratio": 0.0,
+    "altimetry_quality": "high",
+    "warnings": []
+  }
+}

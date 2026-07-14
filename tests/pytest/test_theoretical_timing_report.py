@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from tests.unit._bootstrap import ensure_project_on_path
@@ -8,25 +9,12 @@ from tests.unit._bootstrap import ensure_project_on_path
 ensure_project_on_path()
 
 
-def test_compute_theoretical_timing_reports_valid_segments() -> None:
-    from core.theoretical_model import compute_theoretical_timing
-    from core.transform_report import TransformReport
+def test_course_profile_deduplicates_distances_and_exposes_explicit_units() -> None:
+    from core.course_profile import prepare_course_profile
 
-    df = pd.DataFrame(
-        {
-            # One zero-length segment (10 -> 10) should be filtered out.
-            "distance_m": [0.0, 10.0, 10.0, 25.0],
-            "elevation": [0.0, 0.0, 0.0, 0.0],
-        }
-    )
-    report = TransformReport()
-    out = compute_theoretical_timing(df, base_pace_s_per_km=300.0, report=report)
-    assert out.shape[0] == 2
-
-    names = [s.name for s in report.steps]
-    assert "theoretical:point_to_segment" in names
-    assert "theoretical:valid_segments" in names
-
-    valid_step = next(s for s in report.steps if s.name == "theoretical:valid_segments")
-    assert valid_step.rows_in == 3
-    assert valid_step.rows_out == 2
+    df = pd.DataFrame({"distance_m": [50.0, 60.0, 60.0, 75.0], "elevation": [0.0, 1.0, 1.0, 2.0], "lat": np.nan, "lon": np.nan})
+    profile = prepare_course_profile(df)
+    assert profile.dataframe["distance_m"].iloc[0] == 0.0
+    assert profile.dataframe["distance_m"].is_monotonic_increasing
+    assert profile.quality["distance_unit"] == "km"
+    assert profile.quality["internal_distance_unit"] == "m"

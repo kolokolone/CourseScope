@@ -99,7 +99,7 @@ export function resolvePageMetadata(pathname: string): PageMetadata {
   if (isDynamicTraceRoute(normalizedPathname)) {
     return {
       title: 'Trace',
-      subtitle: 'Analyse théorique',
+      subtitle: 'Préparation de course',
       container: 'wide',
       showToday: true,
     };

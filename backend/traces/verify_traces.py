@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -76,8 +77,13 @@ def verify_traces(session: Session, *, traces_dir: Path | None = None) -> Verify
             original = _find_original_file(trace_dir)
             if original is None:
                 raise FileNotFoundError(f"Missing original file for trace {trace_id}")
-            raw = original.read_bytes()
-            file_hash = hashlib.sha256(raw).hexdigest()
+            meta_path = trace_dir / "meta.json"
+            try:
+                metadata = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+            except (OSError, json.JSONDecodeError):
+                metadata = {}
+            stored_hash = metadata.get("source_sha256") if isinstance(metadata, dict) else None
+            file_hash = str(stored_hash) if stored_hash else hashlib.sha256(original.read_bytes()).hexdigest()
             df = _load_df_from_dir(trace_dir)
             metrics = compute_trace_metrics(df)
             route_fingerprint = compute_route_fingerprint(df)
@@ -99,6 +105,10 @@ def verify_traces(session: Session, *, traces_dir: Path | None = None) -> Verify
                         elevation_max_m=metrics["elevation_max_m"],
                         original_filename=original.name,
                         original_path=str(original.resolve()),
+                        parquet_path=str((trace_dir / "df.parquet").resolve()),
+                        parquet_source_hash_sha256=file_hash,
+                        dataframe_schema_version=metadata.get("dataframe_schema_version"),
+                        parquet_generated_at_utc=metadata.get("generated_at_utc"),
                     ),
                 )
                 indexed += 1
@@ -112,6 +122,10 @@ def verify_traces(session: Session, *, traces_dir: Path | None = None) -> Verify
                 row.elevation_max_m = metrics["elevation_max_m"]
                 row.original_filename = original.name
                 row.original_path = str(original.resolve())
+                row.parquet_path = str((trace_dir / "df.parquet").resolve())
+                row.parquet_source_hash_sha256 = file_hash
+                row.dataframe_schema_version = metadata.get("dataframe_schema_version")
+                row.parquet_generated_at_utc = metadata.get("generated_at_utc")
                 up_to_date += 1
             session.commit()
         except Exception:

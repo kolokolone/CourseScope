@@ -5,20 +5,29 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { formatDurationSeconds } from '@/lib/metricsFormat';
 import type { GradeTimeBin } from '@/types/api';
 
+export const GRADE_AXIS_TICKS = [-20, -15, -10, -5, 0, 5, 10, 15, 20] as const;
+
+export function buildSymmetricGradeRows(data: GradeTimeBin[]): GradeTimeBin[] {
+  const byCenter = new Map(data.map((row) => [row.grade_bin_center_pct, row] as const));
+  return Array.from({ length: 81 }, (_, index) => {
+    const center = -20 + index * 0.5;
+    return byCenter.get(center) ?? {
+      grade_bin_center_pct: center,
+      label: center === -20 ? '≤ −20 %' : center === 20 ? '≥ +20 %' : `${center >= 0 ? '+' : ''}${center.toFixed(1)} %`,
+      time_s: 0,
+      distance_km: 0,
+      time_percent: 0,
+      is_overflow: center === -20 || center === 20,
+    };
+  });
+}
+
 export function GradeTimeBarChart({ data }: { data: GradeTimeBin[] }) {
-  const rows = data ?? [];
-  if (rows.length === 0) {
+  const sourceRows = data ?? [];
+  if (sourceRows.length === 0) {
     return <div className="text-sm text-muted-foreground">Aucune donnee de repartition par pente.</div>;
   }
-
-  const maxAbs = rows.reduce((acc, row) => {
-    const v = Math.abs(Number(row.grade_bin_center_pct));
-    return Number.isFinite(v) ? Math.max(acc, v) : acc;
-  }, 0);
-  const rounded = Math.ceil(maxAbs / 2) * 2;
-  const domainMax = Math.max(2, rounded);
-  const ticks: number[] = [];
-  for (let v = -domainMax; v <= domainMax; v += 2) ticks.push(v);
+  const rows = buildSymmetricGradeRows(sourceRows);
 
   return (
     <div className="h-72">
@@ -27,14 +36,21 @@ export function GradeTimeBarChart({ data }: { data: GradeTimeBin[] }) {
           <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
           <XAxis
             dataKey="grade_bin_center_pct"
-            type="number"
-            domain={[-domainMax, domainMax]}
-            ticks={ticks}
+            type="category"
             tick={{ fontSize: 11 }}
-            tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
+            ticks={[...GRADE_AXIS_TICKS]}
+            interval={0}
+            tickFormatter={(value) => `${Number(value) > 0 ? '+' : ''}${Number(value)} %`}
+            height={42}
           />
           <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatDurationSeconds(Number(v))} width={72} />
           <Tooltip
+            labelFormatter={(value) => {
+              const grade = Number(value);
+              if (grade === -20) return 'Pente : ≤ −20 %';
+              if (grade === 20) return 'Pente : ≥ +20 %';
+              return `Pente : ${grade > 0 ? '+' : ''}${grade.toFixed(1)} %`;
+            }}
             formatter={(v: any) => {
               const n = Number(v);
               return [Number.isFinite(n) ? formatDurationSeconds(n) : '—', 'Temps'];

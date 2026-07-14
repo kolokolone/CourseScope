@@ -1,3 +1,16 @@
+declare const activityIdBrand: unique symbol;
+declare const traceIdBrand: unique symbol;
+declare const racePlanIdBrand: unique symbol;
+declare const raceScenarioIdBrand: unique symbol;
+
+export type ActivityId = string & { readonly [activityIdBrand]: 'ActivityId' };
+export type TraceId = string & { readonly [traceIdBrand]: 'TraceId' };
+export type RacePlanId = string & { readonly [racePlanIdBrand]: 'RacePlanId' };
+export type RaceScenarioId = string & { readonly [raceScenarioIdBrand]: 'RaceScenarioId' };
+
+export const asActivityId = (value: string) => value as ActivityId;
+export const asTraceId = (value: string) => value as TraceId;
+
 export interface SidebarStats {
   distance_km?: number;
   elapsed_time_s?: number;
@@ -12,8 +25,8 @@ export interface ActivityLimits {
 }
 
 export interface ActivityLoadResponse {
-  id: string;
-  type: 'real' | 'theoretical';
+  id: ActivityId;
+  type: 'real';
   stats_sidebar: SidebarStats;
   limits?: ActivityLimits;
 }
@@ -60,40 +73,32 @@ export interface RealActivityResponse {
   limits?: ActivityLimitsDetail;
 }
 
-export interface TheoreticalPaceElevationPoint {
+export interface RaceProfilePoint {
   distance_km: number;
-  target_pace_s_per_km: number;
-  elevation_m?: number | null;
+  pace_s_per_km: number;
+  elevation_m: number;
+  grade_pct: number;
+  grade_robust_pct: number;
+  elapsed_time_s: number;
+  passage_time_iso?: string | null;
+  lat?: number | null;
+  lon?: number | null;
 }
 
 export interface GradeTimeBin {
   grade_bin_center_pct: number;
   label: string;
   time_s: number;
+  distance_km?: number;
+  time_percent?: number;
+  is_overflow?: boolean;
 }
 
 export interface PaceTimeBin {
   pace_bin_floor_s_per_km: number;
   label: string;
   time_s: number;
-}
-
-export interface TheoreticalTraceStatus {
-  saved: boolean;
-  trace_id?: string;
-  trace_name?: string;
-}
-
-export interface TheoreticalActivityResponse extends RealActivityResponse {
-  target_mode?: 'pace' | 'time';
-  target_pace_s_per_km?: number;
-  target_time_s?: number;
-  vma_kmh?: number;
-  pace_elevation_series?: TheoreticalPaceElevationPoint[];
-  grade_time_bins?: GradeTimeBin[];
-  pace_time_bins?: PaceTimeBin[];
-  secondary_metrics?: Record<string, unknown>;
-  trace_status?: TheoreticalTraceStatus;
+  pace_bin_ceiling_s_per_km?: number;
 }
 
 export interface SeriesMeta {
@@ -125,10 +130,10 @@ export interface ActivityMapResponse {
 }
 
 export interface ActivityMetadata {
-  id: string;
+  id: ActivityId;
   filename: string;
   name?: string;
-  activity_type: 'real' | 'theoretical';
+  activity_type: 'real';
   created_at: string;
   started_at?: string | null;
   stats_sidebar: SidebarStats;
@@ -138,7 +143,7 @@ export interface ActivityMetadata {
 export interface ActivityLoadRequest {
   file: File;
   name?: string;
-  activity_type?: 'real' | 'theoretical';
+  activity_type?: 'real';
 }
 
 export interface GarminConnectResponse {
@@ -210,7 +215,7 @@ export interface PaceVsGradeResponse {
 }
 
 export interface TraceItem {
-  id: string;
+  id: TraceId;
   name?: string | null;
   created_at_utc: string;
   distance_km: number;
@@ -234,12 +239,190 @@ export interface TracesListResponse {
 
 export interface TraceUploadResponse {
   trace: TraceItem;
-  activity_id: string;
 }
 
-export interface TraceOpenResponse {
-  activity_id: string;
-  trace_id: string;
+export type RaceObjectiveType = 'pace' | 'time' | 'effort';
+export type RaceStopType = 'water' | 'nutrition' | 'assistance' | 'other';
+
+export interface RaceStop {
+  id: string;
+  distance_km: number;
+  stop_type: RaceStopType;
+  duration_s: number;
+  notes?: string | null;
+  sort_order: number;
+}
+
+export interface RaceScenario {
+  id: RaceScenarioId;
+  race_plan_id: RacePlanId;
+  name: string;
+  objective_type: RaceObjectiveType;
+  target_value: number;
+  slope_model: 'minetti';
+  vma_kmh?: number | null;
+  calibration_factor: number;
+  is_active: boolean;
+  stops?: RaceStop[];
+  strategy_segments?: RaceStrategySegment[];
+  nutrition?: RaceNutritionItem[];
+}
+
+export interface RaceStrategySegment {
+  id?: string;
+  name?: string;
+  start_distance_km: number;
+  end_distance_km: number;
+  target_pace_s_per_km?: number | null;
+  notes?: string | null;
+}
+
+export interface RaceNutritionItem {
+  id?: string;
+  distance_km: number;
+  item_type: 'nutrition' | 'hydration';
+  amount?: string | null;
+  notes?: string | null;
+}
+
+export interface RaceEquipmentItem {
+  id?: string;
+  label: string;
+  is_checked: boolean;
+  notes?: string | null;
+  sort_order?: number;
+}
+
+export interface RaceCoursePoint {
+  id?: string;
+  distance_km: number;
+  point_type: 'landmark' | 'custom_segment';
+  label: string;
+  end_distance_km?: number | null;
+  notes?: string | null;
+}
+
+export interface RacePlan {
+  id: RacePlanId;
+  trace_id: TraceId;
+  name: string;
+  goal_id?: string | null;
+  race_date?: string | null;
+  start_time?: string | null;
+  timezone: string;
+  active_scenario_id?: RaceScenarioId | null;
+  notes?: string | null;
+  scenarios: RaceScenario[];
+  equipment?: RaceEquipmentItem[];
+  course_points?: RaceCoursePoint[];
+}
+
+export interface TraceDetailResponse {
+  trace: TraceItem;
+  file: {
+    original_filename?: string | null;
+    source_sha256: string;
+    parquet_available: boolean;
+    parquet_source: 'parquet' | 'rebuilt';
+    parquet_rebuild_reason?: string | null;
+    dataframe_schema_version: string;
+    parquet_generated_at_utc: string;
+  };
+  static_metrics: { distance_km: number; elevation_gain_m: number; elevation_loss_m: number; elevation_min_m: number; elevation_max_m: number };
+  quality: RaceDataQuality;
+  active_plan?: RacePlan | null;
+  plans: RacePlan[];
+}
+
+export interface RaceDataQuality {
+  profile_version: string;
+  distance_source: string;
+  distance_unit: 'km';
+  internal_distance_unit: 'm';
+  grid_step_m: number;
+  elevation_smoothing_window_m: number;
+  robust_grade_window_m: number;
+  interpolated_elevation_ratio: number;
+  corrected_or_rejected_source_ratio: number;
+  corrected_elevation_ratio: number;
+  sampling_density_points_per_km: number;
+  signal_gap_count: number;
+  maximum_signal_gap_m: number;
+  altimetry_quality: 'high' | 'medium' | 'low';
+  warnings: Array<{ code: string; message: string }>;
+}
+
+export interface RacePassage {
+  distance_km: number;
+  running_time_s: number;
+  stop_time_s: number;
+  elapsed_time_s: number;
+  passage_time_iso?: string | null;
+  elevation_m: number;
+}
+
+export interface RaceSplit {
+  index: number;
+  start_distance_km: number;
+  end_distance_km: number;
+  distance_km: number;
+  running_time_s: number;
+  stop_time_s: number;
+  elapsed_time_s: number;
+  pace_s_per_km: number;
+}
+
+export interface RaceClimb {
+  id: string;
+  start_distance_km: number;
+  end_distance_km: number;
+  distance_km: number;
+  elevation_gain_m: number;
+  average_grade_pct: number;
+  running_time_s: number;
+  elapsed_time_s: number;
+  arrival_time_iso?: string | null;
+}
+
+export interface RaceHistogram<T> {
+  complete_classes: T[];
+  display_classes: T[];
+  total_time_s: number;
+  displayed_time_s: number;
+  hidden_time_s: number;
+}
+
+export interface RacePlanPreview {
+  pipeline_version: string;
+  scenario_hash: string;
+  units: { distance: 'km'; internal_distance: 'm'; elevation: 'm'; pace: 's/km'; time: 's'; grade: '%' };
+  totals: {
+    distance_km: number;
+    elevation_gain_m: number;
+    elevation_loss_m: number;
+    base_pace_s_per_km: number;
+    average_pace_s_per_km: number;
+    running_time_s: number;
+    stop_time_s: number;
+    elapsed_time_s: number;
+    start_time_iso?: string | null;
+    arrival_time_iso?: string | null;
+    effort_distance_km: number;
+  };
+  profile: RaceProfilePoint[];
+  passages: RacePassage[];
+  splits: RaceSplit[];
+  climbs: RaceClimb[];
+  segments: Array<RaceStrategySegment & { id: string; name: string; distance_km: number; running_time_s: number; stop_time_s: number; elapsed_time_s: number; pace_s_per_km: number; elevation_gain_m: number }>;
+  stops: RaceStop[];
+  histograms: {
+    pace: RaceHistogram<PaceTimeBin>;
+    grade: RaceHistogram<GradeTimeBin>;
+  };
+  alerts: Array<{ code: string; message: string }>;
+  calculated_strategy: RaceStrategySegment[];
+  weather: { status: 'available' | 'assumptions' | 'unavailable'; source?: 'provider' | 'scenario' | null; data?: Record<string, unknown> | null; adjustment_factor?: number };
+  quality: RaceDataQuality;
 }
 
 export interface PersonalSettingsResponse {

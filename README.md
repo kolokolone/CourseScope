@@ -1,14 +1,15 @@
 # CourseScope
 
-Application web locale d'analyse de traces running **GPX/FIT** avec mode théorique pour estimer un temps sur parcours.
+Application web locale pour analyser des activités running **GPX/FIT** et préparer une course à partir d'une trace théorique indépendante.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.2.6-0f172a.svg)](VERSION)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 
 ## Pourquoi ?
 
-Importer une activité (ou une trace), puis explorer rapidement les métriques, cartes et graphiques (allure, pente, dénivelé, zones, splits, best efforts), avec un mode **théorique** pour estimer un temps/allure sur un parcours.
+Importer une activité réelle pour l'analyser, ou une trace distincte pour préparer une course avec objectifs, scénarios, pauses, passages et stratégie.
 
 Le projet est composé d'un **frontend Next.js** (UI) et d'une **API FastAPI** (backend). En dev, le frontend parle au backend via un proxy `/api/*` (rewrite Next.js) pour éviter les problèmes de CORS.
 
@@ -16,11 +17,11 @@ Le projet est composé d'un **frontend Next.js** (UI) et d'une **API FastAPI** (
 
 | Fonctionnalité | Statut | Description |
 |---|---|---|
-| Import GPX/FIT | ✅ | Upload drag & drop, détection automatique du type |
+| Import GPX/FIT | ✅ | Flux activité réelle et flux trace théorique strictement séparés |
 | Analyse réelle | ✅ | Métriques type Garmin : zones FC/allure/puissance, séries, carte, highlights |
-| Analyse théorique | ✅ | Estimation temps/allure sur parcours avec modèle de pente et VMA |
+| Préparation de course | ✅ | Profil robuste, Minetti, objectifs allure/temps/effort, pauses et scénarios persistés |
 | Graphiques | ✅ | Allure vs distance, temps par allure, temps par pente, dénivelé, allure vs pente |
-| Gestion des traces | ✅ | Liste, upload, rename, suppression, ouverture en mode théorique |
+| Gestion des traces | ✅ | Import partagé, Parquet prioritaire, renommage, suppression et ouverture directe par `trace_id` |
 | Intégration Garmin | ✅ | Connexion, sync, status, reset — stockage local des tokens |
 | Progression | ✅ | Dashboard multi-activités : volume, TRIMP, charge, best efforts, EF, découplage, HR@pace, waterfall 3D, session taxonomy, intensity distribution, long run dose, VAM trend |
 | Objectifs | ✅ | CRUD courses à venir, timeline, calendrier, carte Leaflet |
@@ -86,7 +87,7 @@ services:
 ```text
 CourseScope/
 ├── backend/                  # API FastAPI + logique métier
-│   ├── api/                  # Routes REST (10 routeurs, 52 endpoints)
+│   ├── api/                  # Routes REST FastAPI
 │   │   ├── main.py           # App factory, CORS, lifespan
 │   │   ├── schemas.py        # Modèles Pydantic (request/response)
 │   │   └── routes/           # Handlers : activities, analysis, traces,
@@ -105,7 +106,7 @@ CourseScope/
 │       ├── app/              # Pages (App Router) : home, activities,
 │       │                       progress, goals, traces, settings
 │       ├── components/       # Composants : layout, charts, maps,
-│       │                       activity-beta, metrics, features
+│       │                       analysis, trace-planning, metrics, features
 │       ├── hooks/            # React Query hooks (useActivity, useProgress, ...)
 │       ├── lib/              # API client, metrics registry, formatters, types
 │       └── store/            # Zustand (uiPrefsStore)
@@ -123,9 +124,8 @@ CourseScope/
 │   ├── progression.md        # Spécification de la page Progression
 │   ├── pace_vs_grade.md      # Algorithme allure vs pente
 │   ├── climbs.md             # Algorithme de détection des montées
-│   ├── agent-workflow.md     # Workflow agentique Brainstorm → Dev
 │   ├── documentation_update_runbook.md  # Procédure de mise à jour docs
-│   ├── audit_application.md  # Rapport d'audit complet
+│   ├── race-planning.md      # Traces et préparation de course
 │   └── ...
 ├── tests/                    # Tests backend (pytest unit + smoke)
 ├── scripts/                  # Scripts CLI (indexation)
@@ -140,7 +140,7 @@ CourseScope/
 ## Backend
 
 - **Framework** : FastAPI avec uvicorn
-- **Parsing** : gpxpy (GPX), fitparse (FIT) → DataFrame pandas canonique (19 colonnes)
+- **Parsing** : gpxpy (GPX), fitparse (FIT) → DataFrame pandas canonique versionné
 - **Analyses** : calculs de pente, GAP, zones FC/allure/puissance, splits, best efforts, montées, prédictions de performance, pacing, TRIMP, découplage cardiaque
 - **Stockage** : fichiers parquet + métadonnées JSON, index SQLite pour la progression
 - **Indexation** : système fast/slow avec fingerprint et versioning des métriques
@@ -158,16 +158,16 @@ CourseScope/
 
 ## Endpoints API
 
-52 endpoints servis sur 10 routeurs. Chaque endpoint est disponible en `/xxx` et `/api/xxx`.
+Les endpoints backend sont servis en `/xxx`; le frontend les atteint également via son proxy `/api/xxx`.
 
 Documentation complète : voir [docs/metrics_catalog.md](docs/metrics_catalog.md) et Swagger (`/docs`).
 
 Principaux groupes :
 - **Activités** : upload, list, delete, rename
-- **Analyse** : real, theoretical, pace-vs-grade, real-bins
+- **Analyse réelle** : real, pace-vs-grade, real-bins
 - **Séries** : données par série nommée, liste des séries disponibles
 - **Cartes** : bbox, polyligne, marqueurs
-- **Traces** : CRUD, open pour analyse théorique, sauvegarde
+- **Traces** : import, détail direct, plan-preview, plans, scénarios, pauses, calibration et comparaison
 - **Progression** : indexation, activités, séries, best efforts, HR@pace, pace@HR, waterfall, training load, calendrier
 - **Objectifs** : CRUD courses
 - **Paramètres** : VMA, FC max personnelle et détectée
@@ -180,7 +180,7 @@ Le catalogue complet des métriques exposées par l'API est documenté dans [doc
 
 Les métriques sont organisées par endpoint :
 - **Activité réelle** : summary, cardio, Garmin summary, highlights, zones, best efforts, splits, pacing, cadence, power, running dynamics, training load, climbs
-- **Activité théorique** : summary, séries
+- **Trace théorique** : profil Minetti, passages, splits, ascensions, histogrammes, alertes et qualité
 - **Progression** : activités indexées, séries agrégées, best efforts timeline, HR@pace, pace@HR, waterfall 3D, training load, calendrier
 
 ## Développement
@@ -199,6 +199,10 @@ python -m pytest tests/pytest/
 
 # Smoke test
 python tests/smoke_test.py
+
+# Migration de la préparation de course
+cd backend
+python -m db.migrations.run
 ```
 
 ### Frontend
@@ -230,7 +234,7 @@ docker run --rm -p 3000:3000 -v ./data:/data coursescope
 - Application mono-utilisateur, conçue pour un usage local
 - Pas de dark mode (light mode uniquement, optimisé pour la lisibilité des graphiques)
 - L'indexation SQLite est optimisée pour < 10 000 activités
-- La détection du type d'activité (réelle vs théorique) est heuristique
+- La météo externe n'est pas configurée par défaut ; le pipeline fonctionne sans fournisseur ou avec des hypothèses de scénario
 - Pas de support multi-sport au-delà du running et trail running
 
 ## Ressources complémentaires
@@ -242,8 +246,7 @@ docker run --rm -p 3000:3000 -v ./data:/data coursescope
 | [docs/style-frontend-ui.md](docs/style-frontend-ui.md) | Guide de style UI normatif |
 | [docs/indexation.md](docs/indexation.md) | Architecture d'indexation |
 | [docs/progression.md](docs/progression.md) | Spécification Progression |
-| [docs/agent-workflow.md](docs/agent-workflow.md) | Workflow agentique Brainstorm → Dev |
-| [docs/audit_application.md](docs/audit_application.md) | Rapport d'audit complet |
+| [docs/race-planning.md](docs/race-planning.md) | Architecture, API et calculs de préparation de course |
 | [agents/AGENTS.md](agents/AGENTS.md) | Règles globales pour les agents |
 | [CHANGELOG.md](CHANGELOG.md) | Historique des versions |
 

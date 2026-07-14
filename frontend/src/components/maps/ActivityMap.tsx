@@ -14,6 +14,8 @@ interface ActivityMapProps {
   pauseItems?: unknown;
   allowPauseToggle?: boolean;
   colorMetric?: MapColorMetric;
+  onMapClick?: (lat: number, lon: number) => void;
+  highlightedPoint?: { lat: number; lon: number; label?: string } | null;
 }
 
 const ActivityMapLeaflet = dynamic(

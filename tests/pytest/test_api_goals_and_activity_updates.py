@@ -132,26 +132,30 @@ def test_activity_rename_and_real_endpoint_title(tmp_path, monkeypatch):
         assert isinstance(bins.get("grade_time_bins"), list)
 
 
-def test_theoretical_target_pace_single_integer_is_accepted(tmp_path, monkeypatch):
+def test_theoretical_activity_endpoint_is_deprecated_and_trace_preview_is_used(tmp_path, monkeypatch):
     monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
 
     with TestClient(app) as client:
         data, filename = _load_fixture_bytes()
         load_resp = client.post(
-            "/activity/load",
+            "/traces/upload",
             files={"file": (filename, data, "application/gpx+xml")},
             data={"name": "Pace parse"},
         )
         assert load_resp.status_code == 200
-        activity_id = load_resp.json()["id"]
+        trace_id = load_resp.json()["trace"]["id"]
+        assert "activity_id" not in load_resp.json()
 
-        resp = client.get(
-            f"/activity/{activity_id}/theoretical",
-            params={"target_mode": "pace", "target_pace": "6", "grade_model": "pro_ref"},
-        )
+        deprecated = client.get(f"/activity/{trace_id}/theoretical")
+        assert deprecated.status_code == 410
+        detail = client.get(f"/traces/{trace_id}").json()
+        plan = detail["active_plan"]
+        scenario_id = plan["active_scenario_id"]
+        resp = client.post(f"/traces/{trace_id}/plan-preview", json={"plan_id": plan["id"], "scenario_id": scenario_id})
         assert resp.status_code == 200
         body = resp.json()
-        assert int(round(float(body["target_pace_s_per_km"]))) == 360
+        assert body["units"]["distance"] == "km"
+        assert body["units"]["pace"] == "s/km"
 
 
 def test_geo_cities_short_query_is_rejected(tmp_path, monkeypatch):

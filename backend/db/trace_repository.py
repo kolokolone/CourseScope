@@ -22,6 +22,10 @@ class TraceCreatePayload:
     elevation_max_m: float | None
     original_filename: str | None
     original_path: str
+    parquet_path: str | None = None
+    parquet_source_hash_sha256: str | None = None
+    dataframe_schema_version: str | None = None
+    parquet_generated_at_utc: str | None = None
 
 
 class TraceRepository:
@@ -54,6 +58,10 @@ class TraceRepository:
             elevation_max_m=payload.elevation_max_m,
             original_filename=payload.original_filename,
             original_path=payload.original_path,
+            parquet_path=payload.parquet_path,
+            parquet_source_hash_sha256=payload.parquet_source_hash_sha256,
+            dataframe_schema_version=payload.dataframe_schema_version,
+            parquet_generated_at_utc=payload.parquet_generated_at_utc,
         )
         session.add(row)
         return row
@@ -71,3 +79,21 @@ class TraceRepository:
             return False
         session.delete(row)
         return True
+
+    def update_parquet_metadata(
+        self,
+        session: Session,
+        trace_id: str,
+        *,
+        parquet_path: str,
+        source_hash_sha256: str,
+        dataframe_schema_version: str,
+        generated_at_utc: str,
+    ) -> None:
+        row = session.get(Trace, trace_id)
+        if row is None:
+            return
+        row.parquet_path = parquet_path
+        row.parquet_source_hash_sha256 = source_hash_sha256
+        row.dataframe_schema_version = dataframe_schema_version
+        row.parquet_generated_at_utc = generated_at_utc

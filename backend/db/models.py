@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Float, Index
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint, Float, Index
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -65,6 +65,150 @@ class Trace(Base):
     elevation_max_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     original_filename: Mapped[str | None] = mapped_column(Text, nullable=True)
     original_path: Mapped[str] = mapped_column(Text, nullable=False)
+    parquet_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parquet_source_hash_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    dataframe_schema_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    parquet_generated_at_utc: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    race_plans: Mapped[list["RacePlan"]] = relationship(
+        back_populates="trace",
+        cascade="all, delete-orphan",
+    )
+
+
+class RacePlan(Base):
+    __tablename__ = "race_plans"
+    __table_args__ = (Index("ix_race_plans_trace_id", "trace_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    trace_id: Mapped[str] = mapped_column(String(36), ForeignKey("traces.id"), nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    goal_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("goals.id"), nullable=True)
+    race_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    start_time: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="Europe/Paris")
+    active_scenario_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    common_parameters_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+
+    trace: Mapped[Trace] = relationship(back_populates="race_plans")
+    scenarios: Mapped[list["RaceScenario"]] = relationship(
+        back_populates="race_plan",
+        cascade="all, delete-orphan",
+    )
+    equipment_items: Mapped[list["RaceEquipmentItem"]] = relationship(
+        back_populates="race_plan",
+        cascade="all, delete-orphan",
+    )
+    course_points: Mapped[list["RaceCoursePoint"]] = relationship(
+        back_populates="race_plan",
+        cascade="all, delete-orphan",
+    )
+
+
+class RaceScenario(Base):
+    __tablename__ = "race_scenarios"
+    __table_args__ = (Index("ix_race_scenarios_plan_id", "race_plan_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    race_plan_id: Mapped[str] = mapped_column(String(36), ForeignKey("race_plans.id"), nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    objective_type: Mapped[str] = mapped_column(String(16), nullable=False, default="pace")
+    target_value: Mapped[float] = mapped_column(Float, nullable=False, default=300.0)
+    slope_model: Mapped[str] = mapped_column(String(32), nullable=False, default="minetti")
+    vma_kmh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    personal_parameters_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    calibration_factor: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    calibration_parameters_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    weather_assumptions_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+
+    race_plan: Mapped[RacePlan] = relationship(back_populates="scenarios")
+    stops: Mapped[list["RaceStop"]] = relationship(back_populates="scenario", cascade="all, delete-orphan")
+    strategy_segments: Mapped[list["RaceStrategySegment"]] = relationship(back_populates="scenario", cascade="all, delete-orphan")
+    nutrition_items: Mapped[list["RaceNutritionItem"]] = relationship(back_populates="scenario", cascade="all, delete-orphan")
+
+
+class RaceStop(Base):
+    __tablename__ = "race_stops"
+    __table_args__ = (Index("ix_race_stops_scenario_id", "scenario_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    scenario_id: Mapped[str] = mapped_column(String(36), ForeignKey("race_scenarios.id"), nullable=False)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False)
+    stop_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    duration_s: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(Text, nullable=False)
+
+    scenario: Mapped[RaceScenario] = relationship(back_populates="stops")
+
+
+class RaceStrategySegment(Base):
+    __tablename__ = "race_strategy_segments"
+    __table_args__ = (Index("ix_race_strategy_scenario_id", "scenario_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    scenario_id: Mapped[str] = mapped_column(String(36), ForeignKey("race_scenarios.id"), nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    start_distance_km: Mapped[float] = mapped_column(Float, nullable=False)
+    end_distance_km: Mapped[float] = mapped_column(Float, nullable=False)
+    target_pace_s_per_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    scenario: Mapped[RaceScenario] = relationship(back_populates="strategy_segments")
+
+
+class RaceNutritionItem(Base):
+    __tablename__ = "race_nutrition_items"
+    __table_args__ = (Index("ix_race_nutrition_scenario_id", "scenario_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    scenario_id: Mapped[str] = mapped_column(String(36), ForeignKey("race_scenarios.id"), nullable=False)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False)
+    item_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    amount: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    scenario: Mapped[RaceScenario] = relationship(back_populates="nutrition_items")
+
+
+class RaceEquipmentItem(Base):
+    __tablename__ = "race_equipment_items"
+    __table_args__ = (Index("ix_race_equipment_plan_id", "race_plan_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    race_plan_id: Mapped[str] = mapped_column(String(36), ForeignKey("race_plans.id"), nullable=False)
+    label: Mapped[str] = mapped_column(Text, nullable=False)
+    is_checked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    race_plan: Mapped[RacePlan] = relationship(back_populates="equipment_items")
+
+
+class RaceCoursePoint(Base):
+    __tablename__ = "race_course_points"
+    __table_args__ = (Index("ix_race_course_points_plan_id", "race_plan_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    race_plan_id: Mapped[str] = mapped_column(String(36), ForeignKey("race_plans.id"), nullable=False)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False)
+    point_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    label: Mapped[str] = mapped_column(Text, nullable=False)
+    end_distance_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    race_plan: Mapped[RacePlan] = relationship(back_populates="course_points")
 
 
 class Goal(Base):
@@ -124,7 +268,7 @@ class SyncRun(Base):
 
 
 def utc_now_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 class ProgressActivityIndex(Base):

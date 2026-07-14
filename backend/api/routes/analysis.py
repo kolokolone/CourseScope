@@ -8,9 +8,6 @@ from core.derived import compute_derived_series, compute_pace_series, compute_su
 from core.pace_grade import compute_pace_vs_grade_data
 from core.ref_data import get_pro_pace_vs_grade_df
 from core.real_activity_bins import build_real_activity_bins as _build_real_activity_bins
-from core.theoretical_segments import (
-    interp_pro_pace_s_per_km as _interp_pro_pace_s_per_km,
-)
 
 from api._helpers import get_series_registry, resolve_activity_df
 from api.schemas import (
@@ -19,7 +16,6 @@ from api.schemas import (
     ProPaceVsGradePoint,
     RealActivityBinsResponse,
     RealActivityResponse,
-    TheoreticalActivityResponse,
 )
 from services.analysis_service import AnalysisService
 from services.models import RealRunViewParams
@@ -30,6 +26,14 @@ router = APIRouter()
 
 real_activity_cache = InMemoryCache(max_items=256)
 REAL_ACTIVITY_CACHE_VERSION = "2"
+
+
+def _interp_pro_pace_s_per_km(grade: float, rows: list[dict[str, float]]) -> float | None:
+    if not rows:
+        return None
+    grades = np.array([float(row["grade_percent"]) for row in rows], dtype=float)
+    paces = np.array([float(row["pace_s_per_km_pro"]) for row in rows], dtype=float)
+    return float(np.interp(float(grade), grades, paces, left=paces[0], right=paces[-1]))
 
 
 @router.get("/activity/{activity_id}/real", response_model=RealActivityResponse)
@@ -52,14 +56,7 @@ async def get_real_activity(request: Request, activity_id: str):
         try:
             loaded_name = request.app.state.storage.load(activity_id).name
         except Exception:
-            temp_storage = getattr(request.app.state, "temp_storage", None)
-            if temp_storage is not None:
-                try:
-                    loaded_name = temp_storage.load(activity_id).name
-                except Exception:
-                    loaded_name = None
-            else:
-                loaded_name = None
+            loaded_name = None
         if isinstance(loaded_name, str) and loaded_name.strip():
             activity_name = loaded_name.strip()
 
@@ -76,38 +73,12 @@ async def get_real_activity(request: Request, activity_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to get real activity: {str(e)}")
 
 
-@router.get("/activity/{activity_id}/theoretical", response_model=TheoreticalActivityResponse)
+@router.get("/activity/{activity_id}/theoretical", deprecated=True)
 async def get_theoretical_activity(
-    request: Request,
     activity_id: str,
-    target_mode: str = "pace",
-    target_pace: str | None = None,
-    target_time: str | None = None,
-    vma_kmh: float | None = None,
-    grade_model: str = "grade_table_v1",
 ):
     """Retourne les données d'analyse pour une activité théorique"""
-    try:
-        df = resolve_activity_df(request, activity_id)
-
-        registry = get_series_registry(request)
-        return AnalysisService.build_theoretical_response(
-            request,
-            df,
-            registry,
-            target_mode=target_mode,
-            target_pace=target_pace,
-            target_time=target_time,
-            vma_kmh=vma_kmh,
-            grade_model=grade_model,
-        )
-
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get theoretical activity: {str(e)}")
+    raise HTTPException(status_code=410, detail="Use POST /traces/{trace_id}/plan-preview", headers={"Deprecation": "true"})
 
 
 @router.get("/activity/{activity_id}/pace-vs-grade", response_model=PaceVsGradeResponse)

@@ -13,7 +13,7 @@ describe('resolvePageMetadata', () => {
   it('returns trace metadata for /traces/[id]', () => {
     const meta = resolvePageMetadata('/traces/abc');
     expect(meta.title).toBe('Trace');
-    expect(meta.subtitle).toBe('Analyse théorique');
+    expect(meta.subtitle).toBe('Préparation de course');
     expect(meta.container).toBe('wide');
   });
 

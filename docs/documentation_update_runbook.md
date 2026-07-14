@@ -39,7 +39,7 @@ Objectif: garder une documentation reproductible apres chaque changement backend
 4) Mettre a jour les autres docs (si demande)
 - README: seulement si la navigation/commande/definition a change.
 - CHANGELOG: toujours ajouter une entree pour la version.
-- Autres docs (ex: design.md, progression.md): uniquement si le fichier existe et si demande.
+- Autres docs (ex: `design.md`, `progression.md`, `race-planning.md`): uniquement si le fichier existe et si demandé.
 
 5) Verification
 - Backend: `python -m pytest -q`

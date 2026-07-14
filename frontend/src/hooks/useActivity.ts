@@ -1,13 +1,13 @@
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
-import { activityApi, analysisApi, mapApi, seriesApi, tracesApi } from '@/lib/api';
+import { activityApi, analysisApi, mapApi, seriesApi } from '@/lib/api';
 import {
   ActivityLoadResponse,
   RealActivityResponse,
-  TheoreticalActivityResponse,
   SeriesResponse,
   ActivityMapResponse,
   PaceVsGradeResponse,
   RealActivityBinsResponse,
+  asActivityId,
 } from '@/types/api';
 
 export const activityKeys = {
@@ -16,11 +16,9 @@ export const activityKeys = {
   details: () => [...activityKeys.all, 'detail'] as const,
   detail: (id: string) => [...activityKeys.details(), id] as const,
   real: (id: string) => [...activityKeys.detail(id), 'real'] as const,
-  theoretical: (id: string) => [...activityKeys.detail(id), 'theoretical'] as const,
   series: (id: string) => [...activityKeys.detail(id), 'series'] as const,
   serie: (id: string, name: string, params: string) => [...activityKeys.series(id), name, params] as const,
   map: (id: string, params: string) => [...activityKeys.detail(id), 'map', params] as const,
-  traceStatus: (id: string) => [...activityKeys.detail(id), 'trace-status'] as const,
   realBins: (id: string) => [...activityKeys.detail(id), 'real-bins'] as const,
 };
 
@@ -31,13 +29,11 @@ export function useUploadActivity() {
     mutationFn: async ({
       file,
       name,
-      activity_type,
     }: {
       file: File;
       name: string;
-      activity_type?: 'real' | 'theoretical';
     }): Promise<ActivityLoadResponse> => {
-      return activityApi.load(file, name, { activity_type });
+      return activityApi.load(file, name, { activity_type: 'real' });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
@@ -54,55 +50,16 @@ export function useUploadActivity() {
 export function useRealActivity(id: string) {
   return useQuery({
     queryKey: activityKeys.real(id),
-    queryFn: (): Promise<RealActivityResponse> => analysisApi.getReal(id),
+    queryFn: (): Promise<RealActivityResponse> => analysisApi.getReal(asActivityId(id)),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useTheoreticalActivity(
-  id: string,
-  params?: {
-    target_mode?: 'pace' | 'time';
-    target_pace?: string;
-    target_time?: string;
-    vma_kmh?: number;
-    grade_model?: 'pro_ref' | 'grade_table_v1';
-  }
-) {
-  const paramString = JSON.stringify(params ?? {});
-  return useQuery({
-    queryKey: [...activityKeys.theoretical(id), paramString] as const,
-    queryFn: (): Promise<TheoreticalActivityResponse> => analysisApi.getTheoretical(id, params),
-    enabled: !!id,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useActivityTraceStatus(activityId: string) {
-  return useQuery({
-    queryKey: activityKeys.traceStatus(activityId),
-    queryFn: () => tracesApi.getActivityTraceStatus(activityId),
-    enabled: Boolean(activityId),
-    staleTime: 30 * 1000,
-  });
-}
-
-export function useSaveActivityTrace() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ activityId, name }: { activityId: string; name?: string }) =>
-      tracesApi.saveActivityTrace(activityId, name),
-    onSuccess: (_row, vars) => {
-      queryClient.invalidateQueries({ queryKey: activityKeys.traceStatus(vars.activityId) });
-    },
   });
 }
 
 export function usePaceVsGrade(activityId: string) {
   return useQuery({
     queryKey: [...activityKeys.detail(activityId), 'pace-vs-grade'] as const,
-    queryFn: (): Promise<PaceVsGradeResponse> => analysisApi.getPaceVsGrade(activityId),
+    queryFn: (): Promise<PaceVsGradeResponse> => analysisApi.getPaceVsGrade(asActivityId(activityId)),
     enabled: !!activityId,
     staleTime: 10 * 60 * 1000,
   });
@@ -111,7 +68,7 @@ export function usePaceVsGrade(activityId: string) {
 export function useRealActivityBins(activityId: string) {
   return useQuery({
     queryKey: activityKeys.realBins(activityId),
-    queryFn: (): Promise<RealActivityBinsResponse> => analysisApi.getRealBins(activityId),
+    queryFn: (): Promise<RealActivityBinsResponse> => analysisApi.getRealBins(asActivityId(activityId)),
     enabled: !!activityId,
     staleTime: 10 * 60 * 1000,
   });
@@ -187,7 +144,7 @@ export function useDeleteActivity() {
 
   return useMutation({
     mutationFn: async (activityId: string) => {
-      return activityApi.delete(activityId);
+      return activityApi.delete(asActivityId(activityId));
     },
     onSuccess: (_, activityId) => {
       queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
@@ -201,7 +158,7 @@ export function useRenameActivity() {
 
   return useMutation({
     mutationFn: async ({ activityId, name }: { activityId: string; name: string | null }) => {
-      return activityApi.rename(activityId, name);
+      return activityApi.rename(asActivityId(activityId), name);
     },
     onSuccess: (_payload, vars) => {
       queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
@@ -233,12 +190,10 @@ export function useActivityOperations() {
     queryClient.invalidateQueries({ queryKey: activityKeys.map(activityId, '') });
   };
 
-  const prefetchRelatedData = (activityId: string, type: 'real' | 'theoretical') => {
-    const key = type === 'real' ? activityKeys.real(activityId) : activityKeys.theoretical(activityId);
-
+  const prefetchRelatedData = (activityId: string) => {
     queryClient.prefetchQuery({
-      queryKey: key,
-      queryFn: () => (type === 'real' ? analysisApi.getReal(activityId) : analysisApi.getTheoretical(activityId)),
+      queryKey: activityKeys.real(activityId),
+      queryFn: () => analysisApi.getReal(asActivityId(activityId)),
       staleTime: 5 * 60 * 1000,
     });
 

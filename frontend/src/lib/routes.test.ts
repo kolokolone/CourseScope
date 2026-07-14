@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 import { getActivityDetailPath, getTraceDetailPath } from './routes';
+import { asActivityId, asTraceId } from '@/types/api';
 
 describe('routes helpers', () => {
   it('routes real activities to /activities/[id]', () => {
-    expect(getActivityDetailPath('real-123', 'real')).toBe('/activities/real-123');
+    expect(getActivityDetailPath(asActivityId('real-123'), 'real')).toBe('/activities/real-123');
   });
 
-  it('routes theoretical activities to /traces/[id]', () => {
-    expect(getActivityDetailPath('theo-123', 'theoretical')).toBe('/traces/theo-123');
+  it('never routes an activity id to a trace page', () => {
+    expect(getActivityDetailPath(asActivityId('activity-123'), 'real')).toBe('/activities/activity-123');
   });
 
   it('routes traces to /traces/[id]', () => {
-    expect(getTraceDetailPath('trace-123')).toBe('/traces/trace-123');
+    expect(getTraceDetailPath(asTraceId('trace-123'))).toBe('/traces/trace-123');
   });
 });

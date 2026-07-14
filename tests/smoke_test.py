@@ -145,55 +145,20 @@ def smoke_real_pipeline() -> None:
 
 
 def smoke_theoretical_pipeline() -> None:
-    from services import activity_service, theoretical_service
+    from services import activity_service
+    from services.race_planning_service import calculate_race_plan_preview
 
     gpx_bytes = _require_file(GPX_PATH)
     loaded = activity_service.load_activity_from_bytes(gpx_bytes, GPX_PATH.name)
     df = loaded.df
 
-    df_base, summary_base = theoretical_service.prepare_base(df, base_pace_s_per_km=300.0)
-    assert not df_base.empty, "theoretical base df empty"
-    assert summary_base.get("total_distance_km", 0) >= 0
-
-    df_display, default_cap, used_cap = theoretical_service.compute_display_df(
-        df_base,
-        smoothing_segments=20,
-        cap_min_per_km=None,
+    preview = calculate_race_plan_preview(
+        df,
+        scenario={"name": "smoke", "objective_type": "pace", "target_value": 300.0, "slope_model": "minetti"},
     )
-    assert not df_display.empty
-    assert default_cap > 0
-    assert used_cap > 0
-
-    passages = theoretical_service.compute_passages(
-        df_base,
-        start_datetime=None,
-        target_distances_km=None,
-    )
-    assert "passage_datetime" in passages.df_calc.columns
-
-    _ = theoretical_service.build_base_figure(df_display, markers=passages.markers)
-
-    weather_factor = theoretical_service.compute_weather_factor(
-        enabled=False,
-        temp_c=15,
-        humidity_pct=60,
-        wind_ms=0.0,
-    )
-    cap_adv_default = theoretical_service.compute_adv_cap_default(
-        passages.df_calc,
-        weather_factor=weather_factor,
-        split_bias=0.0,
-    )
-    cap_adv = float(min(max(cap_adv_default, 2.0), 15.0))
-    advanced, _ = theoretical_service.compute_advanced(
-        passages.df_calc,
-        weather_factor=weather_factor,
-        split_bias=0.0,
-        smoothing_segments=20,
-        cap_adv_min_per_km=cap_adv,
-    )
-    assert "total_time_s" in advanced.summary_adjusted
-    assert isinstance(advanced.csv_data, str) and advanced.csv_data
+    assert preview["profile"]
+    assert preview["totals"]["distance_km"] > 0
+    assert preview["histograms"]["pace"]["complete_classes"]
 
 
 def main() -> None:

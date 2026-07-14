@@ -2,12 +2,14 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { ActivityUpload } from '@/components/upload/ActivityUpload';
+import { TraceUpload } from '@/components/upload/TraceUpload';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useActivityList } from '@/hooks/useActivity';
 import { useGoalsList } from '@/hooks/useGoals';
 import { usePersonalSettings } from '@/hooks/useSettings';
 import { formatNumber } from '@/lib/metricsFormat';
-import { getActivityDetailPath } from '@/lib/routes';
+import { getActivityDetailPath, getTraceDetailPath } from '@/lib/routes';
+import type { ActivityId, TraceId } from '@/types/api';
 import { startOfDay, dateAtStart, formatDateLabel } from '@/lib/dateUtils';
 import { Activity } from 'lucide-react';
 
@@ -37,9 +39,8 @@ export default function HomePage() {
     return Math.max(0, Math.ceil(deltaMs / dayMs));
   }, [nextGoal]);
 
-  const handleUploadSuccess = (activityId: string, activityType: 'real' | 'theoretical') => {
-    router.push(getActivityDetailPath(activityId, activityType));
-  };
+  const handleActivityUploadSuccess = (activityId: ActivityId) => router.push(getActivityDetailPath(activityId, 'real'));
+  const handleTraceUploadSuccess = (traceId: TraceId) => router.push(getTraceDetailPath(traceId));
 
   const activitySortEpoch = (a: { started_at?: string | null; created_at: string }) => {
     const raw = a.started_at ?? a.created_at;
@@ -79,16 +80,14 @@ export default function HomePage() {
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ActivityUpload
-          activityType="real"
           title="Activite reelle"
           description="FIT ou GPX d'une activite courue (analyse reelle)."
-          onUploadSuccess={handleUploadSuccess}
+          onUploadSuccess={handleActivityUploadSuccess}
         />
-        <ActivityUpload
-          activityType="theoretical"
-          title="Trace (theorique)"
-          description="FIT ou GPX vierge pour une analyse theorique (pas d'auto-detection)."
-          onUploadSuccess={handleUploadSuccess}
+        <TraceUpload
+          title="Trace theorique"
+          description="GPX ou FIT pour preparer une course, sans creation d'activite."
+          onUploadSuccess={handleTraceUploadSuccess}
         />
       </div>
 

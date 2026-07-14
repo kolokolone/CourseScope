@@ -4,14 +4,14 @@ import * as React from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { formatNumber } from '@/lib/metricsFormat';
-import type { TheoreticalPaceElevationPoint } from '@/types/api';
+import type { RaceProfilePoint } from '@/types/api';
 
 type ElevationPoint = {
   distance_km: number;
   elevation_m: number | null;
 };
 
-export function TheoreticalElevationChart({ data }: { data: TheoreticalPaceElevationPoint[] }) {
+export function TheoreticalElevationChart({ data }: { data: Array<Pick<RaceProfilePoint, 'distance_km' | 'elevation_m'> | { distance_km: number; elevation_m?: number | null }> }) {
   const points = React.useMemo<ElevationPoint[]>(
     () =>
       (data ?? []).map((row) => ({

@@ -36,7 +36,7 @@ describe('metrics registry coverage', () => {
     const content = readFileSync(filePath, 'utf-8');
 
     const sections = [
-      'Real Activity Metrics', 'Theoretical Activity Metrics',
+      'Real Activity Metrics', 'Traces et préparation de course',
       'Pace vs grade', 'Progression API', 'Map data',
       'Series index', 'Data Source Compatibility',
     ];

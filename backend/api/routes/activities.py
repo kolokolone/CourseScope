@@ -45,7 +45,7 @@ async def load_activity_endpoint(
     request: Request,
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
-    activity_type: Literal["real", "theoretical"] | None = Form(None),
+    activity_type: Literal["real"] | None = Form(None),
     max_size: int = Header(100_000_000),
 ):
     """Charge une activité GPX/FIT et retourne son ID"""
@@ -105,7 +105,7 @@ async def load_activity_endpoint(
                 "activity_type": activity_type,
             },
         )
-        activity = load_activity(data=file_bytes, name=parse_name, activity_type=activity_type)
+        activity = load_activity(data=file_bytes, name=parse_name, activity_type="real")
 
         storage = get_activity_storage(request)
 
@@ -138,18 +138,9 @@ async def load_activity_endpoint(
                 "activity_type": getattr(activity, "type", None),
             },
         )
-        chosen_type: Literal["real", "theoretical"]
-        if activity_type is not None:
-            chosen_type = cast(Literal["real", "theoretical"], activity_type)
-        else:
-            chosen_type = cast(
-                Literal["real", "theoretical"],
-                "real" if activity.gpx_type.type == "real_run" else "theoretical",
-            )
-
         return ActivityLoadResponse(
             id=activity_id,
-            type=chosen_type,
+            type="real",
             stats_sidebar=SidebarStats(**_model_to_dict(stats)),
             limits=limits,
         )

@@ -16,21 +16,15 @@ def get_db_session_factory(request: Request):
 
 
 def resolve_activity_df(request: Request, activity_id: str) -> pd.DataFrame:
-    """Resout un DataFrame d'activite avec fallback temp_storage.
-
-    Leve HTTPException(404) si l'activite n'est pas trouvee.
-    """
+    """Resolve a persisted real activity only."""
     storage: LocalTempStorage = request.app.state.storage
     try:
+        loaded = storage.load(activity_id)
+        if loaded.gpx_type.type != "real_run":
+            raise FileNotFoundError(activity_id)
         df = storage.load_dataframe(activity_id)
     except FileNotFoundError:
-        temp_storage = getattr(request.app.state, "temp_storage", None)
-        if temp_storage is None:
-            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
-        try:
-            df = temp_storage.load_dataframe(activity_id)
-        except FileNotFoundError:
-            raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
+        raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")
 
     if df.empty:
         raise HTTPException(status_code=404, detail=f"Activity {activity_id} not found")

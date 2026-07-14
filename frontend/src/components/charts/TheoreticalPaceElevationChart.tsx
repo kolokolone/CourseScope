@@ -13,25 +13,9 @@ import {
 } from 'recharts';
 
 import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
-import type { TheoreticalPaceElevationPoint } from '@/types/api';
+import type { RaceProfilePoint } from '@/types/api';
 
-function smoothMovingAverage(values: Array<number | null>, windowSize: number) {
-  if (windowSize <= 1) return values;
-  const radius = Math.floor(windowSize / 2);
-  return values.map((v, idx) => {
-    let sum = 0;
-    let count = 0;
-    for (let j = idx - radius; j <= idx + radius; j += 1) {
-      const cur = values[j];
-      if (typeof cur === 'number' && Number.isFinite(cur)) {
-        sum += cur;
-        count += 1;
-      }
-    }
-    if (count === 0) return v;
-    return sum / count;
-  });
-}
+type LegacyPaceElevationPoint = { distance_km: number; target_pace_s_per_km: number; elevation_m?: number | null };
 
 function niceStep(raw: number) {
   const steps = [0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100];
@@ -58,22 +42,8 @@ function buildNiceTicks(min: number, max: number, targetCount: number) {
   return ticks.length > 0 ? ticks : undefined;
 }
 
-export function TheoreticalPaceElevationChart({ data }: { data: TheoreticalPaceElevationPoint[] }) {
-  const points = React.useMemo(() => {
-    const base = (data ?? []).map((row) => ({
-      distance_km: row.distance_km,
-      pace_s_per_km: row.target_pace_s_per_km,
-      elevation_m: typeof row.elevation_m === 'number' ? row.elevation_m : null,
-    }));
-    const smooth = smoothMovingAverage(
-      base.map((p) => (typeof p.pace_s_per_km === 'number' && Number.isFinite(p.pace_s_per_km) ? p.pace_s_per_km : null)),
-      20
-    );
-    return base.map((p, idx) => ({
-      ...p,
-      pace_s_per_km_smooth: smooth[idx] ?? p.pace_s_per_km,
-    }));
-  }, [data]);
+export function TheoreticalPaceElevationChart({ data, onPointHover }: { data: Array<RaceProfilePoint | LegacyPaceElevationPoint>; onPointHover?: (point: RaceProfilePoint | null) => void }) {
+  const points = React.useMemo<RaceProfilePoint[]>(() => (data ?? []).map((row) => 'pace_s_per_km' in row ? row : ({ distance_km: row.distance_km, pace_s_per_km: row.target_pace_s_per_km, elevation_m: row.elevation_m ?? 0, grade_pct: 0, grade_robust_pct: 0, elapsed_time_s: 0 })), [data]);
 
   const xTicks = React.useMemo(() => {
     if (points.length < 2) return undefined;
@@ -91,7 +61,7 @@ export function TheoreticalPaceElevationChart({ data }: { data: TheoreticalPaceE
   return (
     <div className="h-80">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={points} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+        <ComposedChart data={points} margin={{ top: 10, right: 16, left: 0, bottom: 0 }} onMouseLeave={() => onPointHover?.(null)} onMouseMove={(state: any) => onPointHover?.((state?.activePayload?.[0]?.payload as RaceProfilePoint | undefined) ?? null)}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
           <XAxis
             dataKey="distance_km"
@@ -103,7 +73,8 @@ export function TheoreticalPaceElevationChart({ data }: { data: TheoreticalPaceE
           />
           <YAxis
             yAxisId="pace"
-            domain={['dataMin', 'dataMax']}
+            domain={[(dataMin: number) => dataMin, (dataMax: number) => dataMax]}
+            allowDataOverflow={false}
             reversed
             tickFormatter={(v) => formatPaceSecondsPerKm(Number(v))}
             tick={{ fontSize: 12 }}
@@ -135,8 +106,8 @@ export function TheoreticalPaceElevationChart({ data }: { data: TheoreticalPaceE
           />
           <Line
             yAxisId="pace"
-            type="monotone"
-            dataKey="pace_s_per_km_smooth"
+            type="linear"
+            dataKey="pace_s_per_km"
             name="Allure theorique"
             stroke="#0f172a"
             strokeWidth={2}

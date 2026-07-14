@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { CircleMarker, MapContainer, Polyline, Popup, TileLayer } from 'react-leaflet';
+import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMapEvents } from 'react-leaflet';
 
 import { Button } from '@/components/ui/button';
 import { useSeriesData } from '@/hooks/useActivity';
@@ -17,6 +17,8 @@ interface ActivityMapProps {
   pauseItems?: unknown;
   allowPauseToggle?: boolean;
   colorMetric?: MapColorMetric;
+  onMapClick?: (lat: number, lon: number) => void;
+  highlightedPoint?: { lat: number; lon: number; label?: string } | null;
 }
 
 type PauseItem = { lat: number; lon: number; label?: string; duration_s?: number };
@@ -67,7 +69,12 @@ function smoothNumericSeries(values: Array<number | null>, windowSize: number) {
   });
 }
 
-export function ActivityMapLeaflet({ mapData, activityId, height = '400px', pauseItems, allowPauseToggle = true, colorMetric }: ActivityMapProps) {
+function MapClickHandler({ onMapClick }: { onMapClick?: (lat: number, lon: number) => void }) {
+  useMapEvents({ click: (event) => onMapClick?.(event.latlng.lat, event.latlng.lng) });
+  return null;
+}
+
+export function ActivityMapLeaflet({ mapData, activityId, height = '400px', pauseItems, allowPauseToggle = true, colorMetric, onMapClick, highlightedPoint }: ActivityMapProps) {
   const hasMapData = mapData && mapData.polyline && mapData.polyline.length > 0;
 
   const showColorByPace = useUiPrefsStore((s) => s.mapColorByPace);
@@ -214,6 +221,7 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
       </div>
 
       <MapContainer bounds={bounds} scrollWheelZoom style={{ height: '100%', width: '100%' }}>
+        <MapClickHandler onMapClick={onMapClick} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -267,6 +275,11 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
             </Popup>
           </CircleMarker>
         ))}
+        {highlightedPoint ? (
+          <CircleMarker center={[highlightedPoint.lat, highlightedPoint.lon]} radius={8} pathOptions={{ color: 'var(--primary)', fillColor: 'var(--primary)', fillOpacity: 0.7 }}>
+            {highlightedPoint.label ? <Popup>{highlightedPoint.label}</Popup> : null}
+          </CircleMarker>
+        ) : null}
       </MapContainer>
     </div>
   );

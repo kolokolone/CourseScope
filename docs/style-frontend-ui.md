@@ -199,7 +199,7 @@ Regles:
 
 Fallback dynamique actuel:
 - `/activities/[id]` -> title `Activite`, subtitle `Analyse reelle`, container `wide`
-- `/traces/[id]` -> title `Trace`, subtitle `Analyse theorique`, container `wide`
+- `/traces/[id]` -> title `Trace`, subtitle `Préparation de course`, container `wide`
 
 ---
 

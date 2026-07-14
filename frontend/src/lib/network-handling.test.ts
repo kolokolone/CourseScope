@@ -56,6 +56,7 @@ describe('Network Error Handling', () => {
   });
 
   it('normalizes base URL and avoids double slashes', async () => {
+    const mutableEnv = process.env as Record<string, string | undefined>;
     const original = process.env.NEXT_PUBLIC_API_URL;
     const originalNodeEnv = process.env.NODE_ENV;
 
@@ -67,7 +68,7 @@ describe('Network Error Handling', () => {
       expect(mod1.buildUrl('activity/load')).toBe('/api/activity/load');
 
       // Trailing slash is allowed; implementation trims it.
-      process.env.NODE_ENV = 'production';
+      mutableEnv.NODE_ENV = 'production';
       process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000/';
       const mod2 = await importFreshApiModule();
       expect(mod2.buildUrl('/health')).toBe('http://localhost:8000/health');
@@ -78,7 +79,7 @@ describe('Network Error Handling', () => {
       expect(mod2.buildUrl('activity/load')).toBe('http://localhost:8000/activity/load');
 
       // In dev, ignore NEXT_PUBLIC_API_URL and keep using the proxy.
-      process.env.NODE_ENV = 'development';
+      mutableEnv.NODE_ENV = 'development';
       process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000';
       const mod3 = await importFreshApiModule();
       expect(mod3.buildUrl('/health')).toBe('/api/health');
@@ -91,9 +92,9 @@ describe('Network Error Handling', () => {
       }
 
       if (originalNodeEnv === undefined) {
-        delete process.env.NODE_ENV;
+        delete mutableEnv.NODE_ENV;
       } else {
-        process.env.NODE_ENV = originalNodeEnv;
+        mutableEnv.NODE_ENV = originalNodeEnv;
       }
     }
   });

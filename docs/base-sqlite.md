@@ -11,7 +11,7 @@ Ce document décrit la structure, le fonctionnement et les conventions de la bas
 
 **Couvert** : schéma des 16 tables, ORM SQLAlchemy, cycle de vie des données, mécanismes de migration, conventions de nommage, accès aux données via les repositories.
 
-**Non couvert** : le stockage fichier (`data/activities/`, `data/traces/`), l'architecture d'indexation (voir `docs/indexation.md`), les endpoints API (voir `docs/metrics_catalog.md`), l'audit de qualité (voir `docs/audit-base-sqlite.md`).
+**Non couvert** : le stockage fichier (`data/activities/`, `data/traces/`), l'architecture d'indexation (voir `docs/indexation.md`) et les contrats API (voir `docs/metrics_catalog.md` et `docs/race-planning.md`).
 
 ---
 
@@ -73,7 +73,7 @@ Rôle : index de déduplication et métadonnées essentielles. Une ligne par act
 |---|---|---|---|
 | `id` | TEXT(36) | PK | UUID v4 |
 | `name` | TEXT | NULL | Nom affiché (peut être NULL) |
-| `activity_type` | TEXT(32) | NOT NULL | `real` ou `theoretical` |
+| `activity_type` | TEXT(32) | NOT NULL | `real` pour les imports actifs ; d'anciennes bases peuvent encore contenir `theoretical` |
 | `started_at_utc` | TEXT | NULL | Date de début inférée du fichier, format ISO 8601 UTC |
 | `created_at_utc` | TEXT | NOT NULL | Date d'import, format ISO 8601 UTC |
 | `file_hash_sha256` | TEXT(64) | UNIQUE, NOT NULL | SHA256 du fichier original (clé de déduplication) |
@@ -124,12 +124,32 @@ Rôle : stocker les parcours sauvegardés pour l'analyse théorique.
 | `elevation_max_m` | REAL | NULL | Altitude max en m |
 | `original_filename` | TEXT | NULL | Nom du fichier d'origine |
 | `original_path` | TEXT | NOT NULL | Chemin du fichier sauvegardé |
+| `parquet_path` | TEXT | NULL | Chemin du DataFrame canonique Parquet |
+| `parquet_source_hash_sha256` | TEXT(64) | NULL | Empreinte du fichier utilisé pour produire le Parquet |
+| `dataframe_schema_version` | TEXT(32) | NULL | Version du contrat du DataFrame |
+| `parquet_generated_at_utc` | TEXT | NULL | Date ISO UTC de génération du Parquet |
 
 **Index** : PK sur `id`, UNIQUE sur `file_hash_sha256`, INDEX sur `route_fingerprint`.
 
 **Repository** : `backend/db/trace_repository.py` → `TraceRepository`.
 
 **Déduplication** : deux niveaux — par hash de fichier (binaire) et par empreinte de parcours (géométrique). L'empreinte est calculée par `storage/trace_store.py` → `compute_route_fingerprint()`.
+
+### 2.3.1 Tables de préparation de course
+
+Les objets principaux ne sont pas stockés dans un bloc de métadonnées. Ils utilisent des tables relationnelles avec suppression en cascade depuis la trace.
+
+| Table | Parent | Contenu principal |
+|---|---|---|
+| `race_plans` | `traces.id` | nom, `goal_id`, date, départ, fuseau, scénario actif, paramètres communs, notes, timestamps |
+| `race_scenarios` | `race_plans.id` | objectif, valeur canonique, Minetti, VMA, calibration, météo, statut actif, timestamps |
+| `race_stops` | `race_scenarios.id` | distance en km, type, durée en secondes, notes, ordre |
+| `race_strategy_segments` | `race_scenarios.id` | début/fin en km, cible d'allure, notes, ordre |
+| `race_nutrition_items` | `race_scenarios.id` | distance en km, nutrition/hydratation, quantité, notes, ordre |
+| `race_equipment_items` | `race_plans.id` | libellé, état de checklist, notes, ordre |
+| `race_course_points` | `race_plans.id` | point remarquable ou segment personnalisé, distances, notes, ordre |
+
+Tous les identifiants sont des UUID v4 sur 36 caractères. Les paramètres extensibles utilisent uniquement les colonnes JSON sérialisées explicitement prévues (`common_parameters_json`, paramètres personnels, calibration et météo). Les résultats de calcul ne sont pas persistés comme source de vérité.
 
 ### 2.4 `goals` — Objectifs de course
 
@@ -221,12 +241,12 @@ Table centrale des dashboards de progression. Une ligne par activité, 31 colonn
 | Colonne | Type | Contrainte | Description |
 |---|---|---|---|
 | `activity_id` | TEXT(36) | PK | Référence vers `activities.id` |
-| `activity_type` | TEXT(32) | NOT NULL | `real` ou `theoretical` |
+| `activity_type` | TEXT(32) | NOT NULL | `real` pour les nouvelles activités ; `theoretical` peut subsister dans un index historique |
 | `start_ts_utc` | TEXT | NOT NULL | Date de début UTC |
 | `local_date` | TEXT | NULL | Date locale (YYYY-MM-DD) |
 | `tz` | TEXT | NULL | Fuseau horaire IANA |
 | `fingerprint` | TEXT | NOT NULL | Empreinte de l'activité (hash du fichier + taille Parquet) |
-| `metrics_version` | INTEGER | NOT NULL | Version du calcul des métriques (actuellement 6) |
+| `metrics_version` | INTEGER | NOT NULL | Version du calcul des métriques (actuellement 7) |
 | `indexed_at_ts` | TEXT | NOT NULL | Date d'indexation |
 | `fast_indexation_date` | TEXT | NULL | Date dernière indexation rapide (ajouté par migration) |
 | `slow_indexation_date` | TEXT | NULL | Date dernière indexation lente (ajouté par migration) |
@@ -295,7 +315,7 @@ Table centrale des dashboards de progression. Une ligne par activité, 31 colonn
 |---|---|---|---|
 | `id` | INTEGER | PK, AUTOINCREMENT | |
 | `activity_id` | TEXT(36) | NOT NULL | Activité |
-| `activity_type` | TEXT(32) | NOT NULL | `real` / `theoretical` |
+| `activity_type` | TEXT(32) | NOT NULL | `real` pour les nouvelles activités ; valeur historique conservée si déjà indexée |
 | `start_ts_utc` | TEXT | NOT NULL | Date de l'activité |
 | `pace_bin_s_per_km` | REAL | NOT NULL | Centre du bin d'allure (s/km) |
 | `time_s_bin` | REAL | NOT NULL | Temps passé dans le bin |
@@ -440,7 +460,14 @@ progress_daily_aggregates (indépendant, agrégé depuis progress_activity_index
 sync_state (1) ──── (source = 'garmin')
 sync_runs (N) ──── (source = 'garmin')
 
-traces (indépendant)
+traces (1) ────< race_plans (N)
+                    │
+                    ├──< race_scenarios (N)
+                    │      ├──< race_stops (N)
+                    │      ├──< race_strategy_segments (N)
+                    │      └──< race_nutrition_items (N)
+                    ├──< race_equipment_items (N)
+                    └──< race_course_points (N)
 goals (indépendant)
 user_settings (singleton, id=1)
 ```
@@ -483,7 +510,7 @@ SQLite ayant un typage dynamique, les types déclarés dans l'ORM sont indicatif
 
 ### 4.3 Identifiants
 
-- **UUID v4** (36 caractères) pour `activities.id`, `traces.id`, `goals.id`, `sync_runs.id`.
+- **UUID v4** (36 caractères) pour `activities.id`, `traces.id`, `goals.id`, `sync_runs.id` et les tables `race_*`.
 - **INTEGER AUTOINCREMENT** pour les clés techniques (`activity_sources.id`, `progress_best_effort_points.id`, `progress_pace_hr_bins.id`).
 - **VARCHAR source** comme PK pour `sync_state` (une ligne par source).
 
@@ -500,6 +527,7 @@ Chaque domaine métier a son repository dédié :
 | `ActivityIndexRepository` | `backend/db/repository.py` | `activities`, `activity_sources`, `sync_state`, `sync_runs` |
 | `ProgressRepository` | `backend/db/progress_repository.py` | `progress_activity_index`, `progress_best_effort_points`, `progress_pace_hr_bins`, `progress_activity_tags` |
 | `TraceRepository` | `backend/db/trace_repository.py` | `traces` |
+| `RacePlanRepository` | `backend/db/race_plan_repository.py` | `race_plans`, `race_scenarios`, `race_stops`, `race_strategy_segments`, `race_nutrition_items`, `race_equipment_items`, `race_course_points` |
 | `GoalsRepository` | `backend/db/goals_repository.py` | `goals` |
 | `SettingsRepository` | `backend/db/settings_repository.py` | `user_settings` |
 
@@ -532,11 +560,18 @@ La session factory est injectée dans `app.state.db_session_factory` au démarra
 
 ## 6. Migrations
 
-Les migrations sont gérées de manière **manuelle et minimale** dans `backend/db/session.py` (`init_db()`, lignes 43-94). Le mécanisme :
+Les migrations historiques restent gérées dans `backend/db/session.py`. La préparation de course ajoute un runner idempotent versionné dans `backend/db/migrations/`.
 
-1. `Base.metadata.create_all()` crée les tables si elles n'existent pas.
-2. Pour chaque table, un `PRAGMA table_info()` vérifie les colonnes existantes.
-3. Les colonnes manquantes sont ajoutées via `ALTER TABLE ADD COLUMN`.
+1. `Base.metadata.create_all()` crée les tables absentes.
+2. `backend/db/migrations/20260714_race_planning.py` crée les tables `race_*` et ajoute les quatre colonnes Parquet de `traces`.
+3. La migration inscrit `20260714_race_planning` dans `schema_migrations`.
+4. `init_db()` applique automatiquement la migration ; elle peut aussi être lancée manuellement.
+
+```powershell
+Push-Location backend
+..\.venv\Scripts\python.exe -m db.migrations.run
+Pop-Location
+```
 
 **Colonnes ajoutées par migration** (ordre chronologique) :
 
@@ -555,10 +590,11 @@ Les migrations sont gérées de manière **manuelle et minimale** dans `backend/
 | `progress_activity_index` | `slow_indexation_date` | ~2026-03 |
 | `progress_activity_index` | `elevation_loss_m`, `pace_first_half_s_per_km`, `pace_second_half_s_per_km`, `power_normalized_w`, `power_intensity_factor`, `power_tss`, `cadence_mean_spm`, `cadence_max_spm` | 2026-06 |
 | `progress_activity_index` | (suppression) `cardiac_drift_pct` | 2026-06 |
+| `traces` | `parquet_path`, `parquet_source_hash_sha256`, `dataframe_schema_version`, `parquet_generated_at_utc` | 2026-07 |
 
-> **Nouvelles tables** créées automatiquement par `Base.metadata.create_all()` : `progress_activity_zones`, `progress_activity_splits`, `progress_activity_climbs`, `progress_daily_aggregates`. Nouveaux index créés via `CREATE INDEX IF NOT EXISTS`.
+> **Nouvelles tables de préparation** : `race_plans`, `race_scenarios`, `race_stops`, `race_strategy_segments`, `race_nutrition_items`, `race_equipment_items`, `race_course_points` et `schema_migrations`.
 
-**Limites** : pas de versionnement de schéma, pas de rollback, pas de suppression de colonnes (SQLite ne le supporte pas nativement). Les migrations sont enrobées dans un `try/except` silencieux — si une migration échoue, l'application continue sans la colonne.
+**Limites** : la migration de préparation est montante uniquement et ne fournit pas de rollback automatique. Elle prend en charge SQLite et PostgreSQL pour les ajouts concernés.
 
 ---
 
@@ -615,7 +651,7 @@ curl http://localhost:8000/progress/verify-status
 
 | Document | Lien |
 |---|---|
-| Audit de qualité de la base | `docs/audit-base-sqlite.md` |
+| Préparation de course et contrats des traces | `docs/race-planning.md` |
 | Architecture d'indexation | `docs/indexation.md` |
 | Page progression (dashboard) | `docs/progression.md` |
 | Catalogue des endpoints API | `docs/metrics_catalog.md` |

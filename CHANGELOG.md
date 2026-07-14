@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.6] - 2026-07-14
+
+### Added
+- **Préparation de course** : plans, scénarios, pauses typées, passages, ascensions, stratégies, nutrition, matériel et comparaison persistés sur les traces.
+- **Profil terrain** : pipeline métrique robuste, qualité altimétrique et chargement Parquet prioritaire avec empreinte et version de contrat.
+- **API traces** : aperçu calculé, CRUD des plans/scénarios/pauses, calibration historique et comparaison de scénarios.
+
+### Changed
+- **Séparation des domaines** : `trace_id` est réservé aux traces théoriques et `activity_id` aux activités réelles ; les imports de traces utilisent un flux partagé.
+- **Calcul théorique** : pipeline Minetti unique, objectif temps résolu à ±1 seconde et trois graphiques calculés intégralement côté backend.
+- **Interface** : page `/traces/{trace_id}` harmonisée avec `/activities-beta`, carte/profil synchronisés et saisies d'objectif en `min:ss`, `hh:mm:ss` ou `% VMA`.
+- **Graphiques** : suppression des écrêtages d'allure Minetti, axe Y automatique et histogramme de pente symétrique autour de `0 %`.
+
+### Deprecated
+- `GET /activity/{activity_id}/theoretical`, `POST /traces/{trace_id}/open`, `GET /activity/{activity_id}/trace-status` et `POST /activity/{activity_id}/trace-save` répondent désormais HTTP 410.
+
+### Removed
+- Ancien pipeline théorique parallèle et création d'activités temporaires pour les traces.
+
 ## [1.2.5] - 2026-07-02
 
 ### Changed

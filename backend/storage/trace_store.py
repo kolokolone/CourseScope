@@ -4,12 +4,26 @@ import hashlib
 import json
 import math
 import shutil
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 import pandas as pd
 
 from core._shared import compute_elevation_gain, compute_elevation_loss
+from core.contracts.activity_df_contract import SCHEMA_VERSION, coerce_activity_df, validate_activity_df
+
+
+@dataclass(frozen=True)
+class TraceDataframeLoad:
+    dataframe: pd.DataFrame
+    source: str
+    rebuild_reason: str | None
+    parquet_path: str
+    generated_at_utc: str
+    source_hash_sha256: str
 
 
 def compute_route_fingerprint(df: pd.DataFrame, *, sample_points: int = 200, decimals: int = 5) -> str | None:
@@ -100,21 +114,149 @@ class TraceStore:
         with original_path.open("wb") as f:
             f.write(raw_bytes)
 
-        df_to_store = df.copy()
+        source_hash = hashlib.sha256(raw_bytes).hexdigest()
+        generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        self._write_dataframe(parquet_path, df)
+        stat = original_path.stat()
+        payload = dict(meta or {})
+        payload.update(
+            {
+                "filename": filename,
+                "rows": int(df.shape[0]),
+                "source_sha256": source_hash,
+                "source_size_bytes": int(stat.st_size),
+                "source_mtime_ns": int(stat.st_mtime_ns),
+                "dataframe_schema_version": SCHEMA_VERSION,
+                "generated_at_utc": generated_at,
+            }
+        )
+        self._write_meta(meta_path, payload)
+
+        return {
+            "original_path": str(original_path.resolve()),
+            "parquet_path": str(parquet_path.resolve()),
+            "source_sha256": source_hash,
+            "dataframe_schema_version": SCHEMA_VERSION,
+            "generated_at_utc": generated_at,
+        }
+
+    @staticmethod
+    def _write_dataframe(parquet_path: Path, df: pd.DataFrame) -> None:
+        df_to_store = coerce_activity_df(df)
         for column in df_to_store.columns:
             if isinstance(df_to_store[column].dtype, pd.DatetimeTZDtype):
                 df_to_store[column] = df_to_store[column].dt.tz_convert("UTC").dt.tz_localize(None)
         df_to_store.to_parquet(parquet_path, engine="pyarrow")
 
-        payload = dict(meta or {})
-        payload.setdefault("filename", filename)
-        payload.setdefault("rows", int(df_to_store.shape[0]))
+    @staticmethod
+    def _write_meta(meta_path: Path, payload: dict[str, object]) -> None:
         meta_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
 
-        return {
-            "original_path": str(original_path.resolve()),
-            "parquet_path": str(parquet_path.resolve()),
-        }
+    def read_metadata(self, trace_id: str) -> dict[str, object]:
+        meta_path = self._get_trace_dir(trace_id) / "meta.json"
+        if not meta_path.exists():
+            return {}
+        try:
+            value = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    def load_or_rebuild_dataframe(
+        self,
+        trace_id: str,
+        *,
+        expected_source_hash: str,
+        rebuild: Callable[[str, bytes], pd.DataFrame],
+        logger=None,
+    ) -> TraceDataframeLoad:
+        """Load a valid parquet without parsing the original trace.
+
+        The original is only opened when an artifact is missing, corrupt,
+        schema-incompatible, or its cheap stat identity changed. In the latter
+        case its SHA-256 is recomputed before deciding whether to rebuild.
+        """
+
+        trace_dir = self._get_trace_dir(trace_id)
+        parquet_path = trace_dir / "df.parquet"
+        meta_path = trace_dir / "meta.json"
+        metadata = self.read_metadata(trace_id)
+        reason: str | None = None
+        if not parquet_path.exists():
+            reason = "parquet_missing"
+        elif not metadata:
+            reason = "metadata_missing_or_invalid"
+        elif metadata.get("dataframe_schema_version") != SCHEMA_VERSION:
+            reason = "dataframe_schema_incompatible"
+        elif metadata.get("source_sha256") != expected_source_hash:
+            reason = "stored_source_hash_mismatch"
+        else:
+            try:
+                original_path = next(path for path in trace_dir.iterdir() if path.is_file() and path.name.startswith("original"))
+                stat = original_path.stat()
+                stat_changed = (
+                    int(metadata.get("source_size_bytes", -1)) != int(stat.st_size)
+                    or int(metadata.get("source_mtime_ns", -1)) != int(stat.st_mtime_ns)
+                )
+                if stat_changed:
+                    current_hash = hashlib.sha256(original_path.read_bytes()).hexdigest()
+                    if current_hash != expected_source_hash:
+                        reason = "source_file_hash_changed"
+                    else:
+                        metadata["source_size_bytes"] = int(stat.st_size)
+                        metadata["source_mtime_ns"] = int(stat.st_mtime_ns)
+                        self._write_meta(meta_path, metadata)
+                if reason is None:
+                    dataframe = pd.read_parquet(parquet_path)
+                    report = validate_activity_df(dataframe, enforce_positive_delta_time=False)
+                    if not report.ok:
+                        reason = "parquet_contract_invalid"
+                    else:
+                        return TraceDataframeLoad(
+                            dataframe=coerce_activity_df(dataframe),
+                            source="parquet",
+                            rebuild_reason=None,
+                            parquet_path=str(parquet_path.resolve()),
+                            generated_at_utc=str(metadata.get("generated_at_utc") or ""),
+                            source_hash_sha256=str(metadata.get("source_sha256") or expected_source_hash),
+                        )
+            except StopIteration:
+                reason = "original_file_missing"
+            except Exception:
+                reason = "parquet_unreadable"
+
+        if logger is not None:
+            logger.warning("trace_parquet_rebuild trace_id=%s reason=%s", trace_id, reason)
+        filename, raw = self.load_trace_bytes(trace_id)
+        current_hash = hashlib.sha256(raw).hexdigest()
+        dataframe = coerce_activity_df(rebuild(filename, raw))
+        report = validate_activity_df(dataframe, enforce_positive_delta_time=False)
+        report.raise_for_issues()
+        self._write_dataframe(parquet_path, dataframe)
+        generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        original_path = next(path for path in trace_dir.iterdir() if path.is_file() and path.name.startswith("original"))
+        stat = original_path.stat()
+        self._write_meta(
+            meta_path,
+            {
+                "filename": filename,
+                "rows": int(len(dataframe)),
+                "source_sha256": current_hash,
+                "source_size_bytes": int(stat.st_size),
+                "source_mtime_ns": int(stat.st_mtime_ns),
+                "dataframe_schema_version": SCHEMA_VERSION,
+                "generated_at_utc": generated_at,
+                "last_rebuild_reason": reason,
+            },
+        )
+        return TraceDataframeLoad(
+            dataframe=dataframe,
+            source="rebuilt",
+            rebuild_reason=reason,
+            parquet_path=str(parquet_path.resolve()),
+            generated_at_utc=generated_at,
+            source_hash_sha256=current_hash,
+        )
 
     def load_trace_dataframe(self, trace_id: str) -> pd.DataFrame:
         parquet_path = self._get_trace_dir(trace_id) / "df.parquet"

@@ -13,7 +13,7 @@ from starlette.responses import JSONResponse
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from storage.activity_store import InMemoryStorage, LocalTempStorage
+from storage.activity_store import LocalTempStorage
 from storage.trace_store import TraceStore
 from registry.series_registry import SeriesRegistry
 from config import get_activities_dir, get_data_dir, get_traces_dir
@@ -84,12 +84,10 @@ async def lifespan(app: FastAPI):
     db_session_factory = make_session_factory(engine)
 
     storage = LocalTempStorage(temp_dir=str(get_activities_dir()), db_session_factory=db_session_factory)
-    temp_storage = InMemoryStorage()
     trace_store = TraceStore(traces_dir=get_traces_dir())
     registry = SeriesRegistry()
 
     app.state.storage = storage
-    app.state.temp_storage = temp_storage
     app.state.registry = registry
     app.state.trace_store = trace_store
     app.state.logger = logger

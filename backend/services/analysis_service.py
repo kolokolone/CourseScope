@@ -19,35 +19,20 @@ from api.schemas import (
     ActivityLimitsDetail,
     RealActivityResponse,
     SeriesIndex,
-    TheoreticalActivityResponse,
 )
-from core._shared import compute_elevation_gain, compute_elevation_loss
 from core.contracts.activity_df_contract import SCHEMA_VERSION
-from core.grade_table import grade_factor
-from core.theoretical_segments import (
-    build_grade_time_bins,
-    build_pace_time_bins,
-    build_theoretical_segments,
-    compute_secondary_metrics,
-)
-from core.utils import is_finite_number as _is_finite_number, parse_hms_to_seconds, parse_pace_to_seconds_per_km
+from core.utils import is_finite_number as _is_finite_number
 from db.settings_repository import SettingsRepository
-from db.trace_repository import TraceRepository
 from registry.series_registry import SeriesRegistry
-from services import activity_service, real_activity_service, theoretical_service
+from services import activity_service, real_activity_service
 from services.cache import KeyValueCache, NullCache, make_cache_key, sha256_bytes
 from services.models import (
     LoadedActivity,
     RealRunParams,
     RealRunResult,
     RealRunViewParams,
-    TheoreticalBase,
-    TheoreticalFigures,
-    TheoreticalParams,
-    TheoreticalResult,
 )
 from services.serialization import df_to_records, to_jsonable
-from storage.trace_store import compute_route_fingerprint
 
 
 def load_activity(
@@ -100,58 +85,6 @@ def analyze_real(
     if isinstance(cached, RealRunResult):
         return cached
     result = real_activity_service.analyze_real_activity(loaded.df, params=params, view=view)
-    cache.set(key, result)
-    return result
-
-
-def analyze_theoretical(
-    *,
-    loaded: LoadedActivity,
-    params: TheoreticalParams,
-    cache: KeyValueCache | None = None,
-) -> TheoreticalResult:
-    cache = cache or NullCache()
-    payload: dict[str, Any] = {
-        "name": loaded.name,
-        "type": loaded.gpx_type.type,
-        "confidence": loaded.gpx_type.confidence,
-        "params": asdict(params),
-    }
-    key = make_cache_key(namespace="activity:theoretical", version=SCHEMA_VERSION, payload=payload)
-    cached = cache.get(key)
-    if isinstance(cached, TheoreticalResult):
-        return cached
-
-    df_base, summary_base = theoretical_service.prepare_base(loaded.df, params.base_pace_s_per_km)
-    df_display, default_cap_min, _used_cap_min = theoretical_service.compute_display_df(
-        df_base,
-        smoothing_segments=params.smoothing_segments,
-        cap_min_per_km=params.cap_min_per_km,
-    )
-
-    base = TheoreticalBase(df_base=df_base, summary_base=summary_base, default_cap_min_per_km=default_cap_min)
-    passages = theoretical_service.compute_passages(
-        df_base,
-        start_datetime=params.start_datetime,
-        target_distances_km=params.passage_distances_km,
-    )
-    fig_base = theoretical_service.build_base_figure(df_display, markers=passages.markers)
-    splits = theoretical_service.compute_splits(
-        passages.df_calc,
-        start_datetime=params.start_datetime,
-        split_distance_km=1.0,
-    )
-
-    figures = TheoreticalFigures(base=fig_base, advanced=advanced.figure)
-    result = TheoreticalResult(
-        base=base,
-        df_display=df_display,
-        passages=passages,
-        splits=splits,
-        figures=figures,
-        advanced=advanced,
-    )
-
     cache.set(key, result)
     return result
 
@@ -220,28 +153,6 @@ class AnalysisService:
         )
 
     @staticmethod
-    def resolve_vma_kmh(request, vma_kmh: float | None = None) -> float:
-        if isinstance(vma_kmh, (int, float)) and math.isfinite(float(vma_kmh)) and float(vma_kmh) > 0:
-            return float(vma_kmh)
-
-        db_session_factory = getattr(request.app.state, "db_session_factory", None)
-        if db_session_factory is None:
-            return 16.0
-
-        session = db_session_factory()
-        repo = SettingsRepository()
-        try:
-            row = repo.get_or_create(session)
-            session.commit()
-            if row.vma_kmh is not None and math.isfinite(float(row.vma_kmh)) and float(row.vma_kmh) > 0:
-                return float(row.vma_kmh)
-        except Exception:
-            session.rollback()
-        finally:
-            session.close()
-        return 16.0
-
-    @staticmethod
     def started_at_utc_from_df(activity_df: pd.DataFrame) -> str | None:
         if "time" not in activity_df.columns:
             return None
@@ -255,58 +166,6 @@ class AnalysisService:
         if ts.tzinfo is not None:
             ts = ts.tz_convert("UTC").tz_localize(None)
         return ts.to_pydatetime().replace(microsecond=0).isoformat() + "Z"
-
-    @staticmethod
-    def resolve_target_pace_and_time(
-        *,
-        activity_df: pd.DataFrame,
-        target_mode: str,
-        target_pace: str | None,
-        target_time: str | None,
-    ) -> tuple[str, float, float]:
-        distance_m = pd.to_numeric(activity_df.get("distance_m"), errors="coerce") if "distance_m" in activity_df.columns else pd.Series(dtype=float)
-        distance_clean = distance_m.dropna()
-        total_distance_km = float(distance_clean.iloc[-1] / 1000.0) if not distance_clean.empty else 0.0
-        total_distance_km = total_distance_km if total_distance_km > 0 else 1.0
-
-        mode = "time" if str(target_mode).lower() == "time" else "pace"
-        pace_s = parse_pace_to_seconds_per_km(target_pace)
-        time_s = parse_hms_to_seconds(target_time)
-
-        if mode == "time" and time_s is not None and time_s > 0:
-            pace_s = max(120.0, min(1200.0, float(time_s / total_distance_km)))
-        elif mode == "pace" and pace_s is not None and pace_s > 0:
-            time_s = float(pace_s * total_distance_km)
-
-        if pace_s is None or not math.isfinite(pace_s) or pace_s <= 0:
-            pace_s = 300.0
-            time_s = float(pace_s * total_distance_km)
-            mode = "pace"
-
-        if time_s is None or not math.isfinite(time_s) or time_s <= 0:
-            time_s = float(pace_s * total_distance_km)
-
-        return mode, float(pace_s), float(time_s)
-
-    @staticmethod
-    def resolve_trace_status(request, activity_df: pd.DataFrame) -> dict:
-        db_session_factory = getattr(request.app.state, "db_session_factory", None)
-        if db_session_factory is None:
-            return {"saved": False}
-
-        fingerprint = compute_route_fingerprint(activity_df)
-        if not fingerprint:
-            return {"saved": False}
-
-        session = db_session_factory()
-        repo = TraceRepository()
-        try:
-            row = repo.get_by_route_fingerprint(session, fingerprint)
-            if row is None:
-                return {"saved": False}
-            return {"saved": True, "trace_id": row.id, "trace_name": row.name}
-        finally:
-            session.close()
 
     @staticmethod
     def build_real_response(
@@ -380,97 +239,4 @@ class AnalysisService:
             training_load=training_load_payload,
             series_index=series_index,
             limits=None,
-        )
-
-    @staticmethod
-    def build_theoretical_response(
-        request,
-        activity_df: pd.DataFrame,
-        registry: SeriesRegistry,
-        *,
-        target_mode: str,
-        target_pace: str | None,
-        target_time: str | None,
-        vma_kmh: float | None,
-        grade_model: str,
-    ) -> TheoreticalActivityResponse:
-        resolved_mode, target_pace_s, target_time_s = AnalysisService.resolve_target_pace_and_time(
-            activity_df=activity_df,
-            target_mode=target_mode,
-            target_pace=target_pace,
-            target_time=target_time,
-        )
-        effective_vma = AnalysisService.resolve_vma_kmh(request, vma_kmh)
-
-        df_segments = build_theoretical_segments(
-            activity_df,
-            target_pace_flat_s_per_km=target_pace_s,
-            vma_kmh=effective_vma,
-            grade_model=grade_model,
-        )
-
-        distance_km = float(df_segments["distance_km"].iloc[-1]) if not df_segments.empty else 0.0
-        estimated_time_s = float(df_segments["cumulative_time_s"].iloc[-1]) if not df_segments.empty else 0.0
-        average_pace_s_per_km = (estimated_time_s / distance_km) if distance_km > 0 else target_pace_s
-
-        elevation = pd.to_numeric(df_segments["elevation_m"], errors="coerce").dropna().to_numpy(dtype=float)
-        elev_gain = compute_elevation_gain(elevation)
-        elev_loss = compute_elevation_loss(elevation)
-
-        summary = {
-            "distance_km": distance_km,
-            "elevation_gain_m": elev_gain,
-            "elevation_loss_m": elev_loss,
-            "d_plus_per_km": (elev_gain / distance_km) if distance_km > 0 else None,
-            "target_pace_s_per_km": target_pace_s,
-            "estimated_time_s": estimated_time_s,
-            "total_time_s": estimated_time_s,
-            "total_distance_km": distance_km,
-            "average_pace_s_per_km": average_pace_s_per_km,
-        }
-        if elevation.size > 0:
-            summary["elevation_min_m"] = float(np.min(elevation))
-            summary["elevation_max_m"] = float(np.max(elevation))
-
-        pace_series = [
-            {
-                "distance_km": float(row.distance_km),
-                "target_pace_s_per_km": float(row.target_pace_s_per_km),
-                "elevation_m": float(row.elevation_m) if row.elevation_m == row.elevation_m else None,
-            }
-            for row in df_segments.itertuples(index=False)
-        ]
-
-        series_index = SeriesIndex(available=registry.get_available_series(activity_df))
-        trace_status = AnalysisService.resolve_trace_status(request, activity_df)
-
-        return TheoreticalActivityResponse(
-            summary=to_jsonable(summary),
-            highlights={"items": []},
-            zones=None,
-            best_efforts=None,
-            personal_records=None,
-            segment_analysis=None,
-            performance_predictions=None,
-            pauses=None,
-            climbs=None,
-            splits=None,
-            garmin_summary=None,
-            cadence=None,
-            power=None,
-            running_dynamics=None,
-            power_advanced=None,
-            pacing=None,
-            training_load=None,
-            series_index=series_index,
-            limits=AnalysisService.build_limits(activity_df),
-            target_mode=resolved_mode,
-            target_pace_s_per_km=target_pace_s,
-            target_time_s=target_time_s,
-            vma_kmh=effective_vma,
-            pace_elevation_series=pace_series,
-            grade_time_bins=build_grade_time_bins(df_segments),
-            pace_time_bins=build_pace_time_bins(df_segments),
-            secondary_metrics=compute_secondary_metrics(df_segments),
-            trace_status=trace_status,
         )

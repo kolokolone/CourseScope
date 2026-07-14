@@ -18,7 +18,7 @@ class ActivityLimits(BaseModel):
 
 class ActivityLoadResponse(BaseModel):
     id: str = Field(..., description="UUID unique activité")
-    type: Literal["real", "theoretical"]
+    type: Literal["real"]
     stats_sidebar: SidebarStats
     limits: Optional[ActivityLimits] = None
 
@@ -67,20 +67,7 @@ class RealActivityResponse(BaseModel):
     limits: Optional[ActivityLimitsDetail] = None
 
 
-# 4. GET /activity/{id}/theoretical - Response
-class TheoreticalActivityResponse(RealActivityResponse):
-    target_mode: Optional[Literal["pace", "time"]] = None
-    target_pace_s_per_km: Optional[float] = None
-    target_time_s: Optional[float] = None
-    vma_kmh: Optional[float] = None
-    pace_elevation_series: Optional[List[dict]] = None
-    grade_time_bins: Optional[List[dict]] = None
-    pace_time_bins: Optional[List[dict]] = None
-    secondary_metrics: Optional[dict] = None
-    trace_status: Optional[dict] = None
-
-
-# 5. GET /activity/{id}/series/{name} - Response
+# 4. GET /activity/{id}/series/{name} - Response
 class SeriesMeta(BaseModel):
     downsampled: Optional[bool] = None
     original_points: Optional[int] = None
@@ -115,7 +102,7 @@ class ActivityMetadata(BaseModel):
     id: str
     filename: str
     name: Optional[str] = None
-    activity_type: Literal["real", "theoretical"]
+    activity_type: Literal["real"]
     created_at: datetime
     started_at: Optional[datetime] = None
     stats_sidebar: SidebarStats
@@ -185,7 +172,6 @@ class TracesListResponse(BaseModel):
 
 class TraceUploadResponse(BaseModel):
     trace: TraceItem
-    activity_id: str
 
 
 class TraceStatusResponse(BaseModel):

@@ -10,14 +10,12 @@ import { ApiError } from '@/lib/api';
 interface ActivityUploadProps {
   title?: string;
   description?: string;
-  activityType: 'real' | 'theoretical';
-  onUploadSuccess: (activityId: string, activityType: 'real' | 'theoretical') => void;
+  onUploadSuccess: (activityId: import('@/types/api').ActivityId) => void;
 }
 
 export function ActivityUpload({
   title,
   description,
-  activityType,
   onUploadSuccess,
 }: ActivityUploadProps) {
   const [uploadingFile, setUploadingFile] = useState<File | null>(null);
@@ -31,10 +29,9 @@ export function ActivityUpload({
         const result = await uploadMutation.mutateAsync({
           file,
           name: file.name,
-          activity_type: activityType,
         });
 
-        onUploadSuccess(result.id, activityType);
+        onUploadSuccess(result.id);
         setUploadingFile(null);
       } catch (error) {
         if (error instanceof ApiError) {
@@ -57,7 +54,7 @@ export function ActivityUpload({
         setUploadingFile(null);
       }
     },
-    [uploadMutation, onUploadSuccess, activityType]
+    [uploadMutation, onUploadSuccess]
   );
 
   const onDrop = useCallback(
@@ -100,7 +97,7 @@ export function ActivityUpload({
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Upload className="h-5 w-5" />
-          {title ?? (activityType === 'real' ? 'Upload activite reelle' : 'Upload trace (theorique)')}
+          {title ?? 'Upload activite reelle'}
         </CardTitle>
       </CardHeader>
       <CardContent>
