@@ -19,14 +19,20 @@ export function useTracePlanning(traceId: TraceId) {
 
   const previewPayload = activePlanId && selectedScenarioId ? { plan_id: activePlanId, scenario_id: selectedScenarioId } : null;
   const preview = usePlanPreview(traceId, previewPayload);
-  const createPlan = useCreatePlan(traceId);
+  const { mutate: createDefaultPlan } = useCreatePlan(traceId);
+  const automaticCreationAttempted = React.useRef(false);
   const selectedScenario = plan.data?.scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? null;
+
+  React.useEffect(() => {
+    if (!detail.isSuccess || activePlanId || automaticCreationAttempted.current) return;
+    automaticCreationAttempted.current = true;
+    createDefaultPlan({ name: 'Plan principal' });
+  }, [activePlanId, createDefaultPlan, detail.isSuccess]);
 
   return {
     detail,
     plan,
     preview,
-    createPlan,
     activePlanId: activePlanId as RacePlanId | null,
     selectedScenario,
     selectedScenarioId,

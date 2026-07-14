@@ -19,6 +19,12 @@ def synthetic_course(step_m: float = 10.0, noise_m: float = 0.0) -> pd.DataFrame
     return pd.DataFrame({"distance_m": distance, "elevation": elevation, "lat": np.nan, "lon": np.nan})
 
 
+def linear_course(grade_pct: float, step_m: float = 10.0, length_m: float = 2_000.0) -> pd.DataFrame:
+    distance = np.arange(100.0, 100.0 + length_m + step_m, step_m)
+    elevation = 300.0 + (distance - distance[0]) * grade_pct / 100.0
+    return pd.DataFrame({"distance_m": distance, "elevation": elevation, "lat": np.nan, "lon": np.nan})
+
+
 class TestRacePlanningPipeline(unittest.TestCase):
     def test_profile_normalizes_distance_and_is_sampling_density_resistant(self) -> None:
         from core.course_profile import prepare_course_profile
@@ -44,8 +50,32 @@ class TestRacePlanningPipeline(unittest.TestCase):
         noisy_grade = float(np.quantile(np.abs(noisy_profile.dataframe["grade_robust_pct"]), 0.9))
         self.assertAlmostEqual(noisy_grade, clean_grade, delta=1.2)
 
+    def test_fixed_distance_grade_is_correct_and_stable_at_route_edges(self) -> None:
+        from core.course_profile import prepare_course_profile
+
+        for expected_grade in (-18.0, -7.5, 8.0):
+            profile = prepare_course_profile(linear_course(expected_grade)).dataframe
+            grade = profile["grade_robust_pct"].to_numpy(dtype=float)
+            self.assertTrue(np.allclose(grade, expected_grade, atol=0.05))
+            expected_elevation = 300.0 + profile["distance_m"].to_numpy(dtype=float) * expected_grade / 100.0
+            self.assertTrue(np.allclose(profile["elevation_m"], expected_elevation, atol=0.05))
+
+    def test_isolated_altitude_spike_does_not_create_extreme_robust_grades(self) -> None:
+        from core.course_profile import prepare_course_profile
+
+        course = linear_course(-6.0)
+        course.loc[len(course) // 2, "elevation"] += 80.0
+        prepared = prepare_course_profile(course)
+        robust = prepared.dataframe["grade_robust_pct"].to_numpy(dtype=float)
+        self.assertLess(float(np.max(np.abs(robust + 6.0))), 1.0)
+        self.assertGreater(float(prepared.quality["corrected_elevation_ratio"]), 0.0)
+
     def test_minetti_and_exact_time_target(self) -> None:
-        from services.race_planning_service import calculate_race_plan_preview, minetti_cost_ratio
+        from services.race_planning_service import (
+            calculate_race_plan_preview,
+            minetti_cost_ratio,
+            minetti_pace_ratio,
+        )
 
         ratios = minetti_cost_ratio(np.array([-8.0, 0.0, 8.0]))
         self.assertLess(float(ratios[0]), float(ratios[1]))
@@ -54,8 +84,45 @@ class TestRacePlanningPipeline(unittest.TestCase):
         extended_ratios = minetti_cost_ratio(np.array([-15.0, -10.0, -5.0, 15.0, 20.0, 25.0]))
         self.assertEqual(len(set(np.round(extended_ratios[:3], 6))), 3)
         self.assertEqual(len(set(np.round(extended_ratios[3:], 6))), 3)
+        practical_downhill = minetti_pace_ratio(np.array([-20.0, -18.0, -10.0, -5.0]))
+        self.assertTrue(np.all(practical_downhill > (1.0 / 1.5)))
+        self.assertTrue(np.all(practical_downhill < 1.0))
+        self.assertGreater(float(practical_downhill[1]), float(minetti_cost_ratio(-18.0)))
         preview = calculate_race_plan_preview(synthetic_course(), scenario={"name": "chrono", "objective_type": "time", "target_value": 3600.0, "slope_model": "minetti"})
         self.assertAlmostEqual(float(preview["totals"]["running_time_s"]), 3600.0, delta=1.0)
+
+    def test_downhill_pace_is_progressive_and_metric_smoothing_preserves_time(self) -> None:
+        from services.race_planning_service import (
+            _display_indices,
+            _smooth_pace_by_distance,
+            calculate_race_plan_preview,
+        )
+
+        preview = calculate_race_plan_preview(
+            linear_course(-18.0),
+            scenario={"name": "descente", "objective_type": "pace", "target_value": 300.0, "slope_model": "minetti"},
+        )
+        paces = np.array([float(point["pace_s_per_km"]) for point in preview["profile"]])
+        self.assertGreater(float(np.min(paces)), 200.0)
+        self.assertLess(float(np.max(paces)), 300.0)
+
+        raw = np.array([300.0, 300.0, 150.0, 300.0, 300.0])
+        distances = np.full(len(raw), 0.01)
+        smoothed = _smooth_pace_by_distance(raw, distances, window_m=40.0)
+        self.assertLess(float(np.ptp(smoothed)), float(np.ptp(raw)))
+        self.assertAlmostEqual(float(np.sum(smoothed * distances)), float(np.sum(raw * distances)), places=9)
+
+        size = 5_000
+        profile = pd.DataFrame({
+            "elevation_m": np.zeros(size),
+            "grade_robust_pct": np.zeros(size),
+        })
+        display_pace = np.full(size, 300.0)
+        display_pace[1_234] = 180.0
+        display_pace[4_321] = 900.0
+        selected = set(_display_indices(profile, display_pace, max_points=200).tolist())
+        self.assertIn(1_234, selected)
+        self.assertIn(4_321, selected)
 
     def test_stops_shift_all_following_passages_exactly(self) -> None:
         from services.race_planning_service import calculate_race_plan_preview

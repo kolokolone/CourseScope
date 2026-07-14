@@ -544,7 +544,7 @@ Le corps accepte soit `plan_id`/`scenario_id`, soit un plan et un scénario stru
 | `totals.elapsed_time_s` | float | s | course et pauses |
 | `totals.arrival_time_iso` | string\|null | - | arrivée dans le fuseau du plan |
 | `profile[].distance_km` | float | km | distance d'affichage |
-| `profile[].pace_s_per_km` | float | s/km | allure Minetti non écrêtée |
+| `profile[].pace_s_per_km` | float | s/km | allure issue du coût Minetti, gain descendant régularisé et lissage métrique backend |
 | `profile[].grade_robust_pct` | float | % | pente du calcul métier |
 | `passages[]` | array<object> | - | passages kilométriques et personnalisés |
 | `splits[]` | array<object> | - | splits kilométriques |

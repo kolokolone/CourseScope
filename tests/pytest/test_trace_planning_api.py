@@ -22,6 +22,7 @@ def _upload(client: TestClient) -> dict:
 
 def test_trace_plan_save_reload_stops_and_comparison(tmp_path, monkeypatch):
     monkeypatch.setenv('COURSESCOPE_DATA_DIR', str(tmp_path))
+    monkeypatch.delenv('COURSESCOPE_DATABASE_URL', raising=False)
     with TestClient(app) as client:
         trace = _upload(client)
         trace_id = trace['id']
@@ -63,6 +64,7 @@ def test_trace_plan_save_reload_stops_and_comparison(tmp_path, monkeypatch):
 
 def test_trace_id_and_activity_id_are_not_resolved_interchangeably(tmp_path, monkeypatch):
     monkeypatch.setenv('COURSESCOPE_DATA_DIR', str(tmp_path))
+    monkeypatch.delenv('COURSESCOPE_DATABASE_URL', raising=False)
     with TestClient(app) as client:
         trace_id = _upload(client)['id']
         assert client.get(f'/activity/{trace_id}/real').status_code == 404
@@ -71,3 +73,26 @@ def test_trace_id_and_activity_id_are_not_resolved_interchangeably(tmp_path, mon
         activity = client.post('/activity/load', files={'file': (filename, data, 'application/gpx+xml')}, data={'name': 'Reelle'}).json()
         assert activity['type'] == 'real'
         assert client.get(f'/traces/{activity["id"]}').status_code == 404
+
+
+def test_opening_legacy_trace_creates_default_plan_automatically_once(tmp_path, monkeypatch):
+    monkeypatch.setenv('COURSESCOPE_DATA_DIR', str(tmp_path))
+    monkeypatch.delenv('COURSESCOPE_DATABASE_URL', raising=False)
+    with TestClient(app) as client:
+        trace_id = _upload(client)['id']
+        initial = client.get(f'/traces/{trace_id}').json()
+        initial_plan_id = initial['active_plan']['id']
+        deleted = client.delete(f'/traces/{trace_id}/plans/{initial_plan_id}')
+        assert deleted.status_code == 200
+
+        reopened = client.get(f'/traces/{trace_id}')
+        assert reopened.status_code == 200
+        reopened_body = reopened.json()
+        assert reopened_body['active_plan'] is not None
+        assert reopened_body['active_plan']['name'] == 'Plan principal'
+        assert reopened_body['active_plan']['id'] != initial_plan_id
+        assert len(reopened_body['plans']) == 1
+
+        opened_again = client.get(f'/traces/{trace_id}').json()
+        assert opened_again['active_plan']['id'] == reopened_body['active_plan']['id']
+        assert len(opened_again['plans']) == 1

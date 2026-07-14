@@ -198,16 +198,16 @@ async def upload_trace(
         file_hash = hashlib.sha256(raw).hexdigest()
         existing = trace_repo.get_by_file_hash(session, file_hash)
         if existing is not None:
-            plan = plan_repo.list_for_trace(session, existing.id)
-            if not plan:
-                plan_repo.create(session, existing.id, {"name": "Plan principal"})
-                session.commit()
+            plan_repo.ensure_default(session, existing.id)
+            session.commit()
             return TraceUploadResponse(trace=_to_trace_item(existing))
 
         fingerprint = compute_route_fingerprint(dataframe)
         if fingerprint:
             same_route = trace_repo.get_by_route_fingerprint(session, fingerprint)
             if same_route is not None:
+                plan_repo.ensure_default(session, same_route.id)
+                session.commit()
                 return TraceUploadResponse(trace=_to_trace_item(same_route))
 
         trace_id = str(uuid.uuid4())
@@ -234,7 +234,7 @@ async def upload_trace(
                 parquet_generated_at_utc=paths["generated_at_utc"],
             ),
         )
-        plan_repo.create(session, trace_id, {"name": "Plan principal"})
+        plan_repo.ensure_default(session, trace_id)
         session.commit()
         return TraceUploadResponse(trace=_to_trace_item(row))
     except HTTPException:
@@ -255,7 +255,9 @@ async def get_trace(request: Request, trace_id: str):
         row = _require_trace(session, trace_id)
         loaded = _load_trace_dataframe(request, session, row)
         prepared = prepare_course_profile(loaded.dataframe)
-        plans = RacePlanRepository().list_for_trace(session, trace_id)
+        plan_repo = RacePlanRepository()
+        plan_repo.ensure_default(session, trace_id)
+        plans = plan_repo.list_for_trace(session, trace_id)
         active_plan = plans[0] if plans else None
         if active_plan is not None:
             active_plan = next((plan for plan in plans if plan.active_scenario_id), active_plan)

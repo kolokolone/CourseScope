@@ -63,7 +63,7 @@ export function PlanningSettings({
   React.useEffect(() => {
     setRaceDate(plan.race_date ?? '');
     setStartTime(plan.start_time ?? '');
-  }, [plan.id]);
+  }, [plan.id]); // eslint-disable-line react-hooks/exhaustive-deps -- preserve an in-progress native date edit across refetches
 
   const changeObjective = (next: RaceObjectiveType) => {
     setObjectiveType(next);
@@ -192,7 +192,7 @@ export function PlanningSettings({
         </div>
         {targetError ? <p className="text-xs text-destructive">{targetError}</p> : null}
         <p className="text-xs text-muted-foreground">
-          Le backend conserve les secondes comme unité canonique et résout numériquement les objectifs de temps. Modèle de pente : Minetti.
+          L’allure cible est la référence sur terrain plat. Le backend conserve les secondes comme unité canonique et résout numériquement les objectifs de temps. Modèle de pente : Minetti.
         </p>
       </div>
 

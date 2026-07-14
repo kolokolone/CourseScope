@@ -71,12 +71,12 @@ Le module `backend/core/course_profile.py` est la source commune du profil théo
 | Paramètre | Valeur par défaut | Rôle |
 |---|---:|---|
 | Grille régulière | 10 m | Rééchantillonnage indépendant de la densité source |
-| Fenêtre de lissage altitude | 50 m | Réduction du bruit altimétrique |
-| Fenêtre de pente robuste | 50 m | Régression locale stable |
-| Fenêtre de pente d'affichage | 30 m | Série visuelle distincte |
+| Fenêtre de lissage altitude | 60 m | Réduction du bruit altimétrique |
+| Fenêtre de pente robuste | 80 m | Estimateur local Theil-Sen résistant aux valeurs aberrantes |
+| Fenêtre de pente d'affichage | 40 m | Série visuelle distincte |
 | Limite de pente affichée | ±40 % | Protection de l'affichage, sans modifier la pente robuste utilisée par les classes |
 
-Le pipeline normalise la première distance à zéro, déduplique les distances, contrôle leur monotonie, utilise la distance horizontale, interpole les altitudes manquantes et corrige les pics altimétriques. Les distances internes sont en mètres ; toutes les distances API sont explicitement en kilomètres.
+Le pipeline normalise la première distance à zéro, déduplique les distances, contrôle leur monotonie, utilise la distance horizontale, interpole les altitudes manquantes et corrige les pics altimétriques. Les fenêtres incluent leurs deux extrémités : une fenêtre annoncée à 80 m couvre réellement 80 m sur la grille de 10 m. Aux extrémités de la trace, la fenêtre est décalée au lieu d'être réduite. Les distances internes sont en mètres ; toutes les distances API sont explicitement en kilomètres.
 
 Les sorties distinguent :
 
@@ -116,11 +116,17 @@ Le stockage et l'API utilisent une valeur numérique canonique :
 
 Pour un temps cible, une dichotomie résout l'allure de base afin que la somme des temps segmentaires corresponde au temps demandé avec une tolérance inférieure à une seconde.
 
-Le coût Minetti n'est pas écrêté sur l'axe des allures. La pente d'entrée du polynôme reste limitée à `−30 % / +30 %`, plage de sécurité du modèle. L'axe Y du graphique est calculé à partir des minima et maxima de la série, sans borne fixe.
+Le polynôme Minetti brut décrit un coût énergétique. Appliqué directement comme consigne de vitesse, son minimum autour de `−18 %` peut presque doubler la vitesse d'une cible sur le plat. Le pipeline conserve ce coût, puis transforme le gain de vitesse en descente avec une saturation continue dont l'asymptote est `+50 %`. Il n'existe donc ni écrêtage brutal ni plateau. Les montées utilisent le ratio Minetti brut. La pente d'entrée reste limitée à `−30 % / +30 %`.
+
+Le polynôme et son interprétation énergétique proviennent de Minetti et al., *Energy cost of walking and running at extreme uphill and downhill slopes*, Journal of Applied Physiology 93(3), 2002 ([DOI 10.1152/japplphysiol.01177.2001](https://doi.org/10.1152/japplphysiol.01177.2001)). La saturation descendante à `+50 %` est une hypothèse pratique propre à CourseScope, pas un coefficient du papier.
+
+L'allure segmentaire est ensuite lissée côté backend sur une fenêtre de 60 m. Le lissage est pondéré par la distance et renormalisé afin de conserver exactement le temps calculé. Pour un objectif temps, la série affichée, les histogrammes et la somme des temps segmentaires utilisent les mêmes valeurs et respectent toujours l'objectif à moins d'une seconde. L'axe Y est calculé à partir des minima et maxima de la série, sans borne fixe.
 
 ## Plans, scénarios et pauses
 
 Un plan appartient à une trace. Un scénario appartient à un plan. Les résultats de `plan-preview` ne sont pas la source persistée : ils sont recalculés à partir du scénario, des pauses, du profil et de la version du pipeline.
+
+Une trace importée reçoit déjà un plan et un scénario principaux. Pour une ancienne trace qui n'en possède pas, `GET /traces/{trace_id}` appelle une création idempotente avant de répondre. Une seconde ouverture réutilise le même plan. Le frontend possède aussi un repli automatique et n'affiche jamais de bouton demandant de créer manuellement le plan principal.
 
 Un plan contient notamment la date, l'heure de départ, le fuseau IANA, le scénario actif, les notes, le matériel et les points remarquables. Un scénario contient l'objectif, Minetti, la VMA, la calibration, les hypothèses météo, les portions stratégiques, la nutrition et les pauses.
 
@@ -143,7 +149,7 @@ Si le plan contient `race_date`, `start_time` et un fuseau valide, les passages 
 
 `profile[]` fournit directement : `distance_km`, `pace_s_per_km`, `elevation_m`, `grade_pct`, `grade_robust_pct`, `elapsed_time_s`, `passage_time_iso`, `lat` et `lon`.
 
-Le frontend ne lisse pas et ne recalcule pas l'allure. Le downsampling backend est basé sur la distance et conserve les extrema d'altitude et de pente.
+Le frontend ne lisse pas et ne recalcule pas l'allure. Le downsampling backend est basé sur la distance et conserve les extrema d'altitude et de pente. Le graphique est rendu sous la carte pleine largeur, sur une hauteur égale à la moitié de celle-ci. Le dégradé altimétrique est conservé sous la courbe d'allure et le survol/clic reste synchronisé avec la carte.
 
 ### Temps par allure
 
@@ -220,7 +226,7 @@ Exemple de calcul pur sans persistance préalable :
 
 La page route ne fait que convertir le paramètre en `TraceId` et rendre `TracePlanningPage`. `useTracePlanning` charge la trace, le plan actif, le scénario sélectionné et le preview.
 
-Sections : hero/KPI, paramètres, aperçu, carte et profil synchronisés, splits/ascensions/passages, pauses, stratégie, nutrition, matériel, graphiques, comparaison et qualité.
+Sections : hero/KPI, paramètres, aperçu, carte et allure synchronisées, histogrammes d'allure et de pente, splits/ascensions/passages, pauses, stratégie, nutrition, matériel, comparaison et qualité. Les splits et le bloc passages/ascensions sont deux panneaux repliables indépendants.
 
 La date est conservée localement pendant la saisie afin qu'un rafraîchissement React Query ne remplace pas une année partiellement saisie. Une date ISO complète ou le choix « Aujourd'hui » du calendrier natif déclenche la persistance.
 

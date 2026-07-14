@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.7] - 2026-07-14
+
+### Fixed
+- **Pentes théoriques** : estimation Theil-Sen sur une fenêtre métrique complète de 80 m, stable aux extrémités et résistante aux pics altimétriques.
+- **Descentes Minetti** : conservation du coût énergétique Minetti avec limitation progressive du gain de vitesse, sans plateau ni borne fixe sur l'axe du graphique.
+- **Plans historiques** : l'ouverture d'une trace sans plan crée automatiquement et une seule fois son plan et son scénario principaux.
+
+### Changed
+- **Allure vs distance** : lissage backend sur 60 m avec conservation exacte du temps, carte pleine largeur et graphique synchronisé placé sous la carte.
+- **Organisation** : les histogrammes d'allure et de pente précèdent les splits ; les splits kilométriques sont désormais repliables.
+
 ## [1.2.6] - 2026-07-14
 
 ### Added

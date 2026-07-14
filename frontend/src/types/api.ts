@@ -342,6 +342,7 @@ export interface RaceDataQuality {
   grid_step_m: number;
   elevation_smoothing_window_m: number;
   robust_grade_window_m: number;
+  robust_grade_method?: 'theil_sen_fixed_distance' | string;
   interpolated_elevation_ratio: number;
   corrected_or_rejected_source_ratio: number;
   corrected_elevation_ratio: number;
@@ -396,6 +397,12 @@ export interface RacePlanPreview {
   pipeline_version: string;
   scenario_hash: string;
   units: { distance: 'km'; internal_distance: 'm'; elevation: 'm'; pace: 's/km'; time: 's'; grade: '%' };
+  model: {
+    slope_model: 'minetti';
+    minetti_grade_limit_pct: number;
+    downhill_max_speed_gain_ratio: number;
+    pace_smoothing_window_m: number;
+  };
   totals: {
     distance_km: number;
     elevation_gain_m: number;

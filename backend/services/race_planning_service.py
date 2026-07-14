@@ -15,17 +15,24 @@ from core.course_profile import CourseProfile, prepare_course_profile
 from services.weather import NullWeatherProvider, WeatherProvider
 
 
-RACE_PLANNING_PIPELINE_VERSION = "race-planning-v2"
+RACE_PLANNING_PIPELINE_VERSION = "race-planning-v3"
 PACE_BIN_WIDTH_S = 15.0
 DISPLAY_MIN_BIN_TIME_S = 90.0
 DISPLAY_MAX_PACE_FACTOR = 1.75
 GRADE_DISPLAY_LIMIT_PCT = 20.0
+MINETTI_GRADE_LIMIT_PCT = 30.0
+MINETTI_DOWNHILL_MAX_SPEED_GAIN_RATIO = 0.50
+PACE_SMOOTHING_WINDOW_M = 60.0
 
 
 def minetti_cost_ratio(grade_pct: np.ndarray | float) -> np.ndarray:
     """Return Minetti's energetic cost relative to level running."""
 
-    grade = np.clip(np.asarray(grade_pct, dtype=float) / 100.0, -0.30, 0.30)
+    grade = np.clip(
+        np.asarray(grade_pct, dtype=float),
+        -MINETTI_GRADE_LIMIT_PCT,
+        MINETTI_GRADE_LIMIT_PCT,
+    ) / 100.0
     cost = (
         155.4 * grade**5
         - 30.4 * grade**4
@@ -37,12 +44,84 @@ def minetti_cost_ratio(grade_pct: np.ndarray | float) -> np.ndarray:
     return cost / 3.6
 
 
+def minetti_pace_ratio(grade_pct: np.ndarray | float) -> np.ndarray:
+    """Convert Minetti cost to a practical constant-effort pace ratio.
+
+    The raw polynomial describes metabolic cost and predicts a near doubling
+    of speed around -18 %. A route-planning instruction also needs to account
+    for the finite ability to turn that energetic benefit into forward speed.
+    A smooth asymptote limits the additional downhill speed to 50 %, without
+    clipping the curve or changing Minetti's uphill cost.
+    """
+
+    grade = np.asarray(grade_pct, dtype=float)
+    cost_ratio = minetti_cost_ratio(grade)
+    raw_speed_ratio = np.divide(1.0, cost_ratio, out=np.ones_like(cost_ratio), where=cost_ratio > 0)
+    downhill_gain = np.maximum(raw_speed_ratio - 1.0, 0.0)
+    limited_speed_ratio = 1.0 + MINETTI_DOWNHILL_MAX_SPEED_GAIN_RATIO * np.tanh(
+        downhill_gain / MINETTI_DOWNHILL_MAX_SPEED_GAIN_RATIO
+    )
+    practical_ratio = np.divide(
+        1.0,
+        limited_speed_ratio,
+        out=np.ones_like(limited_speed_ratio),
+        where=limited_speed_ratio > 0,
+    )
+    return np.where((grade < 0.0) & (raw_speed_ratio > 1.0), practical_ratio, cost_ratio)
+
+
 def _pace_for_base(base_pace_s_per_km: float, grades_pct: np.ndarray, model: str) -> np.ndarray:
     if model == "pro_ref":
         raise ValueError("The slope model 'pro_ref' was removed; use 'minetti'")
     if model != "minetti":
         raise ValueError(f"Unsupported slope model: {model}")
-    return float(base_pace_s_per_km) * minetti_cost_ratio(grades_pct)
+    return float(base_pace_s_per_km) * minetti_pace_ratio(grades_pct)
+
+
+def _smooth_pace_by_distance(
+    pace_s_per_km: np.ndarray,
+    segment_distance_km: np.ndarray,
+    *,
+    window_m: float = PACE_SMOOTHING_WINDOW_M,
+) -> np.ndarray:
+    """Smooth segment pace on a metric window while preserving total time."""
+
+    pace = np.asarray(pace_s_per_km, dtype=float)
+    distances_m = np.asarray(segment_distance_km, dtype=float) * 1000.0
+    if len(pace) < 3 or len(pace) != len(distances_m) or window_m <= 0:
+        return pace.copy()
+    midpoints_m = np.cumsum(distances_m) - distances_m / 2.0
+    total_span_m = float(midpoints_m[-1] - midpoints_m[0])
+    if total_span_m <= 0:
+        return pace.copy()
+    effective_window_m = min(float(window_m), total_span_m)
+    half_window_m = effective_window_m / 2.0
+    weighted = pace * distances_m
+    weighted_prefix = np.concatenate(([0.0], np.cumsum(weighted)))
+    distance_prefix = np.concatenate(([0.0], np.cumsum(distances_m)))
+    smoothed = np.empty_like(pace)
+    for index, center_m in enumerate(midpoints_m):
+        start_m = float(center_m - half_window_m)
+        end_m = float(center_m + half_window_m)
+        if start_m < midpoints_m[0]:
+            end_m += float(midpoints_m[0] - start_m)
+            start_m = float(midpoints_m[0])
+        if end_m > midpoints_m[-1]:
+            start_m -= float(end_m - midpoints_m[-1])
+            end_m = float(midpoints_m[-1])
+        left = int(np.searchsorted(midpoints_m, start_m, side="left"))
+        right = int(np.searchsorted(midpoints_m, end_m, side="right"))
+        weight_sum = float(distance_prefix[right] - distance_prefix[left])
+        smoothed[index] = (
+            float(weighted_prefix[right] - weighted_prefix[left]) / weight_sum
+            if weight_sum > 0
+            else pace[index]
+        )
+    original_time_s = float(np.sum(weighted) / 1000.0)
+    smoothed_time_s = float(np.sum(smoothed * distances_m) / 1000.0)
+    if original_time_s > 0 and smoothed_time_s > 0:
+        smoothed *= original_time_s / smoothed_time_s
+    return smoothed
 
 
 def _running_time_for_base(
@@ -264,11 +343,16 @@ def _climbs(profile: pd.DataFrame, cumulative_running_s: np.ndarray) -> list[dic
     return climbs
 
 
-def _display_indices(profile: pd.DataFrame, max_points: int = 1600) -> np.ndarray:
+def _display_indices(
+    profile: pd.DataFrame,
+    point_pace_s_per_km: np.ndarray | None = None,
+    max_points: int = 1600,
+) -> np.ndarray:
     size = len(profile)
     if size <= max_points:
         return np.arange(size, dtype=int)
-    bucket_size = max(2, int(math.ceil(size / max_points * 3)))
+    feature_count = 5 if point_pace_s_per_km is not None else 3
+    bucket_size = max(2, int(math.ceil(size / max_points * feature_count)))
     selected = {0, size - 1}
     elevation = profile["elevation_m"].to_numpy(dtype=float)
     grade = profile["grade_robust_pct"].to_numpy(dtype=float)
@@ -278,6 +362,9 @@ def _display_indices(profile: pd.DataFrame, max_points: int = 1600) -> np.ndarra
         selected.add(begin + int(np.argmin(elevation[local])))
         selected.add(begin + int(np.argmax(elevation[local])))
         selected.add(begin + int(np.argmax(np.abs(grade[local]))))
+        if point_pace_s_per_km is not None:
+            selected.add(begin + int(np.argmin(point_pace_s_per_km[local])))
+            selected.add(begin + int(np.argmax(point_pace_s_per_km[local])))
     return np.array(sorted(selected), dtype=int)
 
 
@@ -324,7 +411,8 @@ def calculate_race_plan_preview(
     effective_weather = provider_weather if isinstance(provider_weather, dict) else manual_weather
     weather_factor = _weather_adjustment_factor(effective_weather)
     segment_distance_km = np.diff(profile["distance_m"].to_numpy(dtype=float)) / 1000.0
-    grades = profile["grade_robust_pct"].to_numpy(dtype=float)[1:]
+    point_grades = profile["grade_robust_pct"].to_numpy(dtype=float)
+    grades = (point_grades[:-1] + point_grades[1:]) / 2.0
     model = str(scenario.get("slope_model") or "minetti")
     objective_type = str(scenario.get("objective_type") or "pace")
     target_value = float(scenario.get("target_value") or 300.0)
@@ -344,10 +432,13 @@ def calculate_race_plan_preview(
         model=model,
     )
     segment_pace = _pace_for_base(base_pace, grades, model) * combined_adjustment
+    segment_pace = _smooth_pace_by_distance(segment_pace, segment_distance_km)
     segment_time = segment_pace * segment_distance_km
     if objective_type == "time":
-        # Remove the last floating-point residue while preserving every segment.
-        segment_time[-1] += target_value - float(np.sum(segment_time))
+        # Keep the displayed series and every aggregate on the exact same
+        # segment values while removing the floating-point residue globally.
+        segment_pace *= target_value / float(np.sum(segment_time))
+        segment_time = segment_pace * segment_distance_km
     cumulative_running = np.concatenate(([0.0], np.cumsum(segment_time)))
 
     total_distance_km = float(profile["distance_km"].iloc[-1])
@@ -445,8 +536,12 @@ def calculate_race_plan_preview(
         gain = float(np.clip(np.diff(segment_elevation), 0.0, None).sum()) if len(segment_elevation) > 1 else 0.0
         segments.append({"id": segment.get("id") or f"segment-{index + 1}", "name": segment.get("name") or "Segment", "start_distance_km": start_km, "end_distance_km": end_km, "distance_km": end_km - start_km, "running_time_s": running_end - running_start, "stop_time_s": (elapsed_end - elapsed_start) - (running_end - running_start), "elapsed_time_s": elapsed_end - elapsed_start, "pace_s_per_km": (running_end - running_start) / (end_km - start_km), "elevation_gain_m": gain, "notes": segment.get("notes")})
 
-    display_idx = _display_indices(profile)
-    point_pace = np.concatenate(([segment_pace[0]], segment_pace))
+    point_pace = np.empty(len(profile), dtype=float)
+    point_pace[0] = segment_pace[0]
+    point_pace[-1] = segment_pace[-1]
+    if len(point_pace) > 2:
+        point_pace[1:-1] = (segment_pace[:-1] + segment_pace[1:]) / 2.0
+    display_idx = _display_indices(profile, point_pace)
     display_profile = [
         {
             "distance_km": float(profile.iloc[index]["distance_km"]),
@@ -498,6 +593,12 @@ def calculate_race_plan_preview(
         "pipeline_version": RACE_PLANNING_PIPELINE_VERSION,
         "scenario_hash": scenario_hash(scenario, normalized_stops),
         "units": {"distance": "km", "internal_distance": "m", "elevation": "m", "pace": "s/km", "time": "s", "grade": "%"},
+        "model": {
+            "slope_model": "minetti",
+            "minetti_grade_limit_pct": MINETTI_GRADE_LIMIT_PCT,
+            "downhill_max_speed_gain_ratio": MINETTI_DOWNHILL_MAX_SPEED_GAIN_RATIO,
+            "pace_smoothing_window_m": PACE_SMOOTHING_WINDOW_M,
+        },
         "totals": {
             "distance_km": total_distance_km,
             "elevation_gain_m": gain_m,

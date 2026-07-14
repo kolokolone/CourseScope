@@ -1,5 +1,5 @@
 {
-  "pipeline_version": "race-planning-v2",
+  "pipeline_version": "race-planning-v3",
   "scenario_hash": "example-sha256",
   "units": {
     "distance": "km",
@@ -8,6 +8,12 @@
     "pace": "s/km",
     "time": "s",
     "grade": "%"
+  },
+  "model": {
+    "slope_model": "minetti",
+    "minetti_grade_limit_pct": 30.0,
+    "downhill_max_speed_gain_ratio": 0.5,
+    "pace_smoothing_window_m": 60.0
   },
   "totals": {
     "distance_km": 13.4,
@@ -102,8 +108,11 @@
     "adjustment_factor": 1.0
   },
   "quality": {
-    "profile_version": "course-profile-v2",
+    "profile_version": "course-profile-v3",
     "grid_step_m": 10.0,
+    "elevation_smoothing_window_m": 60.0,
+    "robust_grade_window_m": 80.0,
+    "robust_grade_method": "theil_sen_fixed_distance",
     "interpolated_elevation_ratio": 0.0,
     "altimetry_quality": "high",
     "warnings": []

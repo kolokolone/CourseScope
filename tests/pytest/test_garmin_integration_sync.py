@@ -42,14 +42,14 @@ class _FakeGarmin:
 
 
 @pytest.fixture()
-def _isolated_env(tmp_path: Path):
+def _isolated_env(tmp_path: Path, monkeypatch):
     data_dir = tmp_path / "data"
     db_path = tmp_path / "coursescope.sqlite"
 
-    os.environ["COURSESCOPE_DATA_DIR"] = str(data_dir)
-    os.environ["COURSESCOPE_DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("COURSESCOPE_DATABASE_URL", f"sqlite:///{db_path.as_posix()}")
     # Keep initial sync bounded to a single window.
-    os.environ["COURSESCOPE_GARMIN_BACKFILL_START_DATE"] = date.today().isoformat()
+    monkeypatch.setenv("COURSESCOPE_GARMIN_BACKFILL_START_DATE", date.today().isoformat())
     yield
 
 

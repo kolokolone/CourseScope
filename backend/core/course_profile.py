@@ -14,16 +14,16 @@ import numpy as np
 import pandas as pd
 
 
-COURSE_PROFILE_VERSION = "course-profile-v2"
+COURSE_PROFILE_VERSION = "course-profile-v3"
 
 
 @dataclass(frozen=True)
 class CourseProfileThresholds:
     grid_step_m: float = 10.0
-    elevation_smoothing_window_m: float = 50.0
-    robust_grade_window_m: float = 50.0
-    display_grade_window_m: float = 30.0
-    elevation_outlier_window_m: float = 50.0
+    elevation_smoothing_window_m: float = 60.0
+    robust_grade_window_m: float = 80.0
+    display_grade_window_m: float = 40.0
+    elevation_outlier_window_m: float = 60.0
     elevation_outlier_mad_factor: float = 6.0
     minimum_elevation_outlier_m: float = 12.0
     signal_gap_warning_m: float = 100.0
@@ -57,8 +57,83 @@ def _haversine_segment_metres(lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
 
 
 def _odd_window(window_m: float, step_m: float) -> int:
-    points = max(1, int(round(window_m / step_m)))
+    # A window containing N points only spans N - 1 intervals. Including the
+    # endpoint avoids the former 50 m setting silently becoming 40 m on a
+    # 10 m grid.
+    points = max(2, int(math.ceil(window_m / step_m)) + 1)
     return points if points % 2 == 1 else points + 1
+
+
+def _robust_grade_percent(distance_m: np.ndarray, elevation_m: np.ndarray, window_m: float) -> np.ndarray:
+    """Estimate grade with a fixed-distance local Theil-Sen slope.
+
+    The window is shifted at both ends of the route instead of shrinking,
+    which keeps the estimate stable where GPX/FIT altitude noise is often the
+    most visible. The median of all pairwise slopes resists isolated residual
+    altitude errors better than a least-squares regression.
+    """
+
+    size = len(distance_m)
+    result = np.zeros(size, dtype=float)
+    if size < 2:
+        return result
+    total_span = float(distance_m[-1] - distance_m[0])
+    effective_window = min(float(window_m), total_span)
+    half_window = effective_window / 2.0
+    for index, center in enumerate(distance_m):
+        start_m = float(center - half_window)
+        end_m = float(center + half_window)
+        if start_m < distance_m[0]:
+            end_m += float(distance_m[0] - start_m)
+            start_m = float(distance_m[0])
+        if end_m > distance_m[-1]:
+            start_m -= float(end_m - distance_m[-1])
+            end_m = float(distance_m[-1])
+        start_m = max(float(distance_m[0]), start_m)
+        left = int(np.searchsorted(distance_m, start_m, side="left"))
+        right = int(np.searchsorted(distance_m, end_m, side="right"))
+        x_window = distance_m[left:right]
+        y_window = elevation_m[left:right]
+        if len(x_window) < 2:
+            continue
+        dx = x_window[np.newaxis, :] - x_window[:, np.newaxis]
+        dy = y_window[np.newaxis, :] - y_window[:, np.newaxis]
+        upper = np.triu(np.ones_like(dx, dtype=bool), k=1) & (dx > 0)
+        slopes = np.divide(dy, dx, out=np.zeros_like(dy), where=dx != 0)[upper]
+        result[index] = float(np.median(slopes) * 100.0) if slopes.size else 0.0
+    return result
+
+
+def _local_linear_elevation(distance_m: np.ndarray, elevation_m: np.ndarray, window_m: float) -> np.ndarray:
+    """Smooth elevation without flattening a linear slope at route edges."""
+
+    size = len(distance_m)
+    if size < 2:
+        return elevation_m.copy()
+    result = np.empty(size, dtype=float)
+    total_span = float(distance_m[-1] - distance_m[0])
+    effective_window = min(float(window_m), total_span)
+    half_window = effective_window / 2.0
+    for index, center in enumerate(distance_m):
+        start_m = float(center - half_window)
+        end_m = float(center + half_window)
+        if start_m < distance_m[0]:
+            end_m += float(distance_m[0] - start_m)
+            start_m = float(distance_m[0])
+        if end_m > distance_m[-1]:
+            start_m -= float(end_m - distance_m[-1])
+            end_m = float(distance_m[-1])
+        start_m = max(float(distance_m[0]), start_m)
+        left = int(np.searchsorted(distance_m, start_m, side="left"))
+        right = int(np.searchsorted(distance_m, end_m, side="right"))
+        x_window = distance_m[left:right]
+        y_window = elevation_m[left:right]
+        if len(x_window) < 2:
+            result[index] = elevation_m[index]
+            continue
+        slope, intercept = np.polyfit(x_window, y_window, 1)
+        result[index] = float(slope * center + intercept)
+    return result
 
 
 def _to_numeric(df: pd.DataFrame, column: str) -> np.ndarray:
@@ -154,26 +229,18 @@ def prepare_course_profile(
     altitude_outlier = deviation.to_numpy(dtype=float) > outlier_limit
     corrected_elevation = np.where(altitude_outlier, local_median.to_numpy(dtype=float), elevation_grid_raw)
 
-    smooth_window = _odd_window(thresholds.elevation_smoothing_window_m, step_m)
-    smooth_elevation = (
-        pd.Series(corrected_elevation)
-        .rolling(smooth_window, center=True, min_periods=1)
-        .mean()
-        .to_numpy(dtype=float)
+    smooth_elevation = _local_linear_elevation(
+        grid,
+        corrected_elevation,
+        thresholds.elevation_smoothing_window_m,
     )
 
-    ds = np.diff(grid, prepend=grid[0])
-    de = np.diff(smooth_elevation, prepend=smooth_elevation[0])
-    raw_grade = np.divide(de, ds, out=np.zeros_like(de), where=ds > 0) * 100.0
-
-    robust_lag = max(1, int(round(thresholds.robust_grade_window_m / step_m)))
-    robust_grade = np.zeros_like(smooth_elevation)
-    for index in range(len(grid)):
-        left = max(0, index - robust_lag // 2)
-        right = min(len(grid) - 1, index + robust_lag // 2)
-        x_window = grid[left : right + 1]
-        y_window = smooth_elevation[left : right + 1]
-        robust_grade[index] = float(np.polyfit(x_window, y_window, 1)[0] * 100.0) if len(x_window) >= 2 else 0.0
+    raw_grade = np.gradient(elevation_grid_raw, grid, edge_order=1) * 100.0
+    robust_grade = _robust_grade_percent(
+        grid,
+        corrected_elevation,
+        thresholds.robust_grade_window_m,
+    )
     display_window = _odd_window(thresholds.display_grade_window_m, step_m)
     display_grade = (
         pd.Series(robust_grade)
@@ -233,6 +300,7 @@ def prepare_course_profile(
         "grid_step_m": step_m,
         "elevation_smoothing_window_m": thresholds.elevation_smoothing_window_m,
         "robust_grade_window_m": thresholds.robust_grade_window_m,
+        "robust_grade_method": "theil_sen_fixed_distance",
         "interpolated_elevation_ratio": interpolation_ratio,
         "corrected_or_rejected_source_ratio": correction_ratio,
         "corrected_elevation_ratio": altitude_correction_ratio,

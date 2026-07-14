@@ -35,6 +35,16 @@ class RacePlanRepository:
         statement = select(RacePlan).where(RacePlan.id == plan_id, RacePlan.trace_id == trace_id)
         return session.execute(statement).scalars().first()
 
+    def ensure_default(self, session: Session, trace_id: str) -> RacePlan:
+        """Return an existing plan or create the legacy trace default once."""
+
+        plans = self.list_for_trace(session, trace_id)
+        if plans:
+            return plans[0]
+        plan = self.create(session, trace_id, {"name": "Plan principal"})
+        session.flush()
+        return plan
+
     def create(self, session: Session, trace_id: str, data: dict[str, object]) -> RacePlan:
         now = utc_now_iso()
         plan = RacePlan(
