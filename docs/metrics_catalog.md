@@ -845,3 +845,19 @@ Query params: `query` (min 2 car.), `limit` (1-10, defaut 8), `language` (defaut
 | `grade_time_bins[].grade_bin_center_pct` | float | % | centre du bin de pente |
 | `grade_time_bins[].label` | string | - | label format (ex: "2.0%") |
 | `grade_time_bins[].time_s` | float | s | temps passe dans le bin |
+| `pace_histogram.complete_classes[]` | array<object> | - | toutes les classes d'allure servant au contrôle d'intégrité |
+| `pace_histogram.display_classes[]` | array<object> | - | classes après seuil de 90 s et limite de 1,75 × l'allure moyenne |
+| `pace_histogram.total_time_s` | float | s | somme exacte des classes complètes |
+| `pace_histogram.displayed_time_s` | float | s | temps visible dans le graphique |
+| `pace_histogram.hidden_time_s` | float | s | temps masqué par les règles d'affichage |
+| `grade_histogram.complete_classes[]` | array<object> | - | toutes les classes calculées avec la pente robuste commune |
+| `grade_histogram.display_classes[]` | array<object> | - | classes de pente d'au moins 90 s |
+| `grade_histogram.total_time_s` | float | s | somme exacte des classes complètes |
+| `grade_histogram.displayed_time_s` | float | s | temps visible dans le graphique |
+| `grade_histogram.hidden_time_s` | float | s | temps masqué par le seuil d'affichage |
+
+Les champs `pace_time_bins` et `grade_time_bins` sont des alias de compatibilité des `display_classes`. Les nouvelles vues utilisent les deux objets `*_histogram`. La pente n'est plus calculée point à point et les dépassements de ±20 % sont conservés dans des classes extrêmes explicites.
+
+## Series (GET /activity/{id}/series/{series_name})
+
+`x_unit` rend l'unité de l'abscisse explicite : `s` pour `x_axis=time`, `km` pour `x_axis=distance`. Les bornes `from` et `to` utilisent la même unité. Le DataFrame canonique reste stocké en mètres en interne.

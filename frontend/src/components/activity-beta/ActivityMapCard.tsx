@@ -12,9 +12,10 @@ type ActivityMapCardProps = {
   activityId: string;
   pauseItems: unknown;
   hasPower: boolean;
+  highlightedPoint?: { lat: number; lon: number; label?: string } | null;
 };
 
-export function ActivityMapCard({ mapData, activityId, pauseItems, hasPower }: ActivityMapCardProps) {
+export function ActivityMapCard({ mapData, activityId, pauseItems, hasPower, highlightedPoint }: ActivityMapCardProps) {
   const [mapColorMetric, setMapColorMetric] = useState<MapColorMetric>('pace');
 
   const mapObj = mapData as Record<string, unknown>;
@@ -58,6 +59,7 @@ export function ActivityMapCard({ mapData, activityId, pauseItems, hasPower }: A
           pauseItems={pauseItems}
           colorMetric={mapColorMetric}
           height="100%"
+          highlightedPoint={highlightedPoint}
         />
       </div>
     </BetaCard>

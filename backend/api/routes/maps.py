@@ -3,7 +3,7 @@ from typing import Optional
 import pandas as pd
 
 from api._helpers import resolve_activity_df
-from api.schemas import ActivityMapResponse, MapMarker
+from api.schemas import ActivityMapPoint, ActivityMapResponse, MapMarker
 
 
 router = APIRouter()
@@ -40,6 +40,31 @@ def extract_polyline(df, downsample: Optional[int] = None) -> list:
         coords = coords.iloc[::step]
 
     return [[row["lat"], row["lon"]] for _, row in coords.iterrows()]
+
+
+def extract_map_points(df, downsample: Optional[int] = None) -> list[ActivityMapPoint]:
+    """Return coordinates tied to an explicit travelled distance."""
+    required = {"lat", "lon", "distance_m"}
+    if not required.issubset(set(df.columns)):
+        return []
+    points = df[["lat", "lon", "distance_m"]].dropna().copy()
+    if points.empty:
+        return []
+    first_distance_m = float(points["distance_m"].iloc[0])
+    points["distance_m"] = pd.to_numeric(points["distance_m"], errors="coerce") - first_distance_m
+    points = points.dropna().loc[points["distance_m"] >= 0]
+    if downsample and len(points) > downsample:
+        indices = set(range(0, len(points), max(1, len(points) // downsample)))
+        indices.add(len(points) - 1)
+        points = points.iloc[sorted(indices)]
+    return [
+        ActivityMapPoint(
+            distance_km=float(row["distance_m"]) / 1000.0,
+            lat=float(row["lat"]),
+            lon=float(row["lon"]),
+        )
+        for _, row in points.iterrows()
+    ]
 
 
 def extract_markers(df) -> list:
@@ -90,12 +115,14 @@ async def get_activity_map(
 
         bbox = calculate_bounds(df)
         polyline = extract_polyline(df, downsample)
+        points = extract_map_points(df, downsample)
         markers = extract_markers(df)
 
         return ActivityMapResponse(
             bbox=bbox,
             polyline=polyline,
             markers=markers if markers else None,
+            points=points if points else None,
         )
 
     except FileNotFoundError:

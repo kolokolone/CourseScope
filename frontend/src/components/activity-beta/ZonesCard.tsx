@@ -77,6 +77,11 @@ export function ZonesCard({ activity, className }: ZonesCardProps) {
       })
       ;
   }, [zoneKey, hrZones, paceZones, powerZones]);
+  const totalZoneTime = selectedZones.reduce((sum, zone) => sum + Math.max(0, zone.time_s), 0);
+  const normalizedZones = selectedZones.map((zone) => ({
+    ...zone,
+    display_pct: totalZoneTime > 0 ? Math.max(0, zone.time_s) / totalZoneTime * 100 : 0,
+  }));
 
   if (!hasHrZones && !hasPaceZones && !hasPowerZones) {
     return (
@@ -125,15 +130,16 @@ export function ZonesCard({ activity, className }: ZonesCardProps) {
           <p className="text-sm text-slate-500 italic">Aucune donnée de zones pour cet onglet.</p>
         ) : (
           <>
-            <div className="mb-4 h-3 overflow-hidden rounded-full bg-slate-100">
-              {selectedZones.map((zone) => (
+            <div className="mb-4 flex h-4 w-full overflow-hidden rounded-full border border-border bg-muted shadow-inner">
+              {normalizedZones.filter((zone) => zone.display_pct > 0).map((zone) => (
                 <div
                   key={zone.id}
-                  className="inline-block h-full"
+                  className="h-full border-r border-background/60 last:border-r-0"
                   style={{
-                    width: `${zone.time_pct}%`,
+                    flexBasis: `${zone.display_pct}%`,
                     backgroundColor: ZONE_COLORS[zone.id] ?? '#94a3b8',
                   }}
+                  title={`${zone.label} : ${zone.display_pct.toFixed(1)} %`}
                 />
               ))}
             </div>
@@ -148,13 +154,15 @@ export function ZonesCard({ activity, className }: ZonesCardProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {selectedZones.map((zone) => (
+                {normalizedZones.map((zone) => (
                   <tr key={zone.id}>
-                    <td className="py-1.5 pr-2 text-slate-950">Z{zone.id + 1}</td>
+                    <td className="py-1.5 pr-2 text-slate-950">
+                      <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ZONE_COLORS[zone.id] }} />Z{zone.id + 1}</span>
+                    </td>
                     <td className="py-1.5 px-2 text-slate-600">{zone.label}</td>
                     <td className="py-1.5 px-2 text-slate-600 tabular-nums">{zone.range}</td>
                     <td className="py-1.5 px-2 text-right tabular-nums text-slate-950">{formatDurationSeconds(zone.time_s)}</td>
-                    <td className="py-1.5 pl-2 text-right tabular-nums text-slate-600">{Math.round(zone.time_pct)}%</td>
+                    <td className="py-1.5 pl-2 text-right tabular-nums text-slate-600">{zone.display_pct.toFixed(1)}%</td>
                   </tr>
                 ))}
               </tbody>

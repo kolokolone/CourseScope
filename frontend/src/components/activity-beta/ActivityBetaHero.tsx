@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Activity, ArrowLeft, Pencil } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Activity, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRenameActivity } from '@/hooks/useActivity';
 import { getValueAtPath } from '@/components/metrics/metricsUtils';
@@ -42,7 +41,6 @@ function HeroKpiCard({ label, value, unit, sub }: { label: string; value: string
 }
 
 export function ActivityBetaHero({ activity, activityId }: ActivityBetaHeroProps) {
-  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -92,14 +90,6 @@ export function ActivityBetaHero({ activity, activityId }: ActivityBetaHeroProps
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       <div className="bg-gradient-to-br from-primary/10 via-background to-emerald-500/10 p-5 sm:p-7">
-      <button
-        onClick={() => router.push('/activities')}
-        className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Retour aux activités
-      </button>
-
       <div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary">
         <Activity className="h-4 w-4" />Analyse d&apos;activité
       </div>

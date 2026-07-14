@@ -225,11 +225,14 @@ class SeriesRegistry:
         if x_col not in df.columns:
             return cast(pd.DataFrame, df)
             
-        # Application filtres
+        # Public distance ranges are expressed in kilometres. The canonical
+        # dataframe remains metric internally.
+        x_values = sliced_df[x_col] if x_axis == "time" else sliced_df[x_col] / 1000.0
         if from_val is not None:
-            sliced_df = cast(pd.DataFrame, sliced_df.loc[sliced_df[x_col] >= from_val])
+            sliced_df = cast(pd.DataFrame, sliced_df.loc[x_values >= from_val])
         if to_val is not None:
-            sliced_df = cast(pd.DataFrame, sliced_df.loc[sliced_df[x_col] <= to_val])
+            x_values = sliced_df[x_col] if x_axis == "time" else sliced_df[x_col] / 1000.0
+            sliced_df = cast(pd.DataFrame, sliced_df.loc[x_values <= to_val])
             
         return sliced_df
         
@@ -239,7 +242,7 @@ class SeriesRegistry:
         if x_axis == "time":
             x_data = np.asarray(df['elapsed_time_s'].to_numpy())
         else:  # distance
-            x_data = np.asarray(df['distance_m'].to_numpy())
+            x_data = np.asarray(df['distance_m'].to_numpy(), dtype=float) / 1000.0
             
         y_data = np.asarray(df.index.to_numpy())  # placeholder
         
@@ -251,7 +254,7 @@ class SeriesRegistry:
         if x_axis == "time":
             x_data = np.asarray(df['elapsed_time_s'].to_numpy())
         else:  # distance
-            x_data = np.asarray(df['distance_m'].to_numpy())
+            x_data = np.asarray(df['distance_m'].to_numpy(), dtype=float) / 1000.0
             
         # y axis - selon définition registry
         definition = self._registry.get(series_name)
@@ -302,6 +305,7 @@ class SeriesRegistry:
             return SeriesResponse(
                 name=name,
                 x_axis=x_axis_lit,
+                x_unit="s" if x_axis == "time" else "km",
                 unit=definition.unit,
                 x=[],
                 y=[],
@@ -343,6 +347,7 @@ class SeriesRegistry:
         return SeriesResponse(
             name=name,
             x_axis=x_axis_lit,
+            x_unit="s" if x_axis == "time" else "km",
             unit=definition.unit,
             x=x_data.tolist(),
             y=y_list,

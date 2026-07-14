@@ -77,6 +77,7 @@ class SeriesMeta(BaseModel):
 class SeriesResponse(BaseModel):
     name: str
     x_axis: Literal["time", "distance"]
+    x_unit: Literal["s", "km"]
     unit: str
     x: List[float]  # Coordonnées x
     y: List[Optional[float]]  # Coordonnées y (null si valeur manquante/invalidée)
@@ -91,10 +92,17 @@ class MapMarker(BaseModel):
     type: Optional[str] = None
 
 
+class ActivityMapPoint(BaseModel):
+    distance_km: float
+    lat: float
+    lon: float
+
+
 class ActivityMapResponse(BaseModel):
     bbox: List[float]  # [minLon, minLat, maxLon, maxLat]
     polyline: List[List[float]]  # [[lat, lon], ...]
     markers: Optional[List[MapMarker]] = None
+    points: Optional[List[ActivityMapPoint]] = None
 
 
 # Storage metadata
@@ -275,3 +283,5 @@ class RealActivityBinsResponse(BaseModel):
     pace_elevation_series: List[RealActivityPaceElevationPoint]
     pace_time_bins: List[dict]
     grade_time_bins: List[dict]
+    pace_histogram: dict
+    grade_histogram: dict

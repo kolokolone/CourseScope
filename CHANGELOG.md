@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.9] - 2026-07-14
+
+### Fixed
+- **Analyse d'activité** : axe distance contractuellement en kilomètres, axes Y stabilisés, allure bleue, lissage 15 par défaut et synchronisation distance–carte.
+- **Splits et zones** : masquage du dernier split inférieur à 500 m et barre de zones renormalisée sur toute sa largeur.
+- **Progression** : calendrier annuel étendu proportionnellement à la largeur de sa carte.
+- **Garmin Windows/Docker** : suppression du paquet `garth` déprécié et de la collision de dépendances ; accès direct via `garth-ng` avec conservation des jetons existants.
+
+### Changed
+- **Page activité** : `/activities/{activity_id}` utilise désormais la page d'analyse bêta ; retrait des composants de l'ancienne vue et du bouton de retour local.
+- **Histogrammes réels** : « Temps par allure » et « Temps par % de pente » partagent les règles backend et la pente robuste des traces.
+- **Consigne théorique** : fenêtre métrique de lissage portée de 100 m à 150 m, avec conservation exacte du temps.
+
 ## [1.2.8] - 2026-07-14
 
 ### Fixed

@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from enum import Enum, auto
 from pathlib import Path
+from typing import Any
 
 import garth
 import requests
-from garminconnect import Garmin
 
 from config import get_garmin_tokens_dir
 
@@ -26,6 +27,39 @@ class GarminMfaState:
     """
 
     client_state: dict
+
+
+class GarthGarminClient:
+    """Minimal Garmin Connect adapter backed by the maintained garth client."""
+
+    class ActivityDownloadFormat(Enum):
+        ORIGINAL = auto()
+
+    def __init__(self, client: Any):
+        self._client = client
+
+    def get_activities_by_date(self, startdate: str, enddate: str | None = None) -> list[dict[str, Any]]:
+        activities: list[dict[str, Any]] = []
+        start = 0
+        limit = 20
+        while True:
+            params = {"startDate": str(startdate), "start": str(start), "limit": str(limit)}
+            if enddate:
+                params["endDate"] = str(enddate)
+            page = self._client.connectapi(
+                "/activitylist-service/activities/search/activities",
+                params=params,
+            )
+            if not isinstance(page, list) or not page:
+                break
+            activities.extend(item for item in page if isinstance(item, dict))
+            start += limit
+        return activities
+
+    def download_activity(self, activity_id: str, dl_fmt: ActivityDownloadFormat) -> bytes:
+        if dl_fmt is not self.ActivityDownloadFormat.ORIGINAL:
+            raise ValueError(f"Unsupported Garmin download format: {dl_fmt}")
+        return self._client.download(f"/download-service/files/activity/{activity_id}")
 
 
 def ensure_tokens_dir(tokens_dir: Path | None = None) -> Path:
@@ -106,7 +140,7 @@ def resume_login_with_otp(
         raise GarminAuthError(f"Garmin MFA failed: {exc}")
 
 
-def connect_with_tokens(*, tokens_dir: Path | None = None) -> Garmin:
+def connect_with_tokens(*, tokens_dir: Path | None = None) -> GarthGarminClient:
     """Resume an authenticated Garmin client from persisted tokens."""
 
     token_dir = ensure_tokens_dir(tokens_dir)
@@ -115,11 +149,4 @@ def connect_with_tokens(*, tokens_dir: Path | None = None) -> Garmin:
     except Exception as exc:
         raise GarminAuthError(f"No valid Garmin tokens found in {token_dir}: {exc}")
 
-    client = Garmin()
-    try:
-        client.login(tokenstore=str(token_dir))
-    except requests.HTTPError as http_err:
-        status = getattr(getattr(http_err, "response", None), "status_code", None)
-        body = getattr(http_err.response, "text", "")
-        raise GarminAuthError(f"Garmin token login failed (status={status}): {http_err}; body={body[:500]}")
-    return client
+    return GarthGarminClient(garth.client)

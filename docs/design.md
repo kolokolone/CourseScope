@@ -640,18 +640,16 @@ CourseScope est conçu pour afficher beaucoup d'informations sans submerger l'ut
 ### Analyse d'activité (`/activities/[id]`)
 - Conteneur `wide`.
 - Analyse d'une activité réelle uniquement.
-- KPIs en grille 2-4 colonnes.
-- Graphiques Recharts en cartes pleine largeur ou demi-largeur.
-- Carte Leaflet pour le tracé GPS.
-- Zones FC/allure/puissance en tableaux.
-- Sections conditionnelles : Running Dynamics, Puissance avancée.
-
-### Analyse bêta (`/activities-beta/[id]`)
+- La page bêta est devenue la page canonique ; `/activities-beta/[id]` reste un alias de compatibilité.
 - Le hero reprend le conteneur de préparation de trace : carte `rounded-2xl`, bordure et ombre légères, fond analytique en dégradé discret `primary/background/emerald`, libellé de domaine avec icône, titre renommable et métadonnées.
+- Le hero ne duplique pas la navigation globale avec un bouton « Retour aux activités ».
 - Les KPI propres à l'activité restent inchangés et sont placés dans la grille du hero.
 - « Analyse principale » affiche uniquement l'allure, la fréquence cardiaque et l'altitude, synchronisées par interpolation sur la distance plutôt que par index.
-- Axe X numérique en kilomètres entiers avec espacement dynamique ; allure à gauche, fréquence cardiaque à droite avec une borne basse à `80 %` de la FC minimale observée.
+- L'API fournit l'axe X en kilomètres explicites ; le graphique affiche des graduations entières et dynamiques. L'allure bleue est à gauche, la fréquence cardiaque à droite avec une borne basse à `80 %` de la FC minimale observée.
 - L'altitude utilise un axe masqué indépendant sur toute la hauteur et un dégradé vert ; la fréquence cardiaque ne possède aucun remplissage.
+- Le lissage `15` est actif par défaut. Le survol du graphique sélectionne le point cartographique le plus proche par distance explicite.
+- Les histogrammes « Temps par allure » et « Temps par % de pente » utilisent le calcul backend commun aux traces et précèdent « Allure vs Pente ».
+- Un dernier split strictement inférieur à 500 m est masqué. La barre de zones renormalise les durées positives pour toujours occuper exactement sa largeur.
 
 ### Traces GPX (`/traces`, `/traces/[id]`)
 - Conteneur `default` (liste), `wide` (analyse).
@@ -665,6 +663,7 @@ CourseScope est conçu pour afficher beaucoup d'informations sans submerger l'ut
 - Conteneur `default`.
 - Graphiques multi-activités (tendances, best efforts, HR at pace, etc.).
 - Filtres par période et type d'activité.
+- Le calendrier annuel utilise toute la largeur disponible ; les cellules restent carrées et conservent leurs proportions.
 
 ### Objectifs (`/goals`)
 - Conteneur `default`.

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useMapData, useRealActivity } from '@/hooks/useActivity';
@@ -17,11 +18,35 @@ import { PaceVsGradeCard } from './PaceVsGradeCard';
 import { ActivityAccordions } from './ActivityAccordions';
 import { BetaSkeleton } from './BetaSkeleton';
 import { BetaError } from './BetaError';
+import { ActivityDistributionCharts } from './ActivityDistributionCharts';
+
+export function findMapPointAtDistance(
+  points: Array<{ distance_km: number; lat: number; lon: number }> | undefined,
+  distanceKm: number | null,
+) {
+  if (!points?.length || distanceKm === null) return null;
+  let low = 0;
+  let high = points.length - 1;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (points[middle]!.distance_km < distanceKm) low = middle + 1;
+    else high = middle;
+  }
+  const right = points[low]!;
+  const left = points[Math.max(0, low - 1)]!;
+  const point = Math.abs(left.distance_km - distanceKm) <= Math.abs(right.distance_km - distanceKm) ? left : right;
+  return { lat: point.lat, lon: point.lon, label: `${distanceKm.toFixed(2)} km` };
+}
 
 export function ActivityBetaPage({ activityId }: { activityId: string }) {
   const router = useRouter();
   const { data: activity, isLoading, error, refetch } = useRealActivity(activityId);
   const { data: mapData } = useMapData(activityId);
+  const [hoveredDistanceKm, setHoveredDistanceKm] = useState<number | null>(null);
+  const highlightedPoint = useMemo(
+    () => findMapPointAtDistance(mapData?.points, hoveredDistanceKm),
+    [mapData?.points, hoveredDistanceKm],
+  );
 
   const handleSectionClick = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -59,7 +84,7 @@ export function ActivityBetaPage({ activityId }: { activityId: string }) {
 
       {availableSeries.length > 0 && (
         <section id="analyse" className="scroll-mt-28">
-          <MainAnalysisCard activityId={activityId} seriesAvailable={availableSeries} />
+          <MainAnalysisCard activityId={activityId} seriesAvailable={availableSeries} onDistanceHover={setHoveredDistanceKm} />
         </section>
       )}
 
@@ -69,6 +94,7 @@ export function ActivityBetaPage({ activityId }: { activityId: string }) {
           activityId={activityId}
           pauseItems={getValueAtPath(activity, 'pauses.items')}
           hasPower={hasPower}
+          highlightedPoint={highlightedPoint}
         />
       </section>
 
@@ -80,6 +106,10 @@ export function ActivityBetaPage({ activityId }: { activityId: string }) {
           <ZonesCard activity={activity} />
         </section>
       </div>
+
+      <section className="scroll-mt-28">
+        <ActivityDistributionCharts activityId={activityId} />
+      </section>
 
       <section id="allure-pente" className="scroll-mt-28">
         <PaceVsGradeCard activityId={activityId} />

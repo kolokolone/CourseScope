@@ -110,6 +110,7 @@ export interface SeriesMeta {
 export interface SeriesResponse {
   name: string;
   x_axis: 'time' | 'distance';
+  x_unit: 's' | 'km';
   unit: string;
   x: number[];
   y: Array<number | null>;
@@ -127,6 +128,7 @@ export interface ActivityMapResponse {
   bbox?: number[];
   polyline?: number[][];
   markers?: MapMarker[];
+  points?: Array<{ distance_km: number; lat: number; lon: number }>;
 }
 
 export interface ActivityMetadata {
@@ -492,6 +494,8 @@ export interface RealActivityBinsResponse {
   pace_elevation_series: RealActivityPaceElevationPoint[];
   pace_time_bins: PaceTimeBin[];
   grade_time_bins: GradeTimeBin[];
+  pace_histogram: RaceHistogram<PaceTimeBin>;
+  grade_histogram: RaceHistogram<GradeTimeBin>;
 }
 
 export interface ChartPoint {

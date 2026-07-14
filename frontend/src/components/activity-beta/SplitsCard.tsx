@@ -10,7 +10,7 @@ type SplitsCardProps = {
   className?: string;
 };
 
-type SplitRow = {
+export type SplitRow = {
   split_index: number;
   distance_km: number;
   pace_s_per_km: number | null;
@@ -18,6 +18,14 @@ type SplitRow = {
   elev_delta_m: number | null;
   time_s: number | null;
 };
+
+export function hideShortFinalSplit(rows: SplitRow[]): SplitRow[] {
+  if (rows.length === 0) return rows;
+  const last = rows[rows.length - 1];
+  return last && isSplitNumber(last.distance_km) && last.distance_km < 0.5
+    ? rows.slice(0, -1)
+    : rows;
+}
 
 function isSplitNumber(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
@@ -38,7 +46,7 @@ function getRegularityLabel(cv: number): string {
 
 export function SplitsCard({ activity, className }: SplitsCardProps) {
   const rawRows = getValueAtPath(activity, 'splits.rows');
-  const splits: SplitRow[] = Array.isArray(rawRows) ? (rawRows as SplitRow[]) : [];
+  const splits = hideShortFinalSplit(Array.isArray(rawRows) ? (rawRows as SplitRow[]) : []);
 
   const { bestPace, worstPace, bestIdx, worstIdx, avgPace, spreadText, regularityLabel } = useMemo(() => {
     const valid = splits

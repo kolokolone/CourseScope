@@ -1,5 +1,5 @@
 {
-  "pipeline_version": "race-planning-v4",
+  "pipeline_version": "race-planning-v5",
   "scenario_hash": "example-sha256",
   "units": {
     "distance": "km",

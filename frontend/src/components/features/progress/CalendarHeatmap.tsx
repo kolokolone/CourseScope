@@ -183,11 +183,11 @@ export default function CalendarHeatmap() {
           </div>
 
           <div className="flex-1 overflow-x-auto">
-            <div style={{ width: gridWidth, minWidth: gridWidth }}>
+            <div style={{ width: '100%', minWidth: gridWidth }}>
               {/* Labels des mois */}
               <div className="relative mb-1 h-[16px]">
                 {monthLabels.map(({ colIndex, label }, i) => (
-                  <div key={i} className="absolute text-[10px] text-muted-foreground" style={{ left: colIndex * (CELL + GAP) }}>
+                  <div key={i} className="absolute text-[10px] text-muted-foreground" style={{ left: `${(colIndex / numCols) * 100}%` }}>
                     {label}
                   </div>
                 ))}
@@ -197,21 +197,20 @@ export default function CalendarHeatmap() {
               <div
                 className="grid"
                 style={{
-                  gridTemplateColumns: `repeat(${numCols}, ${CELL}px)`,
-                  gridTemplateRows: `repeat(7, ${CELL}px)`,
+                  gridTemplateColumns: `repeat(${numCols}, minmax(${CELL}px, 1fr))`,
+                  gridTemplateRows: 'repeat(7, minmax(0, 1fr))',
                   gap: `${GAP}px`,
                 }}
               >
                 {Array.from({ length: 7 }, (_, row) =>
                   Array.from({ length: numCols }, (_, col) => {
                     const day = col < grid.length ? grid[col][row] : null;
-                    if (!day) return <div key={`${col}-${row}`} className="rounded-[2px]" style={{ width: CELL, height: CELL }} />;
+                    if (!day) return <div key={`${col}-${row}`} className="aspect-square w-full rounded-[2px]" />;
                     const level = heatLevel(day);
                     return (
                       <div
                         key={`${col}-${row}`}
-                        className={cn('rounded-[2px]', HEAT_COLORS[level])}
-                        style={{ width: CELL, height: CELL }}
+                        className={cn('aspect-square w-full rounded-[2px]', HEAT_COLORS[level])}
                         title={`${formatDayLabel(day.date)}${day.has_activity ? ` - ${formatNumber(day.distance_km ?? 0, { decimals: 1 })} km` : ''}`}
                       />
                     );

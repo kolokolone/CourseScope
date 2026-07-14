@@ -113,6 +113,7 @@ fi
 source .venv/bin/activate
 
 python -m pip install --upgrade pip
+python -m pip uninstall -y garth >/dev/null 2>&1 || true
 pip install -r requirements.txt
 
 echo "[INFO] Starting API (reload): http://localhost:8000"

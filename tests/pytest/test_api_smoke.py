@@ -53,8 +53,31 @@ def test_load_activity_and_fetch_endpoints():
         assert series_resp.status_code == 200
         series_payload = series_resp.json()
         assert series_payload["name"] == "speed"
+        assert series_payload["x_unit"] == "s"
+
+        distance_series_resp = client.get(
+            f"/activity/{activity_id}/series/speed",
+            params={"x_axis": "distance"},
+        )
+        assert distance_series_resp.status_code == 200
+        distance_series = distance_series_resp.json()
+        assert distance_series["x_unit"] == "km"
+        assert max(distance_series["x"]) < 100.0
 
         map_resp = client.get(f"/activity/{activity_id}/map")
         assert map_resp.status_code == 200
         map_payload = map_resp.json()
         assert "polyline" in map_payload
+        assert map_payload["points"]
+        assert map_payload["points"][0]["distance_km"] == 0.0
+
+        bins_resp = client.get(f"/activity/{activity_id}/real-bins")
+        assert bins_resp.status_code == 200
+        bins = bins_resp.json()
+        for name in ("pace_histogram", "grade_histogram"):
+            histogram = bins[name]
+            assert abs(
+                sum(row["time_s"] for row in histogram["complete_classes"])
+                - histogram["total_time_s"]
+            ) < 1e-6
+            assert all(row["time_s"] >= 90.0 for row in histogram["display_classes"])

@@ -12,6 +12,14 @@ if errorlevel 1 (
   goto :fail
 )
 
+if exist "%PY%" (
+  "%PY%" -c "import sys" >nul 2>&1
+  if errorlevel 1 (
+    echo [WARN] Existing virtual environment is invalid, recreating it...
+    rmdir /S /Q "%VENV_DIR%"
+  )
+)
+
 if not exist "%PY%" (
   echo [INFO] Creating virtual environment: "%VENV_DIR%"
   python -m venv "%VENV_DIR%"
@@ -19,6 +27,9 @@ if not exist "%PY%" (
 )
 
 echo [INFO] Installing backend dependencies...
+REM garth-ng uses the same import package as the deprecated garth distribution.
+REM Remove the legacy distribution first to avoid a mixed Windows venv.
+"%PY%" -m pip uninstall -y garth >nul 2>&1
 "%PY%" -m pip install -r "%~dp0requirements.txt"
 if errorlevel 1 goto :fail
 

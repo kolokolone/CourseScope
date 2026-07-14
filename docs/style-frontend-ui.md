@@ -201,6 +201,10 @@ Fallback dynamique actuel:
 - `/activities/[id]` -> title `Activite`, subtitle `Analyse reelle`, container `wide`
 - `/traces/[id]` -> title `Trace`, subtitle `Préparation de course`, container `wide`
 
+### Hero analytique d'activité
+
+Le hero local de `/activities/[id]` et celui de `/traces/[id]` partagent le même langage visuel : carte `rounded-2xl`, bordure et ombre légères, dégradé discret `primary/background/emerald`, libellé de domaine, titre renommable puis grille de KPI. Il s'agit d'un contexte métier, pas d'un second header global. Il ne doit contenir ni bouton « retour », ni duplication de la navigation fournie par `AppShell`.
+
 ---
 
 ## 8) Regles de composition d une page

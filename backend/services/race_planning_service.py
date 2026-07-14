@@ -12,19 +12,16 @@ import numpy as np
 import pandas as pd
 
 from core.course_profile import CourseProfile, prepare_course_profile
+from core.time_histograms import build_grade_histogram, build_pace_histogram
 from services.weather import NullWeatherProvider, WeatherProvider
 
 
-RACE_PLANNING_PIPELINE_VERSION = "race-planning-v4"
-PACE_BIN_WIDTH_S = 15.0
-DISPLAY_MIN_BIN_TIME_S = 90.0
-DISPLAY_MAX_PACE_FACTOR = 1.75
-GRADE_DISPLAY_LIMIT_PCT = 20.0
+RACE_PLANNING_PIPELINE_VERSION = "race-planning-v5"
 MINETTI_GRADE_LIMIT_PCT = 30.0
 MINETTI_UPHILL_COMPRESSION_EXPONENT = 0.80
 DOWNHILL_GRADE_POINTS_PCT = np.array([-30.0, -25.0, -18.0, -15.0, -12.0, -10.0, -8.0, -5.0, -3.0, 0.0])
 DOWNHILL_PACE_RATIO_POINTS = np.array([1.20, 1.10, 1.00, 0.95, 0.90, 0.88, 0.90, 0.94, 0.97, 1.00])
-PACE_SMOOTHING_WINDOW_M = 100.0
+PACE_SMOOTHING_WINDOW_M = 150.0
 
 
 def minetti_cost_ratio(grade_pct: np.ndarray | float) -> np.ndarray:
@@ -193,94 +190,6 @@ def _objective_base_pace(
             raise ValueError("An effort objective is a ratio between 0.30 and 1.05")
         return 3600.0 / (float(vma_kmh) * effort_ratio)
     raise ValueError(f"Unsupported objective type: {objective_type}")
-
-
-def _format_pace_bin(floor_s: float) -> str:
-    end_s = floor_s + PACE_BIN_WIDTH_S
-    return f"{int(floor_s // 60)}:{int(floor_s % 60):02d}-{int(end_s // 60)}:{int(end_s % 60):02d}/km"
-
-
-def _pace_histogram(pace: np.ndarray, segment_time_s: np.ndarray, reference_pace: float) -> dict[str, object]:
-    floors = np.floor(pace / PACE_BIN_WIDTH_S) * PACE_BIN_WIDTH_S
-    grouped: dict[float, float] = {}
-    for floor_s, seconds in zip(floors, segment_time_s):
-        if math.isfinite(float(floor_s)) and math.isfinite(float(seconds)) and seconds >= 0:
-            grouped[float(floor_s)] = grouped.get(float(floor_s), 0.0) + float(seconds)
-    complete = [
-        {
-            "pace_bin_floor_s_per_km": floor_s,
-            "pace_bin_ceiling_s_per_km": floor_s + PACE_BIN_WIDTH_S,
-            "label": _format_pace_bin(floor_s),
-            "time_s": seconds,
-        }
-        for floor_s, seconds in sorted(grouped.items())
-    ]
-    display = [
-        item
-        for item in complete
-        if float(item["time_s"]) >= DISPLAY_MIN_BIN_TIME_S
-        and float(item["pace_bin_floor_s_per_km"]) <= reference_pace * DISPLAY_MAX_PACE_FACTOR
-    ]
-    total = float(sum(float(item["time_s"]) for item in complete))
-    displayed = float(sum(float(item["time_s"]) for item in display))
-    return {
-        "unit": "s",
-        "bin_width_s_per_km": PACE_BIN_WIDTH_S,
-        "display_min_time_s": DISPLAY_MIN_BIN_TIME_S,
-        "display_max_pace_factor": DISPLAY_MAX_PACE_FACTOR,
-        "complete_classes": complete,
-        "display_classes": display,
-        "total_time_s": total,
-        "displayed_time_s": displayed,
-        "hidden_time_s": total - displayed,
-    }
-
-
-def _grade_histogram(grades: np.ndarray, distance_km: np.ndarray, segment_time_s: np.ndarray) -> dict[str, object]:
-    keys: list[float | str] = []
-    for grade in grades:
-        if grade <= -GRADE_DISPLAY_LIMIT_PCT:
-            keys.append("low_overflow")
-        elif grade >= GRADE_DISPLAY_LIMIT_PCT:
-            keys.append("high_overflow")
-        else:
-            keys.append(float(np.round(grade * 2.0) / 2.0))
-    grouped: dict[float | str, dict[str, float]] = {}
-    for key, distance, seconds in zip(keys, distance_km, segment_time_s):
-        bucket = grouped.setdefault(key, {"time_s": 0.0, "distance_km": 0.0})
-        bucket["time_s"] += float(seconds)
-        bucket["distance_km"] += float(distance)
-    ordered_keys = sorted(grouped, key=lambda value: -999.0 if value == "low_overflow" else 999.0 if value == "high_overflow" else float(value))
-    total = float(np.sum(segment_time_s))
-    complete = []
-    for key in ordered_keys:
-        center = -GRADE_DISPLAY_LIMIT_PCT if key == "low_overflow" else GRADE_DISPLAY_LIMIT_PCT if key == "high_overflow" else float(key)
-        label = f"≤ −{GRADE_DISPLAY_LIMIT_PCT:.0f} %" if key == "low_overflow" else f"≥ +{GRADE_DISPLAY_LIMIT_PCT:.0f} %" if key == "high_overflow" else f"{center:+.1f} %"
-        seconds = grouped[key]["time_s"]
-        complete.append(
-            {
-                "grade_bin_center_pct": center,
-                "label": label,
-                "is_overflow": isinstance(key, str),
-                "time_s": seconds,
-                "distance_km": grouped[key]["distance_km"],
-                "time_percent": seconds / total * 100.0 if total > 0 else 0.0,
-            }
-        )
-    display = [item for item in complete if float(item["time_s"]) >= DISPLAY_MIN_BIN_TIME_S]
-    displayed = float(sum(float(item["time_s"]) for item in display))
-    return {
-        "time_unit": "s",
-        "distance_unit": "km",
-        "bin_width_pct": 0.5,
-        "visual_range_pct": [-GRADE_DISPLAY_LIMIT_PCT, GRADE_DISPLAY_LIMIT_PCT],
-        "display_min_time_s": DISPLAY_MIN_BIN_TIME_S,
-        "complete_classes": complete,
-        "display_classes": display,
-        "total_time_s": total,
-        "displayed_time_s": displayed,
-        "hidden_time_s": total - displayed,
-    }
 
 
 def _cumulative_at(distance_m: np.ndarray, cumulative_s: np.ndarray, target_m: float) -> float:
@@ -566,8 +475,8 @@ def calculate_race_plan_preview(
     elevation_diff = np.diff(profile["elevation_m"].to_numpy(dtype=float))
     gain_m = float(np.clip(elevation_diff, 0.0, None).sum())
     loss_m = float(-np.clip(elevation_diff, None, 0.0).sum())
-    pace_histogram = _pace_histogram(segment_pace, segment_time, base_pace)
-    grade_histogram = _grade_histogram(grades, segment_distance_km, segment_time)
+    pace_histogram = build_pace_histogram(segment_pace, segment_time, base_pace)
+    grade_histogram = build_grade_histogram(grades, segment_distance_km, segment_time)
     alerts = list(prepared.quality["warnings"])
     if np.any(np.abs(grades) >= 20.0):
         alerts.append({"code": "extreme_grade", "message": "Le parcours contient des pentes robustes superieures a 20 %."})

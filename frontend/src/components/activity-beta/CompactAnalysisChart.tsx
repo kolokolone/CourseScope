@@ -14,6 +14,7 @@ import type { SeriesInfo } from '@/types/api';
 type CompactAnalysisChartProps = {
   activityId: string;
   seriesAvailable: SeriesInfo[];
+  onDistanceHover?: (distanceKm: number | null) => void;
 };
 
 const MAX_POINTS = 3000;
@@ -74,8 +75,8 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   );
 }
 
-export function CompactAnalysisChart({ activityId, seriesAvailable }: CompactAnalysisChartProps) {
-  const [smoothWindow, setSmoothWindow] = React.useState(0);
+export function CompactAnalysisChart({ activityId, seriesAvailable, onDistanceHover }: CompactAnalysisChartProps) {
+  const [smoothWindow, setSmoothWindow] = React.useState(15);
 
   const availableNames = React.useMemo(() => new Set(seriesAvailable.map((s) => s.name)), [seriesAvailable]);
 
@@ -134,6 +135,15 @@ export function CompactAnalysisChart({ activityId, seriesAvailable }: CompactAna
   const hasAny = hasPace || hasHr || hasElevation;
   const hrValues = mergedData.flatMap((row) => typeof row.hr === 'number' ? [row.hr] : []);
   const hrDomainMin = hrValues.length > 0 ? Math.max(0, Math.floor(Math.min(...hrValues) * 0.8)) : 0;
+  const paceValues = mergedData.flatMap((row) => typeof row.pace === 'number' ? [row.pace] : []);
+  const paceDomain: [number, number] | undefined = paceValues.length > 0
+    ? (() => {
+        const min = Math.min(...paceValues);
+        const max = Math.max(...paceValues);
+        const padding = Math.max(5, (max - min) * 0.08);
+        return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
+      })()
+    : undefined;
   const maxDistance = mergedData.at(-1)?.distance_km ?? 0;
   const distanceStep = [1, 2, 5, 10, 20, 50, 100].find((step) => maxDistance / step <= 10) ?? 100;
   const distanceTicks = Array.from({ length: Math.floor(maxDistance / distanceStep) + 1 }, (_, index) => index * distanceStep);
@@ -166,7 +176,16 @@ export function CompactAnalysisChart({ activityId, seriesAvailable }: CompactAna
       </div>
       <div className="h-[500px]">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={mergedData} margin={{ top: 8, right: 4, bottom: 8, left: 4 }}>
+          <ComposedChart
+            data={mergedData}
+            margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            onMouseMove={(state) => {
+              const index = Number(state?.activeTooltipIndex);
+              const distance = Number.isInteger(index) ? mergedData[index]?.distance_km : undefined;
+              onDistanceHover?.(typeof distance === 'number' ? distance : null);
+            }}
+            onMouseLeave={() => onDistanceHover?.(null)}
+          >
             <defs>
               <linearGradient id={elevationGradientId} x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0" stopColor={CHART_COLORS.elevation} stopOpacity={0.35} />
@@ -176,15 +195,15 @@ export function CompactAnalysisChart({ activityId, seriesAvailable }: CompactAna
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="distance_km" type="number" domain={['dataMin', 'dataMax']} ticks={distanceTicks} tickFormatter={(v: number) => `${Math.round(v)} km`} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
             {hasPace && (
-              <YAxis yAxisId="pace" orientation="left" tick={{ fontSize: 11, fill: CHART_COLORS.pace }} domain={['auto', 'auto']} reversed tickFormatter={(v: number) => formatPaceSecondsPerKm(v)} />
+              <YAxis yAxisId="pace" orientation="left" width={64} tick={{ fontSize: 11, fill: CHART_COLORS.theoreticalPace }} domain={paceDomain} reversed tickFormatter={(v: number) => formatPaceSecondsPerKm(v)} />
             )}
             {hasHr && (
-              <YAxis yAxisId="hr" orientation="right" tick={{ fontSize: 11, fill: CHART_COLORS.heartRate }} domain={[hrDomainMin, 'auto']} />
+              <YAxis yAxisId="hr" orientation="right" width={52} tick={{ fontSize: 11, fill: CHART_COLORS.heartRate }} domain={[hrDomainMin, 'auto']} />
             )}
             {hasElevation && <YAxis yAxisId="elevation" hide domain={['dataMin', 'dataMax']} />}
             <Tooltip content={<CustomTooltip />} />
             {hasElevation && <Area yAxisId="elevation" dataKey="elevation" stroke={CHART_COLORS.elevation} fill={`url(#${elevationGradientId})`} strokeWidth={2} dot={false} connectNulls />}
-            {hasPace && <Line yAxisId="pace" dataKey="pace" stroke={CHART_COLORS.pace} strokeWidth={2} dot={false} connectNulls />}
+            {hasPace && <Line yAxisId="pace" dataKey="pace" stroke={CHART_COLORS.theoreticalPace} strokeWidth={2} dot={false} connectNulls />}
             {hasHr && <Line yAxisId="hr" dataKey="hr" stroke={CHART_COLORS.heartRate} strokeWidth={2} dot={false} connectNulls />}
           </ComposedChart>
         </ResponsiveContainer>
