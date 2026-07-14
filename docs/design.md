@@ -33,10 +33,10 @@ colors:
   semantic-warning: "#ca8a04"
   semantic-info: "#2563eb"
   chart-running: "#1d3557"
-  chart-theoretical: "#e76f51"
+  chart-theoretical: "#2563eb"
   chart-pace: "#2a9d8f"
   chart-heartrate: "#e63946"
-  chart-elevation: "#6b705c"
+  chart-elevation: "#16a34a"
   chart-power: "#f4a261"
 
 typography:
@@ -355,10 +355,10 @@ Le design s'articule autour de :
 ### Chart Colors (data visualization only)
 Ces couleurs sont **exclusivement réservées aux graphiques** — jamais utilisées dans l'UI structurelle.
 - **Running** (`{colors.chart-running}`) : Allure réelle, données GAP. #1d3557 (identique à primary pour cohérence).
-- **Theoretical** (`{colors.chart-theoretical}`) : Prévisions, allure théorique. Orange terracotta (#e76f51).
+- **Theoretical** (`{colors.chart-theoretical}`) : Prévisions, allure théorique. Bleu (#2563eb).
 - **Pace** (`{colors.chart-pace}`) : Graphiques d'allure. Teal (#2a9d8f).
 - **Heart Rate** (`{colors.chart-heartrate}`) : Fréquence cardiaque. Rouge (#e63946).
-- **Elevation** (`{colors.chart-elevation}`) : Dénivelé, altitude. Gris-brun (#6b705c).
+- **Elevation** (`{colors.chart-elevation}`) : Dénivelé, altitude. Vert (#16a34a).
 - **Power** (`{colors.chart-power}`) : Puissance (watt). Orange (#f4a261).
 
 ### Color Usage Rules
@@ -646,6 +646,13 @@ CourseScope est conçu pour afficher beaucoup d'informations sans submerger l'ut
 - Zones FC/allure/puissance en tableaux.
 - Sections conditionnelles : Running Dynamics, Puissance avancée.
 
+### Analyse bêta (`/activities-beta/[id]`)
+- Le hero reprend le conteneur de préparation de trace : carte `rounded-2xl`, bordure et ombre légères, fond analytique en dégradé discret `primary/background/emerald`, libellé de domaine avec icône, titre renommable et métadonnées.
+- Les KPI propres à l'activité restent inchangés et sont placés dans la grille du hero.
+- « Analyse principale » affiche uniquement l'allure, la fréquence cardiaque et l'altitude, synchronisées par interpolation sur la distance plutôt que par index.
+- Axe X numérique en kilomètres entiers avec espacement dynamique ; allure à gauche, fréquence cardiaque à droite avec une borne basse à `80 %` de la FC minimale observée.
+- L'altitude utilise un axe masqué indépendant sur toute la hauteur et un dégradé vert ; la fréquence cardiaque ne possède aucun remplissage.
+
 ### Traces GPX (`/traces`, `/traces/[id]`)
 - Conteneur `default` (liste), `wide` (analyse).
 - Import partagé entre l'accueil et `/traces` via `TraceUpload`.
@@ -689,7 +696,7 @@ CourseScope est conçu pour afficher beaucoup d'informations sans submerger l'ut
 - **Ne pas** dupliquer des boutons de navigation globale dans les pages.
 - **Ne pas** hardcoder des couleurs UI alors que le token CSS existe.
 - **Ne pas** utiliser les couleurs de graphiques dans l'UI structurelle.
-- **Ne pas** introduire de dégradés, d'ombres portées lourdes, ou d'effets "glassmorphism".
+- **Ne pas** introduire de dégradés hors du hero analytique documenté et des remplissages de courbes ; éviter les ombres portées lourdes et les effets "glassmorphism".
 - **Ne pas** ajouter d'illustrations décoratives ou de stock photos.
 - **Ne pas** implémenter de dark mode — l'application est conçue pour le light mode.
 - **Ne pas** créer de nouveau composant de layout sans passer par `AppShell`.

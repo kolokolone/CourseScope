@@ -84,10 +84,11 @@ class TestRacePlanningPipeline(unittest.TestCase):
         extended_ratios = minetti_cost_ratio(np.array([-15.0, -10.0, -5.0, 15.0, 20.0, 25.0]))
         self.assertEqual(len(set(np.round(extended_ratios[:3], 6))), 3)
         self.assertEqual(len(set(np.round(extended_ratios[3:], 6))), 3)
-        practical_downhill = minetti_pace_ratio(np.array([-20.0, -18.0, -10.0, -5.0]))
-        self.assertTrue(np.all(practical_downhill > (1.0 / 1.5)))
-        self.assertTrue(np.all(practical_downhill < 1.0))
-        self.assertGreater(float(practical_downhill[1]), float(minetti_cost_ratio(-18.0)))
+        expected_grades = np.array([0.0, -3.0, -5.0, -8.0, -10.0, -12.0, -15.0, -18.0, -25.0, -30.0])
+        expected_ratios = np.array([1.00, 0.97, 0.94, 0.90, 0.88, 0.90, 0.95, 1.00, 1.10, 1.20])
+        self.assertTrue(np.allclose(minetti_pace_ratio(expected_grades), expected_ratios, atol=1e-12))
+        uphill = minetti_pace_ratio(np.array([5.0, 10.0, 20.0]))
+        self.assertTrue(np.allclose(uphill, minetti_cost_ratio(np.array([5.0, 10.0, 20.0])) ** 0.80))
         preview = calculate_race_plan_preview(synthetic_course(), scenario={"name": "chrono", "objective_type": "time", "target_value": 3600.0, "slope_model": "minetti"})
         self.assertAlmostEqual(float(preview["totals"]["running_time_s"]), 3600.0, delta=1.0)
 
@@ -103,14 +104,26 @@ class TestRacePlanningPipeline(unittest.TestCase):
             scenario={"name": "descente", "objective_type": "pace", "target_value": 300.0, "slope_model": "minetti"},
         )
         paces = np.array([float(point["pace_s_per_km"]) for point in preview["profile"]])
-        self.assertGreater(float(np.min(paces)), 200.0)
-        self.assertLess(float(np.max(paces)), 300.0)
+        self.assertAlmostEqual(float(np.mean(paces)), 300.0, delta=0.5)
 
         raw = np.array([300.0, 300.0, 150.0, 300.0, 300.0])
         distances = np.full(len(raw), 0.01)
         smoothed = _smooth_pace_by_distance(raw, distances, window_m=40.0)
         self.assertLess(float(np.ptp(smoothed)), float(np.ptp(raw)))
         self.assertAlmostEqual(float(np.sum(smoothed * distances)), float(np.sum(raw * distances)), places=9)
+
+        dense_distances = np.full(200, 0.005)
+        sparse_distances = np.full(100, 0.01)
+        dense_raw = np.where(np.arange(200) < 100, 240.0, 420.0)
+        sparse_raw = np.where(np.arange(100) < 50, 240.0, 420.0)
+        dense_smoothed = _smooth_pace_by_distance(dense_raw, dense_distances, window_m=100.0)
+        sparse_smoothed = _smooth_pace_by_distance(sparse_raw, sparse_distances, window_m=100.0)
+        dense_midpoints_m = np.cumsum(dense_distances * 1000.0) - dense_distances * 500.0
+        sparse_midpoints_m = np.cumsum(sparse_distances * 1000.0) - sparse_distances * 500.0
+        dense_at_sparse_center = np.interp(sparse_midpoints_m[50], dense_midpoints_m, dense_smoothed)
+        self.assertAlmostEqual(float(dense_at_sparse_center), float(sparse_smoothed[50]), delta=0.1)
+        self.assertAlmostEqual(float(np.sum(dense_smoothed * dense_distances)), float(np.sum(dense_raw * dense_distances)), places=9)
+        self.assertAlmostEqual(float(np.sum(sparse_smoothed * sparse_distances)), float(np.sum(sparse_raw * sparse_distances)), places=9)
 
         size = 5_000
         profile = pd.DataFrame({

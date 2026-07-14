@@ -116,11 +116,13 @@ Le stockage et l'API utilisent une valeur numérique canonique :
 
 Pour un temps cible, une dichotomie résout l'allure de base afin que la somme des temps segmentaires corresponde au temps demandé avec une tolérance inférieure à une seconde.
 
-Le polynôme Minetti brut décrit un coût énergétique. Appliqué directement comme consigne de vitesse, son minimum autour de `−18 %` peut presque doubler la vitesse d'une cible sur le plat. Le pipeline conserve ce coût, puis transforme le gain de vitesse en descente avec une saturation continue dont l'asymptote est `+50 %`. Il n'existe donc ni écrêtage brutal ni plateau. Les montées utilisent le ratio Minetti brut. La pente d'entrée reste limitée à `−30 % / +30 %`.
+Le polynôme Minetti brut décrit un coût énergétique. Sur les pentes positives, CourseScope conserve sa forme mais compresse son effet avec `ratio_corrigé = ratio_minetti ** 0.80`. Le coefficient `0.80` est un exposant, pas une réduction de `0,80 %`.
 
-Le polynôme et son interprétation énergétique proviennent de Minetti et al., *Energy cost of walking and running at extreme uphill and downhill slopes*, Journal of Applied Physiology 93(3), 2002 ([DOI 10.1152/japplphysiol.01177.2001](https://doi.org/10.1152/japplphysiol.01177.2001)). La saturation descendante à `+50 %` est une hypothèse pratique propre à CourseScope, pas un coefficient du papier.
+Sur les pentes négatives, le pipeline `race-planning-v4` n'utilise pas Minetti. Il interpole linéairement une courbe empirique stable entre les couples pente/ratio suivants : `0/1,00`, `−3/0,97`, `−5/0,94`, `−8/0,90`, `−10/0,88`, `−12/0,90`, `−15/0,95`, `−18/1,00`, `−25/1,10`, `−30/1,20`. L'interpolation linéaire est continue et n'introduit aucune oscillation de spline. Elle modélise un avantage maximal vers `−10 %`, nul vers `−18 %`, puis un ralentissement dans les descentes très raides. Les entrées sont bornées à `−30 % / +30 %`.
 
-L'allure segmentaire est ensuite lissée côté backend sur une fenêtre de 60 m. Le lissage est pondéré par la distance et renormalisé afin de conserver exactement le temps calculé. Pour un objectif temps, la série affichée, les histogrammes et la somme des temps segmentaires utilisent les mêmes valeurs et respectent toujours l'objectif à moins d'une seconde. L'axe Y est calculé à partir des minima et maxima de la série, sans borne fixe.
+Le polynôme et son interprétation énergétique proviennent de Minetti et al., *Energy cost of walking and running at extreme uphill and downhill slopes*, Journal of Applied Physiology 93(3), 2002 ([DOI 10.1152/japplphysiol.01177.2001](https://doi.org/10.1152/japplphysiol.01177.2001)). L'exposant montant et la courbe descendante sont des hypothèses de planification propres à CourseScope.
+
+L'allure segmentaire est ensuite lissée côté backend sur une fenêtre métrique de 100 m. Le lissage est pondéré par la distance, indépendant de la densité du GPX/FIT et renormalisé afin de conserver exactement le temps calculé avant lissage. Les pauses ne participent pas à ce calcul. Pour un objectif temps, la série affichée, les histogrammes et la somme des temps segmentaires utilisent les mêmes valeurs et respectent toujours l'objectif à moins d'une seconde. L'axe Y est calculé à partir des minima et maxima de la série, sans borne fixe.
 
 ## Plans, scénarios et pauses
 
@@ -149,7 +151,7 @@ Si le plan contient `race_date`, `start_time` et un fuseau valide, les passages 
 
 `profile[]` fournit directement : `distance_km`, `pace_s_per_km`, `elevation_m`, `grade_pct`, `grade_robust_pct`, `elapsed_time_s`, `passage_time_iso`, `lat` et `lon`.
 
-Le frontend ne lisse pas et ne recalcule pas l'allure. Le downsampling backend est basé sur la distance et conserve les extrema d'altitude et de pente. Le graphique est rendu sous la carte pleine largeur, sur une hauteur égale à la moitié de celle-ci. Le dégradé altimétrique est conservé sous la courbe d'allure et le survol/clic reste synchronisé avec la carte.
+Le frontend ne lisse pas et ne recalcule pas l'allure. Le downsampling backend est basé sur la distance et conserve les extrema d'altitude et de pente. Le graphique est rendu sous la carte pleine largeur et possède la même hauteur. L'altitude est verte avec un dégradé sous la courbe ; l'allure théorique est bleue. Le survol/clic reste synchronisé avec la carte. Les valeurs ne sont affichées que dans une infobulle compacte au pointeur, sans seconde ligne de valeurs persistante sous le titre.
 
 ### Temps par allure
 
@@ -164,7 +166,7 @@ Le frontend ne lisse pas et ne recalcule pas l'allure. Le downsampling backend e
 
 `histograms.grade` utilise `grade_robust_pct`. Les classes complètes conservent temps, distance et pourcentage du temps total. L'affichage applique le seuil de 90 secondes et regroupe les extrêmes sous `≤ −20 %` et `≥ +20 %`.
 
-Le graphique frontend réserve toujours une grille symétrique de `−20 %` à `+20 %`, ce qui place `0 %` au centre même si certaines classes sont absentes.
+Le graphique frontend élimine les classes dont le temps vaut zéro, calcule une plage dynamique autour des classes restantes et impose un domaine symétrique autour de `0 %`. La plage reste bornée à `−20 % / +20 %`, et `0 %` reste donc exactement au centre sans réserver d'espace inutile à des classes vides.
 
 ## Routes API
 

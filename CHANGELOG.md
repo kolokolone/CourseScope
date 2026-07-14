@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.8] - 2026-07-14
+
+### Fixed
+- **Consigne d'allure** : Minetti comprimé par l'exposant `0,80` en montée, courbe empirique asymétrique en descente et lissage métrique porté à 100 m avec conservation exacte du temps.
+- **Graphiques de trace** : carte et allure de même hauteur, infobulle compacte sans valeurs dupliquées, couleurs normalisées et histogramme de pente dynamique toujours centré sur `0 %`.
+- **Analyse d'activité** : courbes limitées à l'allure, la fréquence cardiaque et l'altitude, axe kilométrique entier, domaine FC plus dynamique et altitude en dégradé sans axe visible.
+- **Checklist** : suppression de l'action secondaire dupliquée lorsque la liste de matériel est vide.
+
+### Changed
+- **Hero activité bêta** : alignement visuel sur le hero de préparation de course, sans modifier les KPI de l'activité.
+
 ## [1.2.7] - 2026-07-14
 
 ### Fixed

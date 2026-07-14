@@ -204,14 +204,14 @@ function EditablePlanningLists({ traceId, plan, scenario }: { traceId: TraceId; 
             </label>
           )) : <EmptyState message="Checklist vide." />}
         </div>
-        <div className="mt-4 border-t pt-4">
-          <Button size="sm" variant="ghost" onClick={addPoint}>Ajouter un point remarquable</Button>
+        {plan.equipment?.length || plan.course_points?.length ? <div className="mt-4 border-t pt-4">
+          {plan.equipment?.length ? <Button size="sm" variant="ghost" onClick={addPoint}>Ajouter un point remarquable</Button> : null}
           {plan.course_points?.map((point, index) => (
             <span key={point.id ?? index} className="ml-2 inline-flex rounded-full bg-muted px-2 py-1 text-xs">
               Km {point.distance_km}: {point.label}
             </span>
           ))}
-        </div>
+        </div> : null}
       </AnalysisCard>
     </>
   );

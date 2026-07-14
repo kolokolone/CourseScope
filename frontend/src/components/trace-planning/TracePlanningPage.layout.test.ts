@@ -13,7 +13,7 @@ describe('trace planning layout', () => {
     const distributions = source('src/components/trace-planning/PlanningCharts.tsx');
 
     expect(synchronized).toContain('height="430px"');
-    expect(synchronized).toContain('heightClassName="h-[215px]"');
+    expect(synchronized).toContain('heightClassName="h-[430px]"');
     expect(synchronized).toContain('Allure vs distance');
     expect(synchronized).toContain('<TheoreticalPaceElevationChart');
     expect(distributions).not.toContain('TheoreticalPaceElevationChart');

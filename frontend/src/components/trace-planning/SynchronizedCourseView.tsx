@@ -4,7 +4,6 @@ import * as React from 'react';
 
 import { TheoreticalPaceElevationChart } from '@/components/charts/TheoreticalPaceElevationChart';
 import { ActivityMap } from '@/components/maps/ActivityMap';
-import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
 import type { ActivityMapResponse, RaceProfilePoint } from '@/types/api';
 
 function mapPayload(profile: RaceProfilePoint[]): ActivityMapResponse {
@@ -36,18 +35,9 @@ export function SynchronizedCourseView({ profile }: { profile: RaceProfilePoint[
       </div>
       <div className="rounded-xl border border-border p-3">
         <h3 className="mb-2 text-sm font-semibold">Allure vs distance</h3>
-        {active ? (
-          <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span>{formatNumber(active.distance_km, { decimals: 2 })} km</span>
-            <span>{formatNumber(active.elevation_m, { integer: true })} m</span>
-            <span>{active.grade_robust_pct.toFixed(1)} %</span>
-            <span>{formatPaceSecondsPerKm(active.pace_s_per_km)}/km</span>
-            {active.passage_time_iso ? <span>{new Date(active.passage_time_iso).toLocaleTimeString()}</span> : null}
-          </div>
-        ) : null}
         <TheoreticalPaceElevationChart
           data={profile}
-          heightClassName="h-[215px]"
+          heightClassName="h-[430px]"
           activePoint={active}
           onPointHover={setHovered}
         />

@@ -15,14 +15,16 @@ from core.course_profile import CourseProfile, prepare_course_profile
 from services.weather import NullWeatherProvider, WeatherProvider
 
 
-RACE_PLANNING_PIPELINE_VERSION = "race-planning-v3"
+RACE_PLANNING_PIPELINE_VERSION = "race-planning-v4"
 PACE_BIN_WIDTH_S = 15.0
 DISPLAY_MIN_BIN_TIME_S = 90.0
 DISPLAY_MAX_PACE_FACTOR = 1.75
 GRADE_DISPLAY_LIMIT_PCT = 20.0
 MINETTI_GRADE_LIMIT_PCT = 30.0
-MINETTI_DOWNHILL_MAX_SPEED_GAIN_RATIO = 0.50
-PACE_SMOOTHING_WINDOW_M = 60.0
+MINETTI_UPHILL_COMPRESSION_EXPONENT = 0.80
+DOWNHILL_GRADE_POINTS_PCT = np.array([-30.0, -25.0, -18.0, -15.0, -12.0, -10.0, -8.0, -5.0, -3.0, 0.0])
+DOWNHILL_PACE_RATIO_POINTS = np.array([1.20, 1.10, 1.00, 0.95, 0.90, 0.88, 0.90, 0.94, 0.97, 1.00])
+PACE_SMOOTHING_WINDOW_M = 100.0
 
 
 def minetti_cost_ratio(grade_pct: np.ndarray | float) -> np.ndarray:
@@ -45,29 +47,26 @@ def minetti_cost_ratio(grade_pct: np.ndarray | float) -> np.ndarray:
 
 
 def minetti_pace_ratio(grade_pct: np.ndarray | float) -> np.ndarray:
-    """Convert Minetti cost to a practical constant-effort pace ratio.
+    """Return the asymmetric race-instruction pace ratio.
 
-    The raw polynomial describes metabolic cost and predicts a near doubling
-    of speed around -18 %. A route-planning instruction also needs to account
-    for the finite ability to turn that energetic benefit into forward speed.
-    A smooth asymptote limits the additional downhill speed to 50 %, without
-    clipping the curve or changing Minetti's uphill cost.
+    Uphill keeps Minetti's energetic shape with a 0.80 exponent to moderate
+    excessive slowdowns. Downhill uses a continuous piecewise-linear empirical
+    curve. Linear interpolation is stable and cannot introduce spline
+    oscillations between the configured points.
     """
 
     grade = np.asarray(grade_pct, dtype=float)
     cost_ratio = minetti_cost_ratio(grade)
-    raw_speed_ratio = np.divide(1.0, cost_ratio, out=np.ones_like(cost_ratio), where=cost_ratio > 0)
-    downhill_gain = np.maximum(raw_speed_ratio - 1.0, 0.0)
-    limited_speed_ratio = 1.0 + MINETTI_DOWNHILL_MAX_SPEED_GAIN_RATIO * np.tanh(
-        downhill_gain / MINETTI_DOWNHILL_MAX_SPEED_GAIN_RATIO
+    uphill_ratio = np.power(
+        np.maximum(cost_ratio, 0.0),
+        MINETTI_UPHILL_COMPRESSION_EXPONENT,
     )
-    practical_ratio = np.divide(
-        1.0,
-        limited_speed_ratio,
-        out=np.ones_like(limited_speed_ratio),
-        where=limited_speed_ratio > 0,
+    downhill_ratio = np.interp(
+        np.clip(grade, DOWNHILL_GRADE_POINTS_PCT[0], 0.0),
+        DOWNHILL_GRADE_POINTS_PCT,
+        DOWNHILL_PACE_RATIO_POINTS,
     )
-    return np.where((grade < 0.0) & (raw_speed_ratio > 1.0), practical_ratio, cost_ratio)
+    return np.where(grade < 0.0, downhill_ratio, uphill_ratio)
 
 
 def _pace_for_base(base_pace_s_per_km: float, grades_pct: np.ndarray, model: str) -> np.ndarray:
@@ -90,33 +89,37 @@ def _smooth_pace_by_distance(
     distances_m = np.asarray(segment_distance_km, dtype=float) * 1000.0
     if len(pace) < 3 or len(pace) != len(distances_m) or window_m <= 0:
         return pace.copy()
-    midpoints_m = np.cumsum(distances_m) - distances_m / 2.0
-    total_span_m = float(midpoints_m[-1] - midpoints_m[0])
-    if total_span_m <= 0:
+    if not np.all(np.isfinite(distances_m)) or np.any(distances_m <= 0):
         return pace.copy()
-    effective_window_m = min(float(window_m), total_span_m)
+    segment_ends_m = np.cumsum(distances_m)
+    segment_starts_m = segment_ends_m - distances_m
+    midpoints_m = segment_starts_m + distances_m / 2.0
+    total_distance_m = float(segment_ends_m[-1])
+    if total_distance_m <= 0:
+        return pace.copy()
+    effective_window_m = min(float(window_m), total_distance_m)
     half_window_m = effective_window_m / 2.0
     weighted = pace * distances_m
     weighted_prefix = np.concatenate(([0.0], np.cumsum(weighted)))
-    distance_prefix = np.concatenate(([0.0], np.cumsum(distances_m)))
-    smoothed = np.empty_like(pace)
-    for index, center_m in enumerate(midpoints_m):
-        start_m = float(center_m - half_window_m)
-        end_m = float(center_m + half_window_m)
-        if start_m < midpoints_m[0]:
-            end_m += float(midpoints_m[0] - start_m)
-            start_m = float(midpoints_m[0])
-        if end_m > midpoints_m[-1]:
-            start_m -= float(end_m - midpoints_m[-1])
-            end_m = float(midpoints_m[-1])
-        left = int(np.searchsorted(midpoints_m, start_m, side="left"))
-        right = int(np.searchsorted(midpoints_m, end_m, side="right"))
-        weight_sum = float(distance_prefix[right] - distance_prefix[left])
-        smoothed[index] = (
-            float(weighted_prefix[right] - weighted_prefix[left]) / weight_sum
-            if weight_sum > 0
-            else pace[index]
+
+    def integrated_pace_at(positions_m: np.ndarray) -> np.ndarray:
+        positions = np.clip(np.asarray(positions_m, dtype=float), 0.0, total_distance_m)
+        indices = np.searchsorted(segment_ends_m, positions, side="right")
+        safe_indices = np.minimum(indices, len(pace) - 1)
+        integrated = weighted_prefix[safe_indices] + pace[safe_indices] * (
+            positions - segment_starts_m[safe_indices]
         )
+        return np.where(indices >= len(pace), weighted_prefix[-1], integrated)
+
+    window_starts_m = np.clip(
+        midpoints_m - half_window_m,
+        0.0,
+        total_distance_m - effective_window_m,
+    )
+    window_ends_m = window_starts_m + effective_window_m
+    smoothed = (
+        integrated_pace_at(window_ends_m) - integrated_pace_at(window_starts_m)
+    ) / effective_window_m
     original_time_s = float(np.sum(weighted) / 1000.0)
     smoothed_time_s = float(np.sum(smoothed * distances_m) / 1000.0)
     if original_time_s > 0 and smoothed_time_s > 0:
@@ -596,7 +599,8 @@ def calculate_race_plan_preview(
         "model": {
             "slope_model": "minetti",
             "minetti_grade_limit_pct": MINETTI_GRADE_LIMIT_PCT,
-            "downhill_max_speed_gain_ratio": MINETTI_DOWNHILL_MAX_SPEED_GAIN_RATIO,
+            "minetti_uphill_compression_exponent": MINETTI_UPHILL_COMPRESSION_EXPONENT,
+            "downhill_model": "empirical_piecewise_linear",
             "pace_smoothing_window_m": PACE_SMOOTHING_WINDOW_M,
         },
         "totals": {

@@ -13,10 +13,34 @@ import {
   YAxis,
 } from 'recharts';
 
+import { CHART_COLORS } from '@/lib/chartColors';
 import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
 import type { RaceProfilePoint } from '@/types/api';
 
 type LegacyPaceElevationPoint = { distance_km: number; target_pace_s_per_km: number; elevation_m?: number | null };
+
+type TooltipEntry = {
+  dataKey?: string | number;
+  value?: number | string;
+  payload?: RaceProfilePoint;
+};
+
+function CompactCourseTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipEntry[]; label?: number | string }) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  if (!point) return null;
+  return (
+    <div className="rounded-md border border-border bg-card/95 px-2 py-1.5 text-[11px] leading-4 shadow-sm">
+      <div className="font-medium tabular-nums">{formatNumber(Number(label), { decimals: 2 })} km</div>
+      <div className="grid grid-cols-[auto_auto] gap-x-3 text-muted-foreground">
+        <span>Allure</span><span className="text-right font-medium text-foreground tabular-nums">{formatPaceSecondsPerKm(point.pace_s_per_km)} /km</span>
+        <span>Altitude</span><span className="text-right font-medium text-foreground tabular-nums">{formatNumber(point.elevation_m, { integer: true })} m</span>
+        <span>Pente</span><span className="text-right font-medium text-foreground tabular-nums">{point.grade_robust_pct.toFixed(1)} %</span>
+        {point.passage_time_iso ? <><span>Passage</span><span className="text-right font-medium text-foreground tabular-nums">{new Date(point.passage_time_iso).toLocaleTimeString()}</span></> : null}
+      </div>
+    </div>
+  );
+}
 
 function niceStep(raw: number) {
   const steps = [0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100];
@@ -84,8 +108,8 @@ export function TheoreticalPaceElevationChart({
         >
           <defs>
             <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0" stopColor="var(--primary)" stopOpacity={0.35} />
-              <stop offset="1" stopColor="var(--primary)" stopOpacity={0.03} />
+              <stop offset="0" stopColor={CHART_COLORS.elevation} stopOpacity={0.35} />
+              <stop offset="1" stopColor={CHART_COLORS.elevation} stopOpacity={0.03} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -111,27 +135,13 @@ export function TheoreticalPaceElevationChart({
             tickFormatter={(v) => `${formatNumber(Number(v), { integer: true })} m`}
             tick={{ fontSize: 12 }}
           />
-          <Tooltip
-            formatter={(value, name, item) => {
-              const n = Number(value);
-              if (!Number.isFinite(n)) return ['—', String(name)];
-              if (name === 'Allure theorique') {
-                const point = item?.payload as RaceProfilePoint | undefined;
-                const details = point
-                  ? `Pente ${point.grade_robust_pct.toFixed(1)} % · altitude ${formatNumber(point.elevation_m, { integer: true })} m${point.passage_time_iso ? ` · ${new Date(point.passage_time_iso).toLocaleTimeString()}` : ''}`
-                  : String(name);
-                return [`${formatPaceSecondsPerKm(n)} / km`, details];
-              }
-              return [`${formatNumber(n, { integer: true })} m`, String(name)];
-            }}
-            labelFormatter={(label) => `Distance: ${formatNumber(Number(label), { decimals: 2 })} km`}
-          />
+          <Tooltip content={<CompactCourseTooltip />} />
           <Area
             yAxisId="elev"
             type="monotone"
             dataKey="elevation_m"
             name="Altitude"
-            stroke="var(--primary)"
+            stroke={CHART_COLORS.elevation}
             fill={`url(#${gradientId})`}
             isAnimationActive={false}
             connectNulls
@@ -140,8 +150,8 @@ export function TheoreticalPaceElevationChart({
             yAxisId="pace"
             type="monotone"
             dataKey="pace_s_per_km"
-            name="Allure theorique"
-            stroke="var(--foreground)"
+            name="Allure théorique"
+            stroke={CHART_COLORS.theoreticalPace}
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}

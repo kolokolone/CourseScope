@@ -5,21 +5,23 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { formatDurationSeconds } from '@/lib/metricsFormat';
 import type { GradeTimeBin } from '@/types/api';
 
-export const GRADE_AXIS_TICKS = [-20, -15, -10, -5, 0, 5, 10, 15, 20] as const;
+export function buildVisibleGradeRows(data: GradeTimeBin[]): GradeTimeBin[] {
+  return (data ?? []).filter((row) => Number.isFinite(row.time_s) && row.time_s > 0);
+}
 
-export function buildSymmetricGradeRows(data: GradeTimeBin[]): GradeTimeBin[] {
-  const byCenter = new Map(data.map((row) => [row.grade_bin_center_pct, row] as const));
-  return Array.from({ length: 81 }, (_, index) => {
-    const center = -20 + index * 0.5;
-    return byCenter.get(center) ?? {
-      grade_bin_center_pct: center,
-      label: center === -20 ? '≤ −20 %' : center === 20 ? '≥ +20 %' : `${center >= 0 ? '+' : ''}${center.toFixed(1)} %`,
-      time_s: 0,
-      distance_km: 0,
-      time_percent: 0,
-      is_overflow: center === -20 || center === 20,
-    };
-  });
+export function buildSymmetricGradeDomain(data: GradeTimeBin[]): [number, number] {
+  const extent = Math.max(1, ...buildVisibleGradeRows(data).map((row) => Math.abs(row.grade_bin_center_pct)));
+  const roundedExtent = Math.min(20, Math.max(5, Math.ceil(extent / 5) * 5));
+  return [-roundedExtent, roundedExtent];
+}
+
+export function buildGradeTicks(domain: [number, number]): number[] {
+  const extent = domain[1];
+  const step = extent <= 10 ? 2 : 5;
+  const ticks: number[] = [];
+  for (let value = -extent; value <= extent; value += step) ticks.push(value);
+  if (!ticks.includes(0)) ticks.push(0);
+  return ticks.sort((a, b) => a - b);
 }
 
 export function GradeTimeBarChart({ data }: { data: GradeTimeBin[] }) {
@@ -27,7 +29,12 @@ export function GradeTimeBarChart({ data }: { data: GradeTimeBin[] }) {
   if (sourceRows.length === 0) {
     return <div className="text-sm text-muted-foreground">Aucune donnee de repartition par pente.</div>;
   }
-  const rows = buildSymmetricGradeRows(sourceRows);
+  const rows = buildVisibleGradeRows(sourceRows);
+  if (rows.length === 0) {
+    return <div className="text-sm text-muted-foreground">Aucune classe de pente avec un temps positif.</div>;
+  }
+  const domain = buildSymmetricGradeDomain(rows);
+  const ticks = buildGradeTicks(domain);
 
   return (
     <div className="h-72">
@@ -36,9 +43,10 @@ export function GradeTimeBarChart({ data }: { data: GradeTimeBin[] }) {
           <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
           <XAxis
             dataKey="grade_bin_center_pct"
-            type="category"
+            type="number"
+            domain={domain}
             tick={{ fontSize: 11 }}
-            ticks={[...GRADE_AXIS_TICKS]}
+            ticks={ticks}
             interval={0}
             tickFormatter={(value) => `${Number(value) > 0 ? '+' : ''}${Number(value)} %`}
             height={42}
@@ -51,12 +59,12 @@ export function GradeTimeBarChart({ data }: { data: GradeTimeBin[] }) {
               if (grade === 20) return 'Pente : ≥ +20 %';
               return `Pente : ${grade > 0 ? '+' : ''}${grade.toFixed(1)} %`;
             }}
-            formatter={(v: any) => {
+            formatter={(v: number | string | undefined) => {
               const n = Number(v);
               return [Number.isFinite(n) ? formatDurationSeconds(n) : '—', 'Temps'];
             }}
           />
-          <Bar dataKey="time_s" fill="#0f172a" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+          <Bar dataKey="time_s" fill="#1d3557" radius={[4, 4, 0, 0]} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </div>

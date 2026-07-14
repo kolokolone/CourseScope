@@ -1,5 +1,5 @@
 {
-  "pipeline_version": "race-planning-v3",
+  "pipeline_version": "race-planning-v4",
   "scenario_hash": "example-sha256",
   "units": {
     "distance": "km",
@@ -12,8 +12,9 @@
   "model": {
     "slope_model": "minetti",
     "minetti_grade_limit_pct": 30.0,
-    "downhill_max_speed_gain_ratio": 0.5,
-    "pace_smoothing_window_m": 60.0
+    "minetti_uphill_compression_exponent": 0.8,
+    "downhill_model": "empirical_piecewise_linear",
+    "pace_smoothing_window_m": 100.0
   },
   "totals": {
     "distance_km": 13.4,

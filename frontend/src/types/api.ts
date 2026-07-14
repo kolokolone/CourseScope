@@ -400,7 +400,8 @@ export interface RacePlanPreview {
   model: {
     slope_model: 'minetti';
     minetti_grade_limit_pct: number;
-    downhill_max_speed_gain_ratio: number;
+    minetti_uphill_compression_exponent: number;
+    downhill_model: 'empirical_piecewise_linear';
     pace_smoothing_window_m: number;
   };
   totals: {

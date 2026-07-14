@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { ArrowLeft, Pencil } from 'lucide-react';
+import { Activity, ArrowLeft, Pencil } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useRenameActivity } from '@/hooks/useActivity';
@@ -90,14 +90,19 @@ export function ActivityBetaHero({ activity, activityId }: ActivityBetaHeroProps
   const gapText = isValidNumber(gap) ? formatPace(gap as number) : null;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
+    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <div className="bg-gradient-to-br from-primary/10 via-background to-emerald-500/10 p-5 sm:p-7">
       <button
         onClick={() => router.push('/activities')}
-        className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors mb-4"
+        className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
         Retour aux activités
       </button>
+
+      <div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary">
+        <Activity className="h-4 w-4" />Analyse d&apos;activité
+      </div>
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
@@ -152,6 +157,7 @@ export function ActivityBetaHero({ activity, activityId }: ActivityBetaHeroProps
           <HeroKpiCard label="Cadence moyenne" value={String(Math.round(cadence as number))} unit="spm" />
         ) : null}
       </div>
-    </div>
+      </div>
+    </section>
   );
 }
