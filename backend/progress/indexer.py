@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from core.metrics import compute_garmin_like_stats
 from core.best_efforts import compute_best_efforts_by_duration
 from core.derived import compute_derived_series
+from core.pace_hr import prepare_pace_hr_samples
 from core.splits import compute_splits
 from core.climbs import compute_climbs
 from core.stats.basic_stats import compute_basic_stats
@@ -37,7 +38,7 @@ from progress._utils import (
 )
 
 
-METRICS_VERSION = 7
+METRICS_VERSION = 8
 
 
 def build_fingerprint(meta: dict[str, Any], parquet_path: Path) -> str:
@@ -221,44 +222,23 @@ def _classify_session_and_terrain(
 def _build_pace_hr_bins(
     *,
     df: pd.DataFrame,
+    moving_mask: pd.Series,
     activity_id: str,
     activity_type: str,
     start_ts_utc: str,
     pace_bin_step_s_per_km: float = 10.0,
     min_time_s_bin: float = 60.0,
 ) -> list[ProgressPaceHrBin]:
-    required = {"pace_s_per_km", "heart_rate", "delta_time_s", "speed_m_s"}
-    if not required.issubset(set(df.columns)):
-        return []
-
-    dt_num = pd.to_numeric(df.loc[:, "delta_time_s"], errors="coerce")
-    pace_num = pd.to_numeric(df.loc[:, "pace_s_per_km"], errors="coerce")
-    hr_num = pd.to_numeric(df.loc[:, "heart_rate"], errors="coerce")
-    speed_num = pd.to_numeric(df.loc[:, "speed_m_s"], errors="coerce")
-
-    dt = pd.Series(dt_num, index=df.index).fillna(0.0).astype(float)
-    pace = pd.Series(pace_num, index=df.index).astype(float)
-    hr = pd.Series(hr_num, index=df.index).astype(float)
-    speed = pd.Series(speed_num, index=df.index).fillna(0.0).astype(float)
-
-    moving_mask: pd.Series = (
-        (speed > 0.5)
-        & (dt > 0)
-        & pace.notna()
-        & hr.notna()
-        & (pace > 0)
-        & (pace < 1800)
-        & (hr > 40)
-        & (hr < 240)
-    )
-    if not bool(moving_mask.any()):
+    prepared = prepare_pace_hr_samples(df, moving_mask=moving_mask)
+    valid_mask = prepared["valid"]
+    if not bool(valid_mask.any()):
         return []
 
     work = pd.DataFrame(
         {
-            "pace": pace[moving_mask],
-            "hr": hr[moving_mask],
-            "dt": dt[moving_mask],
+            "pace": prepared.loc[valid_mask, "pace_smoothed_s_per_km"],
+            "hr": prepared.loc[valid_mask, "heart_rate_clean_bpm"],
+            "dt": prepared.loc[valid_mask, "delta_time_s"],
         }
     )
     if work.empty:
@@ -757,6 +737,7 @@ def index_activity(
 
     pace_hr_bins = _build_pace_hr_bins(
         df=df,
+        moving_mask=derived.moving_mask,
         activity_id=activity_id,
         activity_type=activity_type,
         start_ts_utc=start_ts_utc,

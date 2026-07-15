@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.14] - 2026-07-15
+
+### Changed
+- **Pace-HR Waterfall 3D** : les bins utilisent désormais le masque de mouvement partagé, rejettent les trous temporels, lissent l'allure sur 30 secondes et nettoient la FC avec des filtres Hampel et médian.
+- **Sélection physiologique** : retrait des 10 premières minutes en mouvement et des 30 secondes suivant un changement significatif d'allure, sans modification du rendu ni du contrat API.
+- **Indexation** : passage à `METRICS_VERSION = 8` afin de recalculer les bins Pace-HR existants avec le nouveau pipeline.
+
+### Added
+- **Documentation** : spécification détaillée du calcul dans `docs/pace_hr_waterfall.md` et tests couvrant chaque étape de prétraitement.
+
 ## [1.2.13] - 2026-07-15
 
 ### Changed

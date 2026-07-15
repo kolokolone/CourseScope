@@ -3,7 +3,7 @@
 Application web locale pour analyser des activités running **GPX/FIT** et préparer une course à partir d'une trace théorique indépendante.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.13-0f172a.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-1.2.14-0f172a.svg)](VERSION)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 
@@ -248,6 +248,7 @@ docker run --rm -p 3000:3000 -v ./data:/data coursescope
 | [docs/style-frontend-ui.md](docs/style-frontend-ui.md) | Guide de style UI normatif |
 | [docs/indexation.md](docs/indexation.md) | Architecture d'indexation |
 | [docs/progression.md](docs/progression.md) | Spécification Progression |
+| [docs/pace_hr_waterfall.md](docs/pace_hr_waterfall.md) | Pipeline de calcul du Pace-HR Waterfall 3D |
 | [docs/race-planning.md](docs/race-planning.md) | Architecture, API et calculs de préparation de course |
 | [agents/AGENTS.md](agents/AGENTS.md) | Règles globales pour les agents |
 | [CHANGELOG.md](CHANGELOG.md) | Historique des versions |

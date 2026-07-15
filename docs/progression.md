@@ -65,6 +65,12 @@ Le calendrier annuel étire ses colonnes de semaines sur la largeur disponible. 
 - **Statut** : polling `GET /progress/index/status` côté frontend
 - **Déclenchement** : automatique à l'ouverture de `/progress` + manuel dans `/settings`
 
+### Prétraitement Pace-HR
+
+Le Waterfall et les séries HR@Pace/Pace@HR utilisent des bins pré-calculés après nettoyage du signal : masque de mouvement partagé, rejet des trous temporels, allure glissante sur 30 secondes, filtre Hampel et médiane FC, exclusion des 10 premières minutes en mouvement et des 30 secondes suivant un changement significatif d'allure.
+
+Le détail des seuils, du masque final et de l'agrégation est documenté dans [pace_hr_waterfall.md](pace_hr_waterfall.md).
+
 ## Performance
 
 - Latence cible : < 200 ms pour les requêtes de séries

@@ -449,7 +449,7 @@ Response: `{ ok, activity_id }`.
 
 ### Pace-HR Waterfall (GET /progress/pace-hr-waterfall)
 
-Returns binned Pace\u2194HR curves per activity for 3D rendering.
+Returns cleaned and binned Pace↔HR curves per activity for 3D rendering. Before binning, the pipeline applies the shared moving mask, rejects abnormal timestamp gaps, computes pace over a 30-second rolling window, filters isolated HR artifacts, removes the first 10 moving minutes, and excludes the 30 moving seconds following a significant pace change. Full algorithm: [pace_hr_waterfall.md](pace_hr_waterfall.md).
 
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |

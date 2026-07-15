@@ -326,7 +326,7 @@ Table centrale des dashboards de progression. Une ligne par activité, 31 colonn
 
 **Index** : PK sur `id`, UNIQUE sur `(activity_id, pace_bin_s_per_km)`, INDEX sur `start_ts_utc`, INDEX sur `(activity_type, start_ts_utc)`, INDEX sur `pace_bin_s_per_km`.
 
-**Utilisation** : alimente `/progress/hr-at-pace`, `/progress/pace-at-hr` et `/progress/pace-hr-waterfall`. Le `hr_q50_w_bpm` est préféré au `hr_mean_w_bpm` car plus robuste aux outliers.
+**Utilisation** : alimente `/progress/hr-at-pace`, `/progress/pace-at-hr` et `/progress/pace-hr-waterfall`. Le `hr_q50_w_bpm` est préféré au `hr_mean_w_bpm` car plus robuste aux outliers. Depuis `METRICS_VERSION = 8`, les bins sont produits après masque de mouvement partagé, rejet des trous temporels, allure glissante sur 30 secondes, nettoyage robuste de la FC, retrait des 10 premières minutes en mouvement et exclusion des transitions d'allure. Voir [pace_hr_waterfall.md](pace_hr_waterfall.md).
 
 #### 2.8.4 `progress_activity_tags` — Classification automatique
 
