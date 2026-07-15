@@ -15,9 +15,27 @@ type CompactAnalysisChartProps = {
   activityId: string;
   seriesAvailable: SeriesInfo[];
   onDistanceHover?: (distanceKm: number | null) => void;
+  embedded?: boolean;
 };
 
 const MAX_POINTS = 3000;
+
+export function buildRobustPaceDomain(values: number[]): [number, number] | undefined {
+  const sorted = values.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
+  if (sorted.length === 0) return undefined;
+  const quantile = (ratio: number) => {
+    const position = (sorted.length - 1) * ratio;
+    const lower = Math.floor(position);
+    const upper = Math.ceil(position);
+    const weight = position - lower;
+    return sorted[lower]! * (1 - weight) + sorted[upper]! * weight;
+  };
+  const median = quantile(0.5);
+  const low = Math.max(quantile(0.02), median * 0.5);
+  const high = Math.min(quantile(0.98), median * 1.75);
+  const padding = Math.max(5, (high - low) * 0.08);
+  return [Math.max(0, Math.floor(low - padding)), Math.ceil(high + padding)];
+}
 
 function smoothMovingAverage(points: ChartPoint[], windowSize: number): ChartPoint[] {
   const w = Math.max(1, Math.floor(windowSize));
@@ -75,7 +93,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   );
 }
 
-export function CompactAnalysisChart({ activityId, seriesAvailable, onDistanceHover }: CompactAnalysisChartProps) {
+export function CompactAnalysisChart({ activityId, seriesAvailable, onDistanceHover, embedded = false }: CompactAnalysisChartProps) {
   const [smoothWindow, setSmoothWindow] = React.useState(15);
 
   const availableNames = React.useMemo(() => new Set(seriesAvailable.map((s) => s.name)), [seriesAvailable]);
@@ -136,14 +154,7 @@ export function CompactAnalysisChart({ activityId, seriesAvailable, onDistanceHo
   const hrValues = mergedData.flatMap((row) => typeof row.hr === 'number' ? [row.hr] : []);
   const hrDomainMin = hrValues.length > 0 ? Math.max(0, Math.floor(Math.min(...hrValues) * 0.8)) : 0;
   const paceValues = mergedData.flatMap((row) => typeof row.pace === 'number' ? [row.pace] : []);
-  const paceDomain: [number, number] | undefined = paceValues.length > 0
-    ? (() => {
-        const min = Math.min(...paceValues);
-        const max = Math.max(...paceValues);
-        const padding = Math.max(5, (max - min) * 0.08);
-        return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
-      })()
-    : undefined;
+  const paceDomain = buildRobustPaceDomain(paceValues);
   const maxDistance = mergedData.at(-1)?.distance_km ?? 0;
   const distanceStep = [1, 2, 5, 10, 20, 50, 100].find((step) => maxDistance / step <= 10) ?? 100;
   const distanceTicks = Array.from({ length: Math.floor(maxDistance / distanceStep) + 1 }, (_, index) => index * distanceStep);
@@ -151,14 +162,14 @@ export function CompactAnalysisChart({ activityId, seriesAvailable, onDistanceHo
 
   if (!hasAny) {
     return (
-      <div className="rounded-xl border border-border bg-card p-3">
+      <div className={embedded ? 'py-3' : 'rounded-xl border border-border bg-card p-3'}>
         <p className="text-sm italic text-muted-foreground">Aucune série de données disponible pour l&apos;analyse principale.</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
+    <div className={embedded ? 'pt-4' : 'rounded-xl border border-border bg-card p-3'}>
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-base font-semibold text-foreground">Analyse principale</h2>
@@ -178,7 +189,7 @@ export function CompactAnalysisChart({ activityId, seriesAvailable, onDistanceHo
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={mergedData}
-            margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            margin={{ top: 8, right: 8, bottom: 8, left: 0 }}
             onMouseMove={(state) => {
               const index = Number(state?.activeTooltipIndex);
               const distance = Number.isInteger(index) ? mergedData[index]?.distance_km : undefined;
@@ -195,12 +206,12 @@ export function CompactAnalysisChart({ activityId, seriesAvailable, onDistanceHo
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="distance_km" type="number" domain={['dataMin', 'dataMax']} ticks={distanceTicks} tickFormatter={(v: number) => `${Math.round(v)} km`} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
             {hasPace && (
-              <YAxis yAxisId="pace" orientation="left" width={64} tick={{ fontSize: 11, fill: CHART_COLORS.theoreticalPace }} domain={paceDomain} reversed tickFormatter={(v: number) => formatPaceSecondsPerKm(v)} />
+              <YAxis yAxisId="pace" orientation="left" width={64} tick={{ fontSize: 11, fill: CHART_COLORS.theoreticalPace }} domain={paceDomain} allowDataOverflow reversed tickFormatter={(v: number) => formatPaceSecondsPerKm(v)} />
             )}
             {hasHr && (
               <YAxis yAxisId="hr" orientation="right" width={52} tick={{ fontSize: 11, fill: CHART_COLORS.heartRate }} domain={[hrDomainMin, 'auto']} />
             )}
-            {hasElevation && <YAxis yAxisId="elevation" hide domain={['dataMin', 'dataMax']} />}
+            {hasElevation && <YAxis yAxisId="elevation" hide width={0} domain={['dataMin', 'dataMax']} />}
             <Tooltip content={<CustomTooltip />} />
             {hasElevation && <Area yAxisId="elevation" dataKey="elevation" stroke={CHART_COLORS.elevation} fill={`url(#${elevationGradientId})`} strokeWidth={2} dot={false} connectNulls />}
             {hasPace && <Line yAxisId="pace" dataKey="pace" stroke={CHART_COLORS.theoreticalPace} strokeWidth={2} dot={false} connectNulls />}

@@ -8,12 +8,9 @@ import { formatDurationSeconds } from '@/lib/metricsFormat';
 
 export function ActivityDistributionCharts({ activityId }: { activityId: string }) {
   const { data, isLoading, error } = useRealActivityBins(activityId);
-  if (isLoading) {
-    return <div className="h-80 animate-pulse rounded-2xl border border-border bg-muted/30" />;
-  }
-  if (error || !data) {
-    return <p className="text-sm text-muted-foreground">Répartitions d&apos;allure et de pente indisponibles.</p>;
-  }
+  if (isLoading) return <div className="h-80 animate-pulse rounded-2xl border border-border bg-muted/30" />;
+  if (error || !data) return <p className="text-sm text-muted-foreground">Répartitions d&apos;allure et de pente indisponibles.</p>;
+
   const pace = data.pace_histogram;
   const grade = data.grade_histogram;
   return (
@@ -26,9 +23,9 @@ export function ActivityDistributionCharts({ activityId }: { activityId: string 
       </AnalysisCard>
       <AnalysisCard
         title="Temps par % de pente"
-        description={`Pente robuste, plage symétrique −20 % / +20 % · masqué : ${formatDurationSeconds(grade.hidden_time_s)}`}
+        description="Pente robuste : toutes les classes non vides sont affichées sur une plage symétrique centrée sur 0 %."
       >
-        <GradeTimeBarChart data={grade.display_classes} />
+        <GradeTimeBarChart data={grade.complete_classes} />
       </AnalysisCard>
     </div>
   );

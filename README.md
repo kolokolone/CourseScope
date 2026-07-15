@@ -3,7 +3,7 @@
 Application web locale pour analyser des activités running **GPX/FIT** et préparer une course à partir d'une trace théorique indépendante.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.9-0f172a.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-1.2.10-0f172a.svg)](VERSION)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 

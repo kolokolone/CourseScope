@@ -118,11 +118,11 @@ Pour un temps cible, une dichotomie résout l'allure de base afin que la somme d
 
 Le polynôme Minetti brut décrit un coût énergétique. Sur les pentes positives, CourseScope conserve sa forme mais compresse son effet avec `ratio_corrigé = ratio_minetti ** 0.80`. Le coefficient `0.80` est un exposant, pas une réduction de `0,80 %`.
 
-Sur les pentes négatives, le pipeline `race-planning-v5` n'utilise pas Minetti. Il interpole linéairement une courbe empirique stable entre les couples pente/ratio suivants : `0/1,00`, `−3/0,97`, `−5/0,94`, `−8/0,90`, `−10/0,88`, `−12/0,90`, `−15/0,95`, `−18/1,00`, `−25/1,10`, `−30/1,20`. L'interpolation linéaire est continue et n'introduit aucune oscillation de spline. Elle modélise un avantage maximal vers `−10 %`, nul vers `−18 %`, puis un ralentissement dans les descentes très raides. Les entrées sont bornées à `−30 % / +30 %`.
+Sur les pentes négatives, le pipeline `race-planning-v6` n'utilise pas Minetti. Il interpole linéairement une courbe empirique stable entre les couples pente/ratio suivants : `0/1,00`, `−3/0,97`, `−5/0,94`, `−8/0,90`, `−10/0,88`, `−12/0,90`, `−15/0,95`, `−18/1,00`, `−25/1,10`, `−30/1,20`. L'interpolation linéaire est continue et n'introduit aucune oscillation de spline. Elle modélise un avantage maximal vers `−10 %`, nul vers `−18 %`, puis un ralentissement dans les descentes très raides. Les entrées sont bornées à `−30 % / +30 %`.
 
 Le polynôme et son interprétation énergétique proviennent de Minetti et al., *Energy cost of walking and running at extreme uphill and downhill slopes*, Journal of Applied Physiology 93(3), 2002 ([DOI 10.1152/japplphysiol.01177.2001](https://doi.org/10.1152/japplphysiol.01177.2001)). L'exposant montant et la courbe descendante sont des hypothèses de planification propres à CourseScope.
 
-L'allure segmentaire est ensuite lissée côté backend sur une fenêtre métrique de 150 m. Le lissage est pondéré par la distance, indépendant de la densité du GPX/FIT et renormalisé afin de conserver exactement le temps calculé avant lissage. Les pauses ne participent pas à ce calcul. Pour un objectif temps, la série affichée, les histogrammes et la somme des temps segmentaires utilisent les mêmes valeurs et respectent toujours l'objectif à moins d'une seconde. L'axe Y est calculé à partir des minima et maxima de la série, sans borne fixe.
+L'allure segmentaire est ensuite lissée côté backend sur une fenêtre métrique de 100 m. Le lissage est pondéré par la distance, indépendant de la densité du GPX/FIT et renormalisé afin de conserver exactement le temps calculé avant lissage. Les pauses ne participent pas à ce calcul. Pour un objectif temps, la série affichée, les histogrammes et la somme des temps segmentaires utilisent les mêmes valeurs et respectent toujours l'objectif à moins d'une seconde. L'axe Y est calculé à partir des minima et maxima de la série, sans borne fixe.
 
 ## Plans, scénarios et pauses
 
@@ -132,13 +132,14 @@ Une trace importée reçoit déjà un plan et un scénario principaux. Pour une 
 
 Un plan contient notamment la date, l'heure de départ, le fuseau IANA, le scénario actif, les notes, le matériel et les points remarquables. Un scénario contient l'objectif, Minetti, la VMA, la calibration, les hypothèses météo, les portions stratégiques, la nutrition et les pauses.
 
-Types de pause : `water`, `nutrition`, `assistance`, `other`.
+Types de pause : `water`, `nutrition`, `water_nutrition`, `assistance`, `other`.
 
 Pour une pause à la distance `d` :
 
 - les passages strictement avant `d` ne changent pas ;
 - le passage à `d` et tous les passages suivants sont décalés de sa durée ;
 - plusieurs pauses s'additionnent exactement ;
+- chaque arrêt calculé expose `arrival_elapsed_time_s`, `departure_elapsed_time_s`, `arrival_time_iso` et `departure_time_iso` ;
 - `running_time_s` reste le temps de course ;
 - `stop_time_s` est la somme des pauses ;
 - `elapsed_time_s = running_time_s + stop_time_s`.
@@ -151,7 +152,7 @@ Si le plan contient `race_date`, `start_time` et un fuseau valide, les passages 
 
 `profile[]` fournit directement : `distance_km`, `pace_s_per_km`, `elevation_m`, `grade_pct`, `grade_robust_pct`, `elapsed_time_s`, `passage_time_iso`, `lat` et `lon`.
 
-Le frontend ne lisse pas et ne recalcule pas l'allure. Le downsampling backend est basé sur la distance et conserve les extrema d'altitude et de pente. Le graphique est rendu sous la carte pleine largeur et possède la même hauteur. L'altitude est verte avec un dégradé sous la courbe ; l'allure théorique est bleue. Le survol/clic reste synchronisé avec la carte. Les valeurs ne sont affichées que dans une infobulle compacte au pointeur, sans seconde ligne de valeurs persistante sous le titre.
+Le frontend ne lisse pas les données et ne recalcule pas l'allure. Le downsampling backend est basé sur la distance et conserve les extrema d'altitude et de pente. Le tracé SVG de l'allure utilise une interpolation `basis` purement visuelle pour faciliter la lecture, sans changer les points, les infobulles ou les histogrammes. Le graphique est rendu sous la carte pleine largeur et possède la même hauteur. L'altitude est verte avec un dégradé sous la courbe ; l'allure théorique est bleue. Le survol/clic reste synchronisé avec la carte. Chaque pause ajoute une ligne verticale grise en pointillés et un pictogramme typé à sa distance. Les valeurs ne sont affichées que dans une infobulle compacte au pointeur, sans seconde ligne persistante sous le titre.
 
 ### Temps par allure
 
@@ -164,9 +165,9 @@ Le frontend ne lisse pas et ne recalcule pas l'allure. Le downsampling backend e
 
 ### Temps par pourcentage de pente
 
-`histograms.grade` utilise `grade_robust_pct`. Les classes complètes conservent temps, distance et pourcentage du temps total. L'affichage applique le seuil de 90 secondes et regroupe les extrêmes sous `≤ −20 %` et `≥ +20 %`.
+`histograms.grade` utilise `grade_robust_pct`. Les classes complètes conservent temps, distance et pourcentage du temps total. Aucun seuil temporel n'est appliqué : `display_classes` est identique à `complete_classes`, `display_min_time_s` et `hidden_time_s` valent zéro. Les extrêmes restent regroupés sous `≤ −20 %` et `≥ +20 %`.
 
-Le graphique frontend élimine les classes dont le temps vaut zéro, calcule une plage dynamique autour des classes restantes et impose un domaine symétrique autour de `0 %`. La plage reste bornée à `−20 % / +20 %`, et `0 %` reste donc exactement au centre sans réserver d'espace inutile à des classes vides.
+Le graphique frontend élimine uniquement les classes dont le temps vaut zéro, calcule une plage dynamique autour des classes restantes et impose un domaine symétrique autour de `0 %`. Une largeur de barre explicite évite les barres sous-pixel sur les longues traces contenant de nombreuses classes. La plage reste bornée à `−20 % / +20 %`, et `0 %` reste donc exactement au centre sans réserver d'espace inutile à des classes vides.
 
 ## Routes API
 

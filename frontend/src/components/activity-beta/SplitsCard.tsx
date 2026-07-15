@@ -44,6 +44,12 @@ function getRegularityLabel(cv: number): string {
   return 'Irégulière';
 }
 
+export function splitPaceBarWidth(paceSeconds: number | null, bestPace: number, worstPace: number): number {
+  const range = worstPace - bestPace;
+  if (paceSeconds === null || !Number.isFinite(paceSeconds) || range <= 0.5) return 50;
+  return 10 + ((worstPace - paceSeconds) / range) * 80;
+}
+
 export function SplitsCard({ activity, className }: SplitsCardProps) {
   const rawRows = getValueAtPath(activity, 'splits.rows');
   const splits = hideShortFinalSplit(Array.isArray(rawRows) ? (rawRows as SplitRow[]) : []);
@@ -89,8 +95,6 @@ export function SplitsCard({ activity, className }: SplitsCardProps) {
     );
   }
 
-  const paceRange = worstPace! - bestPace!;
-
   return (
     <div className={cn("rounded-2xl border border-slate-200 bg-white shadow-sm", className)}>
       <div className="px-5 pt-5">
@@ -120,9 +124,7 @@ export function SplitsCard({ activity, className }: SplitsCardProps) {
             <tbody className="divide-y divide-slate-100">
               {splits.map((split, idx) => {
                 const paceSec = split.pace_s_per_km;
-                const barWidth = paceSec !== null && paceRange > 0.5
-                  ? 10 + ((paceSec - bestPace!) / paceRange) * 80
-                  : 50;
+                const barWidth = splitPaceBarWidth(paceSec, bestPace!, worstPace!);
                 const deviation = paceSec !== null ? paceSec - avgPace : null;
                 const isBest = idx === bestIdx;
                 const isWorst = idx === worstIdx;

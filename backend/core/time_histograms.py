@@ -116,17 +116,20 @@ def build_grade_histogram(
                 "time_percent": seconds / total * 100.0 if total > 0 else 0.0,
             }
         )
-    display = [item for item in complete if float(item["time_s"]) >= DISPLAY_MIN_BIN_TIME_S]
-    displayed = float(sum(float(item["time_s"]) for item in display))
+    # Unlike pace bins, grade bins are not visually masked. Keeping every
+    # non-empty class makes long and highly varied courses auditable and avoids
+    # a second, implicit filtering rule in consumers.
+    display = complete.copy()
+    displayed = total
     return {
         "time_unit": "s",
         "distance_unit": "km",
         "bin_width_pct": 0.5,
         "visual_range_pct": [-GRADE_DISPLAY_LIMIT_PCT, GRADE_DISPLAY_LIMIT_PCT],
-        "display_min_time_s": DISPLAY_MIN_BIN_TIME_S,
+        "display_min_time_s": 0.0,
         "complete_classes": complete,
         "display_classes": display,
         "total_time_s": total,
         "displayed_time_s": displayed,
-        "hidden_time_s": total - displayed,
+        "hidden_time_s": 0.0,
     }

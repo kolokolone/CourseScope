@@ -5,6 +5,8 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { formatDurationSeconds } from '@/lib/metricsFormat';
 import type { GradeTimeBin } from '@/types/api';
 
+export const GRADE_BAR_SIZE_PX = 6;
+
 export function buildVisibleGradeRows(data: GradeTimeBin[]): GradeTimeBin[] {
   return (data ?? []).filter((row) => Number.isFinite(row.time_s) && row.time_s > 0);
 }
@@ -64,7 +66,14 @@ export function GradeTimeBarChart({ data }: { data: GradeTimeBin[] }) {
               return [Number.isFinite(n) ? formatDurationSeconds(n) : '—', 'Temps'];
             }}
           />
-          <Bar dataKey="time_s" fill="#1d3557" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+          <Bar
+            dataKey="time_s"
+            fill="#1d3557"
+            barSize={GRADE_BAR_SIZE_PX}
+            minPointSize={2}
+            radius={[2, 2, 0, 0]}
+            isAnimationActive={false}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

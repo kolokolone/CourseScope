@@ -16,12 +16,12 @@ from core.time_histograms import build_grade_histogram, build_pace_histogram
 from services.weather import NullWeatherProvider, WeatherProvider
 
 
-RACE_PLANNING_PIPELINE_VERSION = "race-planning-v5"
+RACE_PLANNING_PIPELINE_VERSION = "race-planning-v6"
 MINETTI_GRADE_LIMIT_PCT = 30.0
 MINETTI_UPHILL_COMPRESSION_EXPONENT = 0.80
 DOWNHILL_GRADE_POINTS_PCT = np.array([-30.0, -25.0, -18.0, -15.0, -12.0, -10.0, -8.0, -5.0, -3.0, 0.0])
 DOWNHILL_PACE_RATIO_POINTS = np.array([1.20, 1.10, 1.00, 0.95, 0.90, 0.88, 0.90, 0.94, 0.97, 1.00])
-PACE_SMOOTHING_WINDOW_M = 150.0
+PACE_SMOOTHING_WINDOW_M = 100.0
 
 
 def minetti_cost_ratio(grade_pct: np.ndarray | float) -> np.ndarray:
@@ -365,6 +365,29 @@ def calculate_race_plan_preview(
         normalized_stops.append({**stop, "distance_km": distance_km, "duration_s": duration_s, "sort_order": order})
 
     distance_values = profile["distance_m"].to_numpy(dtype=float)
+    scenario_cache_hash = scenario_hash(scenario, normalized_stops)
+    elapsed_stop_time_s = 0.0
+    enriched_stops: list[dict[str, object]] = []
+    for stop in normalized_stops:
+        running_at_stop_s = _cumulative_at(
+            distance_values,
+            cumulative_running,
+            float(stop["distance_km"]) * 1000.0,
+        )
+        arrival_elapsed_time_s = running_at_stop_s + elapsed_stop_time_s
+        departure_elapsed_time_s = arrival_elapsed_time_s + float(stop["duration_s"])
+        enriched_stops.append(
+            {
+                **stop,
+                "arrival_elapsed_time_s": arrival_elapsed_time_s,
+                "departure_elapsed_time_s": departure_elapsed_time_s,
+                "arrival_time_iso": _iso_at(start_datetime, arrival_elapsed_time_s),
+                "departure_time_iso": _iso_at(start_datetime, departure_elapsed_time_s),
+            }
+        )
+        elapsed_stop_time_s += float(stop["duration_s"])
+    normalized_stops = enriched_stops
+
     cumulative_elapsed = np.array(
         [running + _stop_delay_at(normalized_stops, distance_m / 1000.0) for running, distance_m in zip(cumulative_running, distance_values)],
         dtype=float,
@@ -503,7 +526,7 @@ def calculate_race_plan_preview(
     ]
     return {
         "pipeline_version": RACE_PLANNING_PIPELINE_VERSION,
-        "scenario_hash": scenario_hash(scenario, normalized_stops),
+        "scenario_hash": scenario_cache_hash,
         "units": {"distance": "km", "internal_distance": "m", "elevation": "m", "pace": "s/km", "time": "s", "grade": "%"},
         "model": {
             "slope_model": "minetti",

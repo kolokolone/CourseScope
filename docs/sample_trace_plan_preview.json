@@ -1,5 +1,5 @@
 {
-  "pipeline_version": "race-planning-v5",
+  "pipeline_version": "race-planning-v6",
   "scenario_hash": "example-sha256",
   "units": {
     "distance": "km",
@@ -69,17 +69,21 @@
   "stops": [
     {
       "distance_km": 8.0,
-      "stop_type": "water",
+      "stop_type": "water_nutrition",
       "duration_s": 120.0,
       "notes": "Remplir les flasques",
-      "sort_order": 0
+      "sort_order": 0,
+      "arrival_elapsed_time_s": 2920.0,
+      "departure_elapsed_time_s": 3040.0,
+      "arrival_time_iso": "2026-09-12T08:48:40+02:00",
+      "departure_time_iso": "2026-09-12T08:50:40+02:00"
     }
   ],
   "histograms": {
     "pace": {
       "unit": "s",
       "bin_width_s_per_km": 15.0,
-      "display_min_time_s": 90.0,
+      "display_min_time_s": 0.0,
       "display_max_pace_factor": 1.75,
       "complete_classes": [],
       "display_classes": [],
@@ -96,8 +100,8 @@
       "complete_classes": [],
       "display_classes": [],
       "total_time_s": 4893.68,
-      "displayed_time_s": 4600.0,
-      "hidden_time_s": 293.68
+      "displayed_time_s": 4893.68,
+      "hidden_time_s": 0.0
     }
   },
   "alerts": [],

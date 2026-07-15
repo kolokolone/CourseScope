@@ -205,6 +205,10 @@ Fallback dynamique actuel:
 
 Le hero local de `/activities/[id]` et celui de `/traces/[id]` partagent le même langage visuel : carte `rounded-2xl`, bordure et ombre légères, dégradé discret `primary/background/emerald`, libellé de domaine, titre renommable puis grille de KPI. Il s'agit d'un contexte métier, pas d'un second header global. Il ne doit contenir ni bouton « retour », ni duplication de la navigation fournie par `AppShell`.
 
+### Carte analytique synchronisée
+
+Sur `/activities/[id]`, la carte et « Analyse principale » sont regroupées dans une seule `AnalysisCard` intitulée « Carte et allure synchronisées ». Le composant possède localement l'état de survol afin qu'un mouvement de souris ne provoque pas le rendu de toute la page. Sur `/traces/[id]`, le même ordre carte puis graphique est conservé. Les axes masqués doivent avoir une largeur nulle pour ne pas créer de gouttière invisible.
+
 ---
 
 ## 8) Regles de composition d une page

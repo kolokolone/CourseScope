@@ -156,7 +156,9 @@ class TestRacePlanningPipeline(unittest.TestCase):
         for name in ("pace", "grade"):
             histogram = preview["histograms"][name]
             self.assertAlmostEqual(sum(float(row["time_s"]) for row in histogram["complete_classes"]), total, places=6)
-            self.assertTrue(all(float(row["time_s"]) >= 90.0 for row in histogram["display_classes"]))
+        self.assertTrue(all(float(row["time_s"]) >= 90.0 for row in preview["histograms"]["pace"]["display_classes"]))
+        self.assertEqual(preview["histograms"]["grade"]["display_classes"], preview["histograms"]["grade"]["complete_classes"])
+        self.assertEqual(preview["histograms"]["grade"]["hidden_time_s"], 0.0)
         max_pace = float(preview["totals"]["base_pace_s_per_km"]) * 1.75
         self.assertTrue(all(float(row["pace_bin_floor_s_per_km"]) <= max_pace for row in preview["histograms"]["pace"]["display_classes"]))
         grade_rows = preview["histograms"]["grade"]["complete_classes"]

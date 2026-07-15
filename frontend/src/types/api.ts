@@ -244,7 +244,7 @@ export interface TraceUploadResponse {
 }
 
 export type RaceObjectiveType = 'pace' | 'time' | 'effort';
-export type RaceStopType = 'water' | 'nutrition' | 'assistance' | 'other';
+export type RaceStopType = 'water' | 'nutrition' | 'water_nutrition' | 'assistance' | 'other';
 
 export interface RaceStop {
   id: string;
@@ -253,6 +253,10 @@ export interface RaceStop {
   duration_s: number;
   notes?: string | null;
   sort_order: number;
+  arrival_elapsed_time_s?: number;
+  departure_elapsed_time_s?: number;
+  arrival_time_iso?: string | null;
+  departure_time_iso?: string | null;
 }
 
 export interface RaceScenario {

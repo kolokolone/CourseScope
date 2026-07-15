@@ -36,7 +36,7 @@ def test_trace_plan_save_reload_stops_and_comparison(tmp_path, monkeypatch):
 
         plan_patch = client.patch(f'/traces/{trace_id}/plans/{plan_id}', json={'race_date': '2026-07-20', 'start_time': '08:00', 'timezone': 'Europe/Paris'})
         assert plan_patch.status_code == 200
-        stop = client.post(f'/traces/{trace_id}/plans/{plan_id}/scenarios/{scenario_id}/stops', json={'distance_km': 1.0, 'stop_type': 'water', 'duration_s': 90})
+        stop = client.post(f'/traces/{trace_id}/plans/{plan_id}/scenarios/{scenario_id}/stops', json={'distance_km': 1.0, 'stop_type': 'water_nutrition', 'duration_s': 90})
         assert stop.status_code == 201
 
         preview = client.post(f'/traces/{trace_id}/plan-preview', json={'plan_id': plan_id, 'scenario_id': scenario_id})
@@ -44,6 +44,11 @@ def test_trace_plan_save_reload_stops_and_comparison(tmp_path, monkeypatch):
         body = preview.json()
         assert body['totals']['stop_time_s'] == 90
         assert body['totals']['arrival_time_iso'] is not None
+        preview_stop = body['stops'][0]
+        assert preview_stop['stop_type'] == 'water_nutrition'
+        assert preview_stop['departure_elapsed_time_s'] - preview_stop['arrival_elapsed_time_s'] == 90
+        assert preview_stop['arrival_time_iso'] is not None
+        assert preview_stop['departure_time_iso'] is not None
         passage_times = [row['elapsed_time_s'] for row in body['passages']]
         assert passage_times == sorted(passage_times)
         assert abs(sum(row['time_s'] for row in body['histograms']['pace']['complete_classes']) - body['totals']['running_time_s']) < 1e-6

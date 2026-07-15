@@ -15,7 +15,8 @@ import {
 
 import { CHART_COLORS } from '@/lib/chartColors';
 import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
-import type { RaceProfilePoint } from '@/types/api';
+import { RACE_STOP_ICONS } from '@/lib/raceStops';
+import type { RaceProfilePoint, RaceStop } from '@/types/api';
 
 type LegacyPaceElevationPoint = { distance_km: number; target_pace_s_per_km: number; elevation_m?: number | null };
 
@@ -71,11 +72,13 @@ export function TheoreticalPaceElevationChart({
   data,
   onPointHover,
   activePoint,
+  stops = [],
   heightClassName = 'h-80',
 }: {
   data: Array<RaceProfilePoint | LegacyPaceElevationPoint>;
   onPointHover?: (point: RaceProfilePoint | null) => void;
   activePoint?: RaceProfilePoint | null;
+  stops?: RaceStop[];
   heightClassName?: string;
 }) {
   const points = React.useMemo<RaceProfilePoint[]>(() => (data ?? []).map((row) => 'pace_s_per_km' in row ? row : ({ distance_km: row.distance_km, pace_s_per_km: row.target_pace_s_per_km, elevation_m: row.elevation_m ?? 0, grade_pct: 0, grade_robust_pct: 0, elapsed_time_s: 0 })), [data]);
@@ -99,7 +102,7 @@ export function TheoreticalPaceElevationChart({
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={points}
-          margin={{ top: 10, right: 16, left: 0, bottom: 0 }}
+          margin={{ top: stops.length > 0 ? 30 : 10, right: 16, left: 0, bottom: 0 }}
           onMouseLeave={() => onPointHover?.(null)}
           onMouseMove={(state) => {
             const index = Number(state?.activeTooltipIndex);
@@ -148,7 +151,7 @@ export function TheoreticalPaceElevationChart({
           />
           <Line
             yAxisId="pace"
-            type="monotone"
+            type="basis"
             dataKey="pace_s_per_km"
             name="Allure théorique"
             stroke={CHART_COLORS.theoreticalPace}
@@ -156,6 +159,17 @@ export function TheoreticalPaceElevationChart({
             dot={false}
             isAnimationActive={false}
           />
+          {stops.map((stop) => (
+            <ReferenceLine
+              key={stop.id}
+              yAxisId="pace"
+              x={stop.distance_km}
+              stroke="#94a3b8"
+              strokeDasharray="4 4"
+              ifOverflow="visible"
+              label={{ value: RACE_STOP_ICONS[stop.stop_type], position: 'top', fontSize: 12, fill: 'var(--foreground)' }}
+            />
+          ))}
           {activePoint ? (
             <ReferenceLine
               x={activePoint.distance_km}

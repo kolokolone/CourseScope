@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.10] - 2026-07-15
+
+### Added
+- **Ravitaillements** : type combiné eau et alimentation, saisie des durées en `mm:ss`, heures d'arrivée/de départ et repères synchronisés sur la consigne d'allure.
+- **Calendrier** : infobulle détaillée au survol et au clavier, avec mois alignés sur les colonnes hebdomadaires.
+
+### Fixed
+- **Histogrammes de pente** : largeur minimale explicite des barres sur les traces longues et retrait du masque temporel sur les traces comme sur les activités.
+- **Analyse d'activité** : axe d'altitude masqué sans largeur résiduelle, synchronisation carte–graphique locale et fluide, barres de splits proportionnelles à la vitesse.
+
+### Changed
+- **Consigne théorique** : retour au lissage métier métrique de 100 m ; interpolation visuelle plus douce sans modifier les valeurs ni le temps calculé.
+- **Mise en page** : carte et analyse réelle réunies dans une carte synchronisée ; nutrition et matériel affichés côte à côte sur grand écran.
+
 ## [1.2.9] - 2026-07-14
 
 ### Fixed

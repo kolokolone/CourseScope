@@ -4,7 +4,7 @@ import * as React from 'react';
 
 import { TheoreticalPaceElevationChart } from '@/components/charts/TheoreticalPaceElevationChart';
 import { ActivityMap } from '@/components/maps/ActivityMap';
-import type { ActivityMapResponse, RaceProfilePoint } from '@/types/api';
+import type { ActivityMapResponse, RaceProfilePoint, RaceStop } from '@/types/api';
 
 function mapPayload(profile: RaceProfilePoint[]): ActivityMapResponse {
   const geo = profile.filter((point) => point.lat != null && point.lon != null);
@@ -13,7 +13,7 @@ function mapPayload(profile: RaceProfilePoint[]): ActivityMapResponse {
   return { polyline: geo.map((point) => [point.lat as number, point.lon as number]), bbox: geo.length ? [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)] : undefined };
 }
 
-export function SynchronizedCourseView({ profile }: { profile: RaceProfilePoint[] }) {
+export function SynchronizedCourseView({ profile, stops }: { profile: RaceProfilePoint[]; stops: RaceStop[] }) {
   const [selected, setSelected] = React.useState<RaceProfilePoint | null>(null);
   const [hovered, setHovered] = React.useState<RaceProfilePoint | null>(null);
   const active = hovered ?? selected;
@@ -37,6 +37,7 @@ export function SynchronizedCourseView({ profile }: { profile: RaceProfilePoint[
         <h3 className="mb-2 text-sm font-semibold">Allure vs distance</h3>
         <TheoreticalPaceElevationChart
           data={profile}
+          stops={stops}
           heightClassName="h-[430px]"
           activePoint={active}
           onPointHover={setHovered}

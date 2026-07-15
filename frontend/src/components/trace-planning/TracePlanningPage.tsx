@@ -178,41 +178,43 @@ function EditablePlanningLists({ traceId, plan, scenario }: { traceId: TraceId; 
         )) : <EmptyState message="La stratégie calculée par splits reste disponible dans l’aperçu ; ajoutez ici vos consignes personnalisées." />}
       </AnalysisCard>
 
-      <AnalysisCard
-        id="nutrition"
-        title="Nutrition et hydratation"
-        actions={<Button size="sm" variant="outline" onClick={addNutrition}>Ajouter</Button>}
-      >
-        {scenario.nutrition?.length ? scenario.nutrition.map((item, index) => (
-          <div key={item.id ?? index} className="flex justify-between border-b py-2 text-sm">
-            <span>Km {item.distance_km.toFixed(1)} · {item.item_type}</span>
-            <span className="text-muted-foreground">{item.amount}</span>
-          </div>
-        )) : <EmptyState message="Aucun apport planifié." />}
-      </AnalysisCard>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <AnalysisCard
+          id="nutrition"
+          title="Nutrition et hydratation"
+          actions={<Button size="sm" variant="outline" onClick={addNutrition}>Ajouter</Button>}
+        >
+          {scenario.nutrition?.length ? scenario.nutrition.map((item, index) => (
+            <div key={item.id ?? index} className="flex justify-between border-b py-2 text-sm">
+              <span>Km {item.distance_km.toFixed(1)} · {item.item_type}</span>
+              <span className="text-muted-foreground">{item.amount}</span>
+            </div>
+          )) : <EmptyState message="Aucun apport planifié." />}
+        </AnalysisCard>
 
-      <AnalysisCard
-        id="materiel"
-        title="Matériel et checklist"
-        actions={<Button size="sm" variant="outline" onClick={addEquipment}>Ajouter</Button>}
-      >
-        <div className="space-y-2">
-          {plan.equipment?.length ? plan.equipment.map((item, index) => (
-            <label key={item.id ?? index} className="flex items-center gap-3 rounded-md border p-3 text-sm">
-              <input type="checkbox" checked={item.is_checked} onChange={() => toggleEquipment(index)} />
-              <span className={item.is_checked ? 'text-muted-foreground line-through' : ''}>{item.label}</span>
-            </label>
-          )) : <EmptyState message="Checklist vide." />}
-        </div>
-        {plan.equipment?.length || plan.course_points?.length ? <div className="mt-4 border-t pt-4">
-          {plan.equipment?.length ? <Button size="sm" variant="ghost" onClick={addPoint}>Ajouter un point remarquable</Button> : null}
-          {plan.course_points?.map((point, index) => (
-            <span key={point.id ?? index} className="ml-2 inline-flex rounded-full bg-muted px-2 py-1 text-xs">
-              Km {point.distance_km}: {point.label}
-            </span>
-          ))}
-        </div> : null}
-      </AnalysisCard>
+        <AnalysisCard
+          id="materiel"
+          title="Matériel et checklist"
+          actions={<Button size="sm" variant="outline" onClick={addEquipment}>Ajouter</Button>}
+        >
+          <div className="space-y-2">
+            {plan.equipment?.length ? plan.equipment.map((item, index) => (
+              <label key={item.id ?? index} className="flex items-center gap-3 rounded-md border p-3 text-sm">
+                <input type="checkbox" checked={item.is_checked} onChange={() => toggleEquipment(index)} />
+                <span className={item.is_checked ? 'text-muted-foreground line-through' : ''}>{item.label}</span>
+              </label>
+            )) : <EmptyState message="Checklist vide." />}
+          </div>
+          {plan.equipment?.length || plan.course_points?.length ? <div className="mt-4 border-t pt-4">
+            {plan.equipment?.length ? <Button size="sm" variant="ghost" onClick={addPoint}>Ajouter un point remarquable</Button> : null}
+            {plan.course_points?.map((point, index) => (
+              <span key={point.id ?? index} className="ml-2 inline-flex rounded-full bg-muted px-2 py-1 text-xs">
+                Km {point.distance_km}: {point.label}
+              </span>
+            ))}
+          </div> : null}
+        </AnalysisCard>
+      </div>
     </>
   );
 }
@@ -336,7 +338,7 @@ export function TracePlanningPage({ traceId }: { traceId: TraceId }) {
             title="Carte et allure synchronisées"
             description="Carte pleine largeur ; survolez l’allure ou cliquez sur la carte pour inspecter le même point."
           >
-            <SynchronizedCourseView profile={preview.profile} />
+            <SynchronizedCourseView profile={preview.profile} stops={preview.stops} />
           </AnalysisCard>
 
           <PlanningCharts preview={preview} />
@@ -352,13 +354,13 @@ export function TracePlanningPage({ traceId }: { traceId: TraceId }) {
           <AnalysisCard
             id="pauses"
             title="Ravitaillements et pauses"
-            description="Eau, alimentation, assistance ou autre ; chaque changement déclenche un nouveau calcul."
+            description="Eau, alimentation, eau et alimentation, assistance ou autre ; chaque changement déclenche un nouveau calcul."
           >
             <StopsEditor
               traceId={traceId}
               planId={plan.id}
               scenarioId={scenario.id}
-              stops={scenario.stops ?? []}
+              stops={preview.stops}
               totalDistanceKm={preview.totals.distance_km}
             />
           </AnalysisCard>

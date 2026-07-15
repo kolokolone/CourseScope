@@ -80,4 +80,6 @@ def test_load_activity_and_fetch_endpoints():
                 sum(row["time_s"] for row in histogram["complete_classes"])
                 - histogram["total_time_s"]
             ) < 1e-6
-            assert all(row["time_s"] >= 90.0 for row in histogram["display_classes"])
+        assert all(row["time_s"] >= 90.0 for row in bins["pace_histogram"]["display_classes"])
+        assert bins["grade_histogram"]["display_classes"] == bins["grade_histogram"]["complete_classes"]
+        assert bins["grade_histogram"]["hidden_time_s"] == 0.0

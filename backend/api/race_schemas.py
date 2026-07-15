@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 ObjectiveType = Literal["pace", "time", "effort"]
-StopType = Literal["water", "nutrition", "assistance", "other"]
+StopType = Literal["water", "nutrition", "water_nutrition", "assistance", "other"]
 
 
 class RaceStopInput(BaseModel):

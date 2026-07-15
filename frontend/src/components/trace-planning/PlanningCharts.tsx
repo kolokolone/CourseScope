@@ -18,9 +18,9 @@ export function PlanningCharts({ preview }: { preview: RacePlanPreview }) {
         </AnalysisCard>
         <AnalysisCard
           title="Temps par % de pente"
-          description={`Plage symétrique −20 % / +20 %, centrée sur 0 % · masqué : ${formatDurationSeconds(grade.hidden_time_s)}`}
+          description="Toutes les classes non vides sont affichées sur une plage symétrique centrée sur 0 %."
         >
-          <GradeTimeBarChart data={grade.display_classes} />
+          <GradeTimeBarChart data={grade.complete_classes} />
         </AnalysisCard>
       </div>
     </div>

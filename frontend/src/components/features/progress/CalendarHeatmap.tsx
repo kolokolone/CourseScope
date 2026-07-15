@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useCalendar } from '@/hooks/useProgress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { formatNumber } from '@/lib/metricsFormat';
+import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
 import type { CalendarDay } from '@/types/api';
 
 // ── Échelle de couleur (style GitHub) ──
@@ -59,6 +59,7 @@ function getMonthLabels(paddedDays: Array<CalendarDay | null>): Array<{ colIndex
 export default function CalendarHeatmap() {
   const currentYear = React.useMemo(() => new Date().getFullYear(), []);
   const [year, setYear] = React.useState(currentYear);
+  const [tooltip, setTooltip] = React.useState<{ day: CalendarDay; x: number; y: number } | null>(null);
   const { data, isLoading, isError } = useCalendar(year);
 
   const yearOptions = React.useMemo(() => {
@@ -98,7 +99,7 @@ export default function CalendarHeatmap() {
             {yearOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         </CardHeader>
-        <CardContent><p className="text-muted-foreground">Pas d'activités en {year}</p></CardContent>
+        <CardContent><p className="text-muted-foreground">Pas d&apos;activités en {year}</p></CardContent>
       </Card>
     );
   }
@@ -185,9 +186,15 @@ export default function CalendarHeatmap() {
           <div className="flex-1 overflow-x-auto">
             <div style={{ width: '100%', minWidth: gridWidth }}>
               {/* Labels des mois */}
-              <div className="relative mb-1 h-[16px]">
+              <div
+                className="mb-1 grid h-[16px]"
+                style={{
+                  gridTemplateColumns: `repeat(${numCols}, minmax(${CELL}px, 1fr))`,
+                  columnGap: `${GAP}px`,
+                }}
+              >
                 {monthLabels.map(({ colIndex, label }, i) => (
-                  <div key={i} className="absolute text-[10px] text-muted-foreground" style={{ left: `${(colIndex / numCols) * 100}%` }}>
+                  <div key={i} className="whitespace-nowrap text-[10px] text-muted-foreground" style={{ gridColumnStart: colIndex + 1 }}>
                     {label}
                   </div>
                 ))}
@@ -210,8 +217,17 @@ export default function CalendarHeatmap() {
                     return (
                       <div
                         key={`${col}-${row}`}
-                        className={cn('aspect-square w-full rounded-[2px]', HEAT_COLORS[level])}
-                        title={`${formatDayLabel(day.date)}${day.has_activity ? ` - ${formatNumber(day.distance_km ?? 0, { decimals: 1 })} km` : ''}`}
+                        className={cn('aspect-square w-full rounded-[2px] outline-none focus-visible:ring-2 focus-visible:ring-primary', HEAT_COLORS[level])}
+                        tabIndex={0}
+                        aria-label={`${formatDayLabel(day.date)}${day.has_activity ? `, ${formatNumber(day.distance_km ?? 0, { decimals: 1 })} kilomètres` : ', aucune activité'}`}
+                        onMouseEnter={(event) => setTooltip({ day, x: event.clientX, y: event.clientY })}
+                        onMouseMove={(event) => setTooltip({ day, x: event.clientX, y: event.clientY })}
+                        onMouseLeave={() => setTooltip(null)}
+                        onFocus={(event) => {
+                          const rect = event.currentTarget.getBoundingClientRect();
+                          setTooltip({ day, x: rect.left + rect.width / 2, y: rect.top });
+                        }}
+                        onBlur={() => setTooltip(null)}
                       />
                     );
                   })
@@ -229,6 +245,22 @@ export default function CalendarHeatmap() {
             </div>
           </div>
         </div>
+        {tooltip ? (
+          <div
+            className="pointer-events-none fixed z-[1000] min-w-40 -translate-x-1/2 -translate-y-[calc(100%+10px)] rounded-md border border-border bg-popover px-2.5 py-2 text-xs text-popover-foreground shadow-md"
+            style={{ left: tooltip.x, top: tooltip.y }}
+            role="tooltip"
+          >
+            <div className="font-medium">{formatDayLabel(tooltip.day.date)}</div>
+            {tooltip.day.has_activity ? (
+              <div className="mt-1 space-y-0.5 text-muted-foreground">
+                <div>{formatNumber(tooltip.day.distance_km ?? 0, { decimals: 1 })} km</div>
+                {tooltip.day.moving_time_s != null ? <div>{formatDurationSeconds(tooltip.day.moving_time_s)}</div> : null}
+                <div>{tooltip.day.activity_count} activité{tooltip.day.activity_count > 1 ? 's' : ''}</div>
+              </div>
+            ) : <div className="mt-1 text-muted-foreground">Aucune activité</div>}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
