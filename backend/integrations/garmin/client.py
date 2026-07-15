@@ -19,6 +19,21 @@ class GarminAuthError(RuntimeError):
     pass
 
 
+def _incompatible_garth_error(missing_api: str) -> GarminAuthError:
+    return GarminAuthError(
+        "Incompatible garth installation "
+        f"(missing {missing_api}); restart with start_backend.bat to repair garth-ng==1.1.0"
+    )
+
+
+def _new_garth_http_client():
+    http_module = getattr(garth, "http", None)
+    client_class = getattr(http_module, "Client", None)
+    if not callable(client_class):
+        raise _incompatible_garth_error("garth.http.Client")
+    return client_class()
+
+
 @dataclass(frozen=True)
 class GarminMfaState:
     """In-memory MFA login state.
@@ -26,7 +41,8 @@ class GarminMfaState:
     Note: contains a live HTTP client/session; must not be serialized.
     """
 
-    client_state: dict
+    client: Any
+    mfa_state: Any
 
 
 class GarthGarminClient:
@@ -81,25 +97,26 @@ def start_login(
     """
 
     token_dir = ensure_tokens_dir(tokens_dir)
-    client = garth.http.Client()
     try:
-        result = garth.sso.login(
+        client = _new_garth_http_client()
+        login = getattr(client, "login", None)
+        if not callable(login):
+            raise _incompatible_garth_error("garth.http.Client.login")
+        result = login(
             email,
             password,
-            client=client,
             prompt_mfa=None,
             return_on_mfa=True,
         )
-        if isinstance(result, dict) and result.get("needs_mfa") is True:
-            state = result.get("client_state")
-            if not isinstance(state, dict):
-                raise GarminAuthError("Garmin MFA required but state is missing")
-            return GarminMfaState(client_state=state)
+        if result.__class__.__name__ == "MFAState":
+            return GarminMfaState(client=client, mfa_state=result)
 
-        oauth1, oauth2 = result  # type: ignore[misc]
-        client.configure(oauth1_token=oauth1, oauth2_token=oauth2, domain=getattr(oauth1, "domain", None))
+        if getattr(client, "oauth2_token", None) is None:
+            raise GarminAuthError("Garmin login returned no OAuth2 token")
         client.dump(str(token_dir))
         return None
+    except GarminAuthError:
+        raise
     except requests.HTTPError as http_err:
         body = getattr(http_err.response, "text", "")
         raise GarminAuthError(f"Garmin login HTTP error: {http_err}; body={body[:500]}")
@@ -117,22 +134,16 @@ def resume_login_with_otp(
 
     token_dir = ensure_tokens_dir(tokens_dir)
     try:
-        client_state = mfa_state.client_state
-        client = client_state.get("client")
-        oauth1, oauth2 = garth.sso.resume_login(client_state, otp)
-        # resume_login uses the same client instance; configure tokens and persist.
-        if client is not None:
-            try:
-                client.configure(oauth1_token=oauth1, oauth2_token=oauth2, domain=getattr(oauth1, "domain", None))
-                client.dump(str(token_dir))
-                return
-            except Exception:
-                pass
-
-        # Fallback: persist using a new client.
-        tmp = garth.http.Client()
-        tmp.configure(oauth1_token=oauth1, oauth2_token=oauth2, domain=getattr(oauth1, "domain", None))
-        tmp.dump(str(token_dir))
+        client = mfa_state.client
+        resume_login = getattr(client, "resume_login", None)
+        if not callable(resume_login):
+            raise _incompatible_garth_error("garth.http.Client.resume_login")
+        resume_login(mfa_state.mfa_state, otp)
+        if getattr(client, "oauth2_token", None) is None:
+            raise GarminAuthError("Garmin MFA returned no OAuth2 token")
+        client.dump(str(token_dir))
+    except GarminAuthError:
+        raise
     except requests.HTTPError as http_err:
         body = getattr(http_err.response, "text", "")
         raise GarminAuthError(f"Garmin MFA HTTP error: {http_err}; body={body[:500]}")
@@ -145,8 +156,22 @@ def connect_with_tokens(*, tokens_dir: Path | None = None) -> GarthGarminClient:
 
     token_dir = ensure_tokens_dir(tokens_dir)
     try:
-        garth.resume(str(token_dir))
+        resume = getattr(garth, "resume", None)
+        if not callable(resume):
+            raise _incompatible_garth_error("garth.resume")
+        resume(str(token_dir))
+        client = getattr(garth, "client", None)
+        if client is None:
+            raise _incompatible_garth_error("garth.client")
+        # Loading JSON only proves that token files are readable. Validate the
+        # OAuth session now so an expired refresh token can trigger the single
+        # credential-based renewal before a long sync run is created.
+        profile = client.connectapi("/userprofile-service/socialProfile")
+        if not isinstance(profile, dict):
+            raise GarminAuthError("Garmin token validation returned no user profile")
+    except GarminAuthError:
+        raise
     except Exception as exc:
         raise GarminAuthError(f"No valid Garmin tokens found in {token_dir}: {exc}")
 
-    return GarthGarminClient(garth.client)
+    return GarthGarminClient(client)

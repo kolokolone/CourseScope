@@ -140,6 +140,33 @@ def test_garmin_sync_renews_invalid_tokens_from_saved_credentials(_isolated_env,
     assert calls == {"connect": 2, "login": 1}
 
 
+def test_garmin_sync_returns_401_for_incompatible_garth_installation(_isolated_env, monkeypatch):
+    from api.routes import garmin_integration as garmin_routes
+    from integrations.garmin.client import GarminAuthError
+
+    def incompatible_tokens():
+        raise GarminAuthError("Incompatible garth installation (missing garth.resume)")
+
+    def incompatible_login(*, email: str, password: str):
+        _ = email, password
+        raise GarminAuthError("Incompatible garth installation (missing garth.http.Client)")
+
+    monkeypatch.setattr(garmin_routes, "connect_with_tokens", incompatible_tokens)
+    monkeypatch.setattr(
+        garmin_routes,
+        "load_credentials",
+        lambda: SimpleNamespace(email="runner@example.test", password="saved-secret"),
+    )
+    monkeypatch.setattr(garmin_routes, "start_login", incompatible_login)
+
+    with TestClient(app) as client:
+        response = client.post("/integrations/garmin/sync")
+
+    assert response.status_code == 401
+    assert response.json()["detail"].startswith("reauth_required:")
+    assert "garth.http.Client" in response.json()["detail"]
+
+
 def test_garmin_sync_skips_when_manual_upload_matches_file_hash(_isolated_env, monkeypatch):
     fit_bytes, filename = _load_fit_fixture_bytes()
     zip_bytes = _zip_fit_bytes(fit_bytes)

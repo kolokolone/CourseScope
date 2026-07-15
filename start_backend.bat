@@ -6,6 +6,12 @@ cd /d "%~dp0" || goto :fail
 if not defined COURSESCOPE_DATA_DIR set "COURSESCOPE_DATA_DIR=%~dp0data"
 echo [INFO] Runtime data: "%COURSESCOPE_DATA_DIR%"
 
+REM Stop the previous dev server before checking or repairing its virtualenv.
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do (
+  echo [WARN] Existing listener detected on :8000 pid=%%a, stopping it...
+  taskkill /F /PID %%a >nul 2>&1
+)
+
 set "VENV_DIR=%~dp0.venv"
 set "PY=%VENV_DIR%\Scripts\python.exe"
 
@@ -30,16 +36,20 @@ if not exist "%PY%" (
 )
 
 echo [INFO] Installing backend dependencies...
-REM garth-ng uses the same import package as the deprecated garth distribution.
-REM Remove the legacy distribution first to avoid a mixed Windows venv.
-"%PY%" -m pip uninstall -y garth >nul 2>&1
 "%PY%" -m pip install -r "%~dp0requirements.txt"
 if errorlevel 1 goto :fail
 
-REM Avoid bind errors if a stale listener remains on 8000.
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do (
-  echo [WARN] Existing listener detected on :8000 pid=%%a, stopping it...
-  taskkill /F /PID %%a >nul 2>&1
+REM garth and garth-ng share the same import namespace. A previous uninstall can
+REM leave garth-ng metadata behind while deleting its API files. Repair only
+REM when the exact API used by CourseScope is unavailable.
+"%PY%" -c "import garth; C=getattr(getattr(garth, 'http', None), 'Client', None); assert callable(getattr(garth, 'resume', None)); assert callable(C); assert callable(getattr(C, 'login', None)); assert callable(getattr(C, 'resume_login', None)); assert getattr(garth, 'client', None) is not None" >nul 2>&1
+if errorlevel 1 (
+  echo [WARN] Incomplete or conflicting garth installation detected, repairing garth-ng...
+  "%PY%" -m pip uninstall -y garth garth-ng >nul 2>&1
+  "%PY%" -m pip install --no-cache-dir "garth-ng==1.1.0"
+  if errorlevel 1 goto :fail
+  "%PY%" -c "import garth; C=getattr(getattr(garth, 'http', None), 'Client', None); assert callable(getattr(garth, 'resume', None)); assert callable(C); assert callable(getattr(C, 'login', None)); assert callable(getattr(C, 'resume_login', None)); assert getattr(garth, 'client', None) is not None" >nul 2>&1
+  if errorlevel 1 goto :fail
 )
 
 echo [INFO] Starting backend: http://127.0.0.1:8000

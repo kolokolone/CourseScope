@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.12] - 2026-07-15
+
+### Fixed
+- **Garmin sous Windows** : réparation conditionnelle d'un namespace `garth` incomplet, validation OAuth avant synchronisation et migration du login/MFA vers l'API réelle de `garth-ng==1.1.0`.
+- **Erreurs Garmin** : une installation incompatible ou une session expirée retourne désormais un `401 reauth_required` exploitable au lieu d'un `500` non contrôlé.
+- **Documentation de l'allure** : distinction explicite entre le lissage métier backend de 100 m et la série de présentation frontend de 200 m, sans effet sur les temps.
+
 ## [1.2.11] - 2026-07-15
 
 ### Added
