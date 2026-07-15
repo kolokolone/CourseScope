@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { Route, Upload } from 'lucide-react';
+import { FileText, Upload } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,20 +45,26 @@ export function TraceUpload({ title = 'Importer une trace', description, onUploa
   });
 
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-3">
+    <Card className="mx-auto w-full max-w-2xl">
+      <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base"><Upload className="h-5 w-5" />{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        {description ? <p className="mb-3 text-sm text-muted-foreground">{description}</p> : null}
+        {description ? <div className="mb-3 text-sm text-muted-foreground">{description}</div> : null}
         <div
           {...dropzone.getRootProps()}
-          className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${dropzone.isDragActive ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
+          className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors duration-200 ease-in-out ${dropzone.isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-gray-400'}`}
         >
           <input {...dropzone.getInputProps()} data-testid="trace-upload-input" />
-          <Route className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-          <p className="font-medium">{upload.isPending ? 'Import et indexation en cours...' : 'Glissez un fichier GPX/FIT ou cliquez pour le choisir'}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Trace persistante, fichier original et Parquet — 100 Mo maximum</p>
+          <div className="flex flex-col items-center gap-4">
+            <FileText className="h-12 w-12 text-gray-400" />
+            <div className="text-center">
+              <p className="mb-2 text-lg font-medium">
+                {upload.isPending ? 'Import et indexation en cours...' : dropzone.isDragActive ? 'Déposez le fichier ici…' : 'Glissez un fichier GPX/FIT ici, ou cliquez pour le choisir'}
+              </p>
+              <p className="text-sm text-gray-500">Formats GPX et FIT · 100 Mo maximum</p>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>

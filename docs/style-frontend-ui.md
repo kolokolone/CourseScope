@@ -209,6 +209,10 @@ Le hero local de `/activities/[id]` et celui de `/traces/[id]` partagent le mêm
 
 Sur `/activities/[id]`, la carte et « Analyse principale » sont regroupées dans une seule `AnalysisCard` intitulée « Carte et allure synchronisées ». Le composant possède localement l'état de survol afin qu'un mouvement de souris ne provoque pas le rendu de toute la page. Sur `/traces/[id]`, le même ordre carte puis graphique est conservé. Les axes masqués doivent avoir une largeur nulle pour ne pas créer de gouttière invisible.
 
+### Cartes d'import de l'accueil
+
+`ActivityUpload` et `TraceUpload` conservent des routes et mutations distinctes, mais partagent exactement le même langage visuel : largeur, en-tête, padding, bordure pointillée, états de survol/dépôt et hiérarchie typographique. Une différence de domaine ne justifie pas deux styles concurrents.
+
 ---
 
 ## 8) Regles de composition d une page

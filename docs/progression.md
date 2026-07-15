@@ -34,7 +34,7 @@ Détails : voir `docs/metrics_catalog.md` (section Progression API).
 | TRIMP par semaine + ACWR | `TrainingLoadChart.tsx` | ✅ |
 | Calendrier (heatmap) | `CalendarHeatmap.tsx` | ✅ |
 
-Le calendrier annuel étire ses colonnes de semaines sur la largeur disponible. Les libellés de mois utilisent exactement la même grille CSS que les cellules afin de rester alignés. Chaque cellule expose au survol ou au focus clavier une infobulle avec la date, la distance, la durée et le nombre d'activités.
+Le calendrier annuel étire ses colonnes de semaines sur la largeur disponible. Les libellés des jours, les mois et les cellules utilisent une seule grille CSS à 7 lignes : leur alignement ne dépend donc plus d'une hauteur fixe ou d'un décalage manuel. Chaque cellule expose au survol ou au focus clavier une infobulle opaque, basée sur le token `--card`, avec la date, la distance, la durée et le nombre d'activités.
 
 ### Performance
 | Graphique | Composant | Statut |

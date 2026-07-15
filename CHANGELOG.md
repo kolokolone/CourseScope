@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.11] - 2026-07-15
+
+### Added
+- **Objectifs** : suppression automatique des échéances expirées à la lecture, avec détachement sûr des plans liés, et nouvelle carte synthétique du prochain objectif sur l'accueil.
+- **Garmin local** : chemin de données indépendant du répertoire de lancement et renouvellement unique des jetons invalides à partir des identifiants déjà enregistrés.
+
+### Fixed
+- **Navigation de trace** : suivi des sections dans l'ordre réel du document et sur le conteneur de défilement de l'application, sans sauts liés aux lots d'`IntersectionObserver`.
+- **Calendrier de progression** : jours, mois et cases alignés dans une grille unique ; infobulle désormais opaque.
+
+### Changed
+- **Allure théorique** : géométrie de courbe deux fois plus adoucie sur 200 m, exclusivement pour l'affichage et sans modifier allure backend, temps, infobulles ou histogrammes.
+- **Objectifs et accueil** : timeline allégée avec rail et jalons ; cartes d'import activité/trace harmonisées.
+
 ## [1.2.10] - 2026-07-15
 
 ### Added

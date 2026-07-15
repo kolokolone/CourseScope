@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { ActivityUpload } from '@/components/upload/ActivityUpload';
 import { TraceUpload } from '@/components/upload/TraceUpload';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { goalObjectiveLabel } from '@/components/goals/utils';
 import { useActivityList } from '@/hooks/useActivity';
 import { useGoalsList } from '@/hooks/useGoals';
 import { usePersonalSettings } from '@/hooks/useSettings';
@@ -11,7 +13,7 @@ import { formatNumber } from '@/lib/metricsFormat';
 import { getActivityDetailPath, getTraceDetailPath } from '@/lib/routes';
 import type { ActivityId, TraceId } from '@/types/api';
 import { startOfDay, dateAtStart, formatDateLabel } from '@/lib/dateUtils';
-import { Activity } from 'lucide-react';
+import { Activity, ArrowRight, CalendarDays, Flag, MapPin, Route } from 'lucide-react';
 
 export default function HomePage() {
   const router = useRouter();
@@ -95,7 +97,7 @@ export default function HomePage() {
         <CardHeader className="py-3 px-4">
           <CardTitle className="text-base flex items-center gap-2">
             <Activity className="h-4 w-4" />
-            Historique d'activites
+            Historique des activités
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
@@ -144,18 +146,46 @@ export default function HomePage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {nextGoal && daysToNextGoal !== null ? (
-          <Card className="w-full max-w-[20rem] self-start">
-            <CardContent className="flex aspect-square flex-col items-center justify-center gap-4 p-5 text-center">
-              <div className="text-sm text-muted-foreground">Prochain objectif dans :</div>
-              <div className="text-5xl font-semibold tabular-nums tracking-tight">J-{daysToNextGoal}</div>
-              <div className="w-full rounded-md border bg-background/60 p-3 text-left text-sm">
-                <div className="font-semibold leading-tight">{nextGoal.name}</div>
-                <div className="mt-1 text-muted-foreground">{formatDateLabel(nextGoal.event_date)}</div>
-                <div className="mt-1 text-muted-foreground">
-                  {`${formatNumber(nextGoal.distance_km, { decimals: 1 })} km • ${nextGoal.race_type === 'trail' ? 'Trail' : 'Course'}`}
+          <Card className="relative w-full overflow-hidden self-stretch">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-br from-primary/12 via-primary/5 to-transparent" />
+            <CardContent className="relative flex h-full min-h-80 flex-col p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+                    <Flag className="h-4 w-4" /> Prochain objectif
+                  </div>
+                  <h2 className="mt-3 text-2xl font-semibold tracking-tight">{nextGoal.name}</h2>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1.5"><CalendarDays className="h-4 w-4" />{formatDateLabel(nextGoal.event_date)}</span>
+                    {nextGoal.location ? <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" />{nextGoal.location}</span> : null}
+                  </div>
                 </div>
+                <div className="rounded-2xl border border-primary/20 bg-card/90 px-4 py-3 text-center shadow-sm">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Échéance</div>
+                  <div className="mt-0.5 text-3xl font-semibold tabular-nums text-primary">J-{daysToNextGoal}</div>
+                </div>
+              </div>
+
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {[
+                  { label: 'Distance', value: `${formatNumber(nextGoal.distance_km, { decimals: 1 })} km` },
+                  { label: 'Terrain', value: nextGoal.race_type === 'trail' ? 'Trail' : 'Course' },
+                  { label: 'Objectif', value: goalObjectiveLabel(nextGoal) },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border border-border bg-card/70 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</div>
+                    <div className="mt-1 font-semibold tabular-nums">{item.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-auto flex flex-col items-start justify-between gap-4 pt-6 sm:flex-row sm:items-end">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground"><Route className="h-4 w-4" />Préparer l&apos;échéance et suivre les objectifs.</div>
+                <Button variant="outline" size="sm" onClick={() => router.push('/goals')}>
+                  Voir les objectifs <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
               </div>
             </CardContent>
           </Card>

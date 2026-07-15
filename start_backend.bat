@@ -3,6 +3,9 @@ setlocal EnableExtensions
 
 cd /d "%~dp0" || goto :fail
 
+if not defined COURSESCOPE_DATA_DIR set "COURSESCOPE_DATA_DIR=%~dp0data"
+echo [INFO] Runtime data: "%COURSESCOPE_DATA_DIR%"
+
 set "VENV_DIR=%~dp0.venv"
 set "PY=%VENV_DIR%\Scripts\python.exe"
 

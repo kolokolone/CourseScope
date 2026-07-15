@@ -1,7 +1,7 @@
 # Détection des montées (`climbs`)
 
 > **Type** : Référence technique · **Endpoint** : `GET /activity/{id}/real` (champ `climbs`)
-> **Dernière mise à jour** : v1.1.46+
+> **Dernière mise à jour** : v1.2.11
 
 ## Objectif
 
@@ -80,4 +80,4 @@ Les items sont triés par `elevation_gain_m` décroissant. La liste complète es
 ## Notes
 
 - Le seuil de vitesse pour le masque moving est `MOVING_SPEED_THRESHOLD_M_S = 0.5 m/s` (défini dans `backend/core/constants.py`)
-- La version actuelle (v1.1.46+) utilise une machine d'état avec gap bridging, remplaçant l'ancien seuillage point par point
+- Depuis la version v1.1.46, une machine d'état avec gap bridging remplace l'ancien seuillage point par point

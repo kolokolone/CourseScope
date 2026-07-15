@@ -86,7 +86,7 @@ Utiliser un vocabulaire cohérent dans toute la documentation :
 | **VAM** | Vitesse Ascensionnelle Moyenne (m/h) |
 | **TRIMP** | Training Impulse : charge d'entraînement |
 | **EF** | Efficacité Aérobie : speed / HR |
-| **Découplage** | Dérive cardiaque : écart FC entre 1ère et 2ème moitié |
+| **Découplage** | Divergence progressive entre charge interne (FC) et charge externe (vitesse, vitesse corrigée de la pente ou puissance) |
 | **Agent** | Programme IA spécialisé (Brainstorm, Dev, Review) |
 | **Workflow** | Processus séquentiel Brainstorm → Dev → Review |
 

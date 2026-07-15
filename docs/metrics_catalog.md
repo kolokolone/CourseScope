@@ -577,6 +577,8 @@ Les mutations retournent l'objet modifié et `preview_required: true` lorsqu'un 
 
 ### Liste (GET /goals)
 
+Avant de construire la réponse, le backend supprime les objectifs tels que `event_date < date_courante` dans le fuseau `Europe/Paris`. Les objectifs du jour et futurs sont conservés. Si un plan de course référence un objectif expiré, son `goal_id` facultatif est détaché avant la suppression.
+
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |
 | `goals[]` | array<object> | - | liste des objectifs |
@@ -645,6 +647,8 @@ Requete: `{ email?, password?, otp?, mfa_session_id? }`.
 | `mfa_session_id` | string\|null | - | session MFA a fournir avec l'OTP |
 
 ### Sync (POST /integrations/garmin/sync)
+
+Le backend reprend d'abord les jetons OAuth du répertoire configuré. Si cette reprise échoue et que des identifiants Garmin sont déjà enregistrés, il tente une seule reconnexion automatique, persiste les nouveaux jetons puis reprend la synchronisation. Une reconnexion exigeant un MFA reste un `401 reauth_required` et doit être finalisée depuis les paramètres. Le chemin valide avec jetons fonctionnels, notamment dans Docker, n'est pas modifié.
 
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |

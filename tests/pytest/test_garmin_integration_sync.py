@@ -5,6 +5,7 @@ import os
 import zipfile
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -105,6 +106,38 @@ def test_garmin_sync_idempotent(_isolated_env, monkeypatch):
         assert p2["skipped_count"] >= 1
         assert trigger_calls["n"] == 2
         assert trigger_calls["reasons"] == ["garmin_sync", "garmin_sync"]
+
+
+def test_garmin_sync_renews_invalid_tokens_from_saved_credentials(_isolated_env, monkeypatch):
+    fit_bytes, _ = _load_fit_fixture_bytes()
+    fake = _FakeGarmin(activities=[], original_zip_bytes=_zip_fit_bytes(fit_bytes))
+    from api.routes import garmin_integration as garmin_routes
+    from integrations.garmin.client import GarminAuthError
+
+    calls = {"connect": 0, "login": 0}
+
+    def connect():
+        calls["connect"] += 1
+        if calls["connect"] == 1:
+            raise GarminAuthError("expired token")
+        return fake
+
+    def login(*, email: str, password: str):
+        assert email == "runner@example.test"
+        assert password == "saved-secret"
+        calls["login"] += 1
+        return None
+
+    monkeypatch.setattr(garmin_routes, "connect_with_tokens", connect)
+    monkeypatch.setattr(garmin_routes, "load_credentials", lambda: SimpleNamespace(email="runner@example.test", password="saved-secret"))
+    monkeypatch.setattr(garmin_routes, "start_login", login)
+    monkeypatch.setattr(garmin_routes, "start_fast_indexation_in_background", lambda **_: None)
+
+    with TestClient(app) as client:
+        response = client.post("/integrations/garmin/sync")
+
+    assert response.status_code == 200
+    assert calls == {"connect": 2, "login": 1}
 
 
 def test_garmin_sync_skips_when_manual_upload_matches_file_hash(_isolated_env, monkeypatch):

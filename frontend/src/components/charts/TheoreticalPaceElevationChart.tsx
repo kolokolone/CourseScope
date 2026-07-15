@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 
 import { CHART_COLORS } from '@/lib/chartColors';
+import { addVisualPace } from '@/lib/chartPresentation';
 import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
 import { RACE_STOP_ICONS } from '@/lib/raceStops';
 import type { RaceProfilePoint, RaceStop } from '@/types/api';
@@ -82,6 +83,7 @@ export function TheoreticalPaceElevationChart({
   heightClassName?: string;
 }) {
   const points = React.useMemo<RaceProfilePoint[]>(() => (data ?? []).map((row) => 'pace_s_per_km' in row ? row : ({ distance_km: row.distance_km, pace_s_per_km: row.target_pace_s_per_km, elevation_m: row.elevation_m ?? 0, grade_pct: 0, grade_robust_pct: 0, elapsed_time_s: 0 })), [data]);
+  const displayPoints = React.useMemo(() => addVisualPace(points), [points]);
   const gradientId = React.useId().replace(/:/g, '');
 
   const xTicks = React.useMemo(() => {
@@ -101,7 +103,7 @@ export function TheoreticalPaceElevationChart({
     <div className={heightClassName}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
-          data={points}
+          data={displayPoints}
           margin={{ top: stops.length > 0 ? 30 : 10, right: 16, left: 0, bottom: 0 }}
           onMouseLeave={() => onPointHover?.(null)}
           onMouseMove={(state) => {
@@ -152,7 +154,7 @@ export function TheoreticalPaceElevationChart({
           <Line
             yAxisId="pace"
             type="basis"
-            dataKey="pace_s_per_km"
+            dataKey="visual_pace_s_per_km"
             name="Allure théorique"
             stroke={CHART_COLORS.theoreticalPace}
             strokeWidth={2}

@@ -39,7 +39,7 @@ class _DefaultRequestIdFilter(logging.Filter):
 
 
 def _configure_logging() -> logging.Logger:
-    # Logs are runtime data: keep them under COURSESCOPE_DATA_DIR (default: ./data).
+    # Logs are runtime data: keep them under COURSESCOPE_DATA_DIR (default: <project>/data).
     logs_dir = (get_data_dir() / "logs").resolve()
     logs_dir.mkdir(parents=True, exist_ok=True)
 

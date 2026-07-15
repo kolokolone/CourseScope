@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 import uuid
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -12,10 +13,15 @@ from db.models import utc_now_iso
 
 
 router = APIRouter()
+APP_TIMEZONE = ZoneInfo("Europe/Paris")
 
 
 def _session_factory(request: Request):
     return get_db_session_factory(request)
+
+
+def _today_local() -> date:
+    return datetime.now(APP_TIMEZONE).date()
 
 
 def _normalize_event_date(raw_value: str) -> str:
@@ -79,6 +85,9 @@ async def list_goals(request: Request):
     repo = GoalsRepository()
     session = factory()
     try:
+        deleted = repo.delete_goals_before(session, _today_local().isoformat())
+        if deleted:
+            session.commit()
         rows = repo.list_goals(session)
         return GoalsListResponse(goals=[_to_goal_item(row) for row in rows])
     finally:

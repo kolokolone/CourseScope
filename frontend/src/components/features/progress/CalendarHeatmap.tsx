@@ -35,7 +35,7 @@ function formatDayLabel(dateStr: string): string {
   }
 }
 
-function getMonthLabels(paddedDays: Array<CalendarDay | null>): Array<{ colIndex: number; label: string }> {
+export function getMonthLabels(paddedDays: Array<CalendarDay | null>): Array<{ colIndex: number; label: string }> {
   const labels: Array<{ colIndex: number; label: string }> = [];
   let lastMonth = '';
 
@@ -105,17 +105,15 @@ export default function CalendarHeatmap() {
   }
 
   // Construction de la grille : 7 lignes (jours de semaine) × colonnes (semaines)
-  const firstDay = new Date(`${days[0].date}T00:00:00Z`);
-  const firstDow = (firstDay.getUTCDay() + 6) % 7; // 0=Lun, 6=Dim
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const yearEnd = new Date(Date.UTC(year + 1, 0, 1));
+  const firstDow = (yearStart.getUTCDay() + 6) % 7; // 0=Lun, 6=Dim
 
   const paddedDays: Array<CalendarDay | null> = [];
   for (let i = 0; i < firstDow; i++) paddedDays.push(null);
 
   const dayMap = new Map<string, CalendarDay>();
   for (const day of days) dayMap.set(day.date, day);
-
-  const yearStart = new Date(Date.UTC(year, 0, 1));
-  const yearEnd = new Date(Date.UTC(year + 1, 0, 1));
 
   for (let d = new Date(yearStart); d < yearEnd; d.setUTCDate(d.getUTCDate() + 1)) {
     const dateStr = d.toISOString().slice(0, 10);
@@ -173,82 +171,77 @@ export default function CalendarHeatmap() {
           ))}
         </div>
 
-        {/* Grille heatmap */}
-        <div className="flex">
-          <div className="mr-1.5 flex flex-col pt-[18px]" style={{ gap: GAP }}>
-            {dowLabels.map(label => (
-              <div key={label} className="flex items-center text-[9px] text-muted-foreground" style={{ height: CELL }}>
+        {/* Jours, mois et cellules partagent la meme grille pour rester alignes. */}
+        <div className="overflow-x-auto">
+          <div
+            className="grid w-full"
+            style={{
+              minWidth: gridWidth + 32,
+              gridTemplateColumns: `32px repeat(${numCols}, minmax(${CELL}px, 1fr))`,
+              gridTemplateRows: '16px repeat(7, auto)',
+              columnGap: `${GAP}px`,
+              rowGap: `${GAP}px`,
+            }}
+          >
+            {monthLabels.map(({ colIndex, label }) => (
+              <div
+                key={`${colIndex}-${label}`}
+                className="whitespace-nowrap text-[10px] leading-4 text-muted-foreground"
+                style={{ gridColumnStart: colIndex + 2, gridRowStart: 1 }}
+              >
                 {label}
               </div>
             ))}
+
+            {dowLabels.map((label, row) => (
+              <div
+                key={label}
+                className="flex items-center text-[9px] text-muted-foreground"
+                style={{ gridColumnStart: 1, gridRowStart: row + 2 }}
+              >
+                {label}
+              </div>
+            ))}
+
+            {Array.from({ length: 7 }, (_, row) =>
+              Array.from({ length: numCols }, (_, col) => {
+                const day = col < grid.length ? grid[col][row] : null;
+                const position = { gridColumnStart: col + 2, gridRowStart: row + 2 };
+                if (!day) return <div key={`${col}-${row}`} className="aspect-square w-full rounded-[2px]" style={position} />;
+                const level = heatLevel(day);
+                return (
+                  <div
+                    key={`${col}-${row}`}
+                    className={cn('aspect-square w-full rounded-[2px] outline-none focus-visible:ring-2 focus-visible:ring-primary', HEAT_COLORS[level])}
+                    style={position}
+                    tabIndex={0}
+                    aria-label={`${formatDayLabel(day.date)}${day.has_activity ? `, ${formatNumber(day.distance_km ?? 0, { decimals: 1 })} kilomètres` : ', aucune activité'}`}
+                    onMouseEnter={(event) => setTooltip({ day, x: event.clientX, y: event.clientY })}
+                    onMouseMove={(event) => setTooltip({ day, x: event.clientX, y: event.clientY })}
+                    onMouseLeave={() => setTooltip(null)}
+                    onFocus={(event) => {
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      setTooltip({ day, x: rect.left + rect.width / 2, y: rect.top });
+                    }}
+                    onBlur={() => setTooltip(null)}
+                  />
+                );
+              })
+            )}
           </div>
 
-          <div className="flex-1 overflow-x-auto">
-            <div style={{ width: '100%', minWidth: gridWidth }}>
-              {/* Labels des mois */}
-              <div
-                className="mb-1 grid h-[16px]"
-                style={{
-                  gridTemplateColumns: `repeat(${numCols}, minmax(${CELL}px, 1fr))`,
-                  columnGap: `${GAP}px`,
-                }}
-              >
-                {monthLabels.map(({ colIndex, label }, i) => (
-                  <div key={i} className="whitespace-nowrap text-[10px] text-muted-foreground" style={{ gridColumnStart: colIndex + 1 }}>
-                    {label}
-                  </div>
-                ))}
-              </div>
-
-              {/* Cellules */}
-              <div
-                className="grid"
-                style={{
-                  gridTemplateColumns: `repeat(${numCols}, minmax(${CELL}px, 1fr))`,
-                  gridTemplateRows: 'repeat(7, minmax(0, 1fr))',
-                  gap: `${GAP}px`,
-                }}
-              >
-                {Array.from({ length: 7 }, (_, row) =>
-                  Array.from({ length: numCols }, (_, col) => {
-                    const day = col < grid.length ? grid[col][row] : null;
-                    if (!day) return <div key={`${col}-${row}`} className="aspect-square w-full rounded-[2px]" />;
-                    const level = heatLevel(day);
-                    return (
-                      <div
-                        key={`${col}-${row}`}
-                        className={cn('aspect-square w-full rounded-[2px] outline-none focus-visible:ring-2 focus-visible:ring-primary', HEAT_COLORS[level])}
-                        tabIndex={0}
-                        aria-label={`${formatDayLabel(day.date)}${day.has_activity ? `, ${formatNumber(day.distance_km ?? 0, { decimals: 1 })} kilomètres` : ', aucune activité'}`}
-                        onMouseEnter={(event) => setTooltip({ day, x: event.clientX, y: event.clientY })}
-                        onMouseMove={(event) => setTooltip({ day, x: event.clientX, y: event.clientY })}
-                        onMouseLeave={() => setTooltip(null)}
-                        onFocus={(event) => {
-                          const rect = event.currentTarget.getBoundingClientRect();
-                          setTooltip({ day, x: rect.left + rect.width / 2, y: rect.top });
-                        }}
-                        onBlur={() => setTooltip(null)}
-                      />
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Légende */}
-              <div className="mt-3 flex items-center justify-end gap-1.5">
-                <span className="text-[10px] text-muted-foreground">Moins</span>
-                {[0, 1, 2, 3, 4].map(lvl => (
-                  <div key={lvl} className={cn('h-[11px] w-[11px] rounded-[2px]', HEAT_COLORS[lvl])} />
-                ))}
-                <span className="text-[10px] text-muted-foreground">Plus</span>
-              </div>
-            </div>
+          <div className="mt-3 flex items-center justify-end gap-1.5">
+            <span className="text-[10px] text-muted-foreground">Moins</span>
+            {[0, 1, 2, 3, 4].map(lvl => (
+              <div key={lvl} className={cn('h-[11px] w-[11px] rounded-[2px]', HEAT_COLORS[lvl])} />
+            ))}
+            <span className="text-[10px] text-muted-foreground">Plus</span>
           </div>
         </div>
         {tooltip ? (
           <div
-            className="pointer-events-none fixed z-[1000] min-w-40 -translate-x-1/2 -translate-y-[calc(100%+10px)] rounded-md border border-border bg-popover px-2.5 py-2 text-xs text-popover-foreground shadow-md"
-            style={{ left: tooltip.x, top: tooltip.y }}
+            className="pointer-events-none fixed z-[1000] min-w-40 -translate-x-1/2 -translate-y-[calc(100%+10px)] rounded-md border border-border bg-card px-2.5 py-2 text-xs text-card-foreground opacity-100 shadow-lg"
+            style={{ left: tooltip.x, top: tooltip.y, backgroundColor: 'var(--card)' }}
             role="tooltip"
           >
             <div className="font-medium">{formatDayLabel(tooltip.day.date)}</div>

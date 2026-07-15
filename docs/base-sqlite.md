@@ -178,6 +178,8 @@ Rôle : objectifs de course avec cibles de temps ou d'allure.
 
 **Repository** : `backend/db/goals_repository.py` → `GoalsRepository`.
 
+`GET /goals` appelle `delete_goals_before` avec la date courante de l'application. La comparaison est fiable car `event_date` est stockée au format ISO `YYYY-MM-DD`. Avant toute suppression, les `race_plans.goal_id` concernés sont mis à `NULL` afin de ne pas supprimer ou invalider un plan de course.
+
 **Règle métier** : `target_time_s` et `target_pace_s_per_km` sont mutuellement exclusifs. L'API impose exactement l'un des deux.
 
 ### 2.5 `user_settings` — Configuration personnelle

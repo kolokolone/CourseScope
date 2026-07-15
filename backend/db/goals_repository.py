@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
-from .models import Goal
+from .models import Goal, RacePlan
 
 
 class GoalsRepository:
@@ -55,6 +55,16 @@ class GoalsRepository:
     def get_goal(self, session: Session, goal_id: str) -> Goal | None:
         return session.get(Goal, goal_id)
 
+    def delete_goals_before(self, session: Session, event_date: str) -> int:
+        expired_goal_ids = select(Goal.id).where(Goal.event_date < event_date)
+        session.execute(
+            update(RacePlan)
+            .where(RacePlan.goal_id.in_(expired_goal_ids))
+            .values(goal_id=None)
+        )
+        res = session.execute(delete(Goal).where(Goal.event_date < event_date))
+        return int(getattr(res, "rowcount", 0) or 0)
+
     def update_goal(
         self,
         session: Session,
@@ -96,9 +106,11 @@ class GoalsRepository:
         return row
 
     def delete_goal(self, session: Session, goal_id: str) -> bool:
+        session.execute(update(RacePlan).where(RacePlan.goal_id == goal_id).values(goal_id=None))
         res = session.execute(delete(Goal).where(Goal.id == goal_id))
         return bool(getattr(res, "rowcount", 0) or 0)
 
     def delete_all_goals(self, session: Session) -> int:
+        session.execute(update(RacePlan).where(RacePlan.goal_id.is_not(None)).values(goal_id=None))
         res = session.execute(delete(Goal))
         return int(getattr(res, "rowcount", 0) or 0)

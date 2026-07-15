@@ -80,6 +80,47 @@ def _tokens_present(tokens_dir: Path) -> bool:
     return False
 
 
+def _connect_for_sync():
+    """Resume tokens first, then renew them once from saved credentials.
+
+    The valid-token path remains unchanged. The fallback only runs when token
+    resume failed, which commonly happens when local development points at a
+    stale data directory or when an OAuth token can no longer be refreshed.
+    """
+
+    try:
+        return connect_with_tokens()
+    except GarminAuthError as token_error:
+        credentials = load_credentials()
+        if credentials is None:
+            raise GarminAuthError(
+                f"{token_error}; no saved Garmin credentials are available for automatic renewal"
+            ) from token_error
+
+        logger.warning(
+            "garmin_token_resume_failed_attempting_saved_credentials",
+            extra={"tokens_dir": str(get_garmin_tokens_dir().resolve())},
+        )
+        try:
+            mfa_state = start_login(email=credentials.email, password=credentials.password)
+        except GarminAuthError as login_error:
+            raise GarminAuthError(
+                f"Garmin tokens are invalid and automatic renewal failed: {login_error}"
+            ) from login_error
+
+        if mfa_state is not None:
+            raise GarminAuthError(
+                "Garmin tokens are invalid and renewal requires MFA; reconnect Garmin from Settings"
+            )
+
+        try:
+            return connect_with_tokens()
+        except GarminAuthError as renewed_token_error:
+            raise GarminAuthError(
+                f"Garmin authentication was renewed but the new tokens could not be resumed: {renewed_token_error}"
+            ) from renewed_token_error
+
+
 @router.post("/integrations/garmin/connect", response_model=GarminConnectResponse)
 async def garmin_connect(request: Request, req: GarminConnectRequest):
     try:
@@ -124,7 +165,7 @@ async def garmin_connect(request: Request, req: GarminConnectRequest):
 @router.post("/integrations/garmin/sync", response_model=GarminSyncResponse)
 async def garmin_sync(request: Request):
     try:
-        garmin = connect_with_tokens()
+        garmin = _connect_for_sync()
     except GarminAuthError as exc:
         raise HTTPException(status_code=401, detail=f"reauth_required: {exc}")
 

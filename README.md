@@ -3,7 +3,7 @@
 Application web locale pour analyser des activités running **GPX/FIT** et préparer une course à partir d'une trace théorique indépendante.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.10-0f172a.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-1.2.11-0f172a.svg)](VERSION)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 
@@ -77,12 +77,12 @@ services:
 
 | Variable | Obligatoire | Description |
 |---|---|---|
-| `COURSESCOPE_DATA_DIR` | Non | Répertoire des données runtime (défaut : `./data`) |
+| `COURSESCOPE_DATA_DIR` | Non | Répertoire des données runtime (défaut : `<racine_du_projet>/data`) |
 | `COURSESCOPE_DB_URL` | Non | URL SQLite (défaut : `sqlite:///data/coursescope.sqlite`) |
 | `COURSESCOPE_RELOAD` | Non | Active le reload uvicorn (défaut : désactivé) |
 | `COURSESCOPE_PRO_PACE_VS_GRADE_PATH` | Non | Chemin alternatif vers la table de référence pro |
 
-La synchronisation Garmin utilise directement `garth-ng==1.1.0` en développement Windows et dans Docker. Les deux modes lisent les mêmes jetons OAuth dans `<data_dir>/integrations/garmin/tokens`; avec le volume Docker recommandé `./data:/data`, aucune reconnexion propre au mode d'exécution n'est nécessaire.
+La synchronisation Garmin utilise directement `garth-ng==1.1.0` en développement Windows et dans Docker. `start_backend.bat` fixe par défaut un chemin absolu vers `<racine_du_projet>/data`, tandis que Docker utilise `/data`; avec le volume recommandé `./data:/data`, les deux modes lisent donc les mêmes jetons OAuth dans `integrations/garmin/tokens`. Si des jetons ne peuvent plus être repris, le backend tente une seule reconnexion avec les identifiants déjà sauvegardés. Un compte exigeant un MFA doit toujours être reconnecté depuis les paramètres.
 
 ## Architecture
 

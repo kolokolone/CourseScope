@@ -4,6 +4,9 @@ import os
 from pathlib import Path
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
 def get_data_dir() -> Path:
     """Return the base data directory.
 
@@ -13,8 +16,10 @@ def get_data_dir() -> Path:
     - <data_dir>/coursescope.sqlite (default DB, override via COURSESCOPE_DATABASE_URL)
     """
 
-    value = os.getenv("COURSESCOPE_DATA_DIR", "./data")
-    return Path(value)
+    value = os.getenv("COURSESCOPE_DATA_DIR")
+    if value and value.strip():
+        return Path(value).expanduser()
+    return PROJECT_ROOT / "data"
 
 
 def get_garmin_tokens_dir() -> Path:

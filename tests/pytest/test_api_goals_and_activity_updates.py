@@ -1,3 +1,4 @@
+from datetime import date
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -13,6 +14,8 @@ def _load_fixture_bytes() -> tuple[bytes, str]:
 
 def test_goals_create_list_delete(tmp_path, monkeypatch):
     monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+    from api.routes import goals as goals_routes
+    monkeypatch.setattr(goals_routes, "_today_local", lambda: date(2026, 1, 1))
 
     with TestClient(app) as client:
         empty = client.get("/goals")
@@ -94,6 +97,32 @@ def test_goals_create_list_delete(tmp_path, monkeypatch):
         listed_final = client.get("/goals")
         assert listed_final.status_code == 200
         assert listed_final.json()["goals"] == []
+
+
+def test_goals_list_deletes_only_expired_goals(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+    from api.routes import goals as goals_routes
+    monkeypatch.setattr(goals_routes, "_today_local", lambda: date(2026, 1, 1))
+
+    def payload(name: str, event_date: str):
+        return {
+            "name": name,
+            "event_date": event_date,
+            "distance_km": 10,
+            "target_pace_s_per_km": 300,
+            "race_type": "road",
+        }
+
+    with TestClient(app) as client:
+        expired = client.post("/goals", json=payload("Expire", "2026-01-02")).json()
+        today = client.post("/goals", json=payload("Aujourd'hui", "2026-01-03")).json()
+
+        monkeypatch.setattr(goals_routes, "_today_local", lambda: date(2026, 1, 3))
+        listed = client.get("/goals")
+
+        assert listed.status_code == 200
+        assert [goal["id"] for goal in listed.json()["goals"]] == [today["id"]]
+        assert client.delete(f"/goals/{expired['id']}").status_code == 404
 
 
 def test_activity_rename_and_real_endpoint_title(tmp_path, monkeypatch):

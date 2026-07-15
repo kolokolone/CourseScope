@@ -629,8 +629,9 @@ CourseScope est conçu pour afficher beaucoup d'informations sans submerger l'ut
 
 ### Page d'accueil (`/`)
 - Conteneur `default`.
-- Zone de drop pour upload GPX/FIT (composant `file-dropzone`).
+- Les cartes « Activité réelle » et « Trace théorique » partagent la même composition visuelle : en-tête avec icône, description, zone pointillée `rounded-lg`, icône de fichier, libellé principal et formats acceptés. Leurs hooks et routes restent séparés par domaine.
 - Liste des activités récentes en dessous.
+- La carte du prochain objectif occupe la largeur utile avant la carte VO2 max et expose l'échéance, la date, le lieu, la distance, le terrain et la cible sans masquer les autres données d'accueil.
 
 ### Activités (`/activities`)
 - Conteneur `default`.
@@ -656,6 +657,7 @@ CourseScope est conçu pour afficher beaucoup d'informations sans submerger l'ut
 - Import partagé entre l'accueil et `/traces` via `TraceUpload`.
 - Hero et KPI, sous-navigation sticky et cartes `AnalysisCard` partagées avec l'architecture d'`/activities-beta`.
 - Grille responsive, carte et profil synchronisés, tableaux mobiles avec défilement horizontal.
+- La sous-navigation sticky détermine la section active à partir de la position de toutes les sections dans l'ordre du document, relativement au bas réel de la barre. Elle écoute le conteneur `<main>` scrollable et force la dernière section uniquement lorsque ce conteneur atteint le bas.
 - Paramètres persistés : objectif, date/départ, scénarios, pauses, stratégie, nutrition et matériel.
 - Les trois graphiques reçoivent leurs séries du backend ; aucun calcul métier n'est dupliqué dans la page.
 
@@ -663,11 +665,14 @@ CourseScope est conçu pour afficher beaucoup d'informations sans submerger l'ut
 - Conteneur `default`.
 - Graphiques multi-activités (tendances, best efforts, HR at pace, etc.).
 - Filtres par période et type d'activité.
-- Le calendrier annuel utilise toute la largeur disponible ; les cellules restent carrées, les mois partagent la grille des semaines et une infobulle récapitule chaque jour.
+- Le calendrier annuel utilise toute la largeur disponible ; cellules, jours et mois partagent la même grille et une infobulle opaque récapitule chaque jour.
 
 ### Objectifs (`/goals`)
 - Conteneur `default`.
 - Liste des courses/trails à venir.
+- `GET /goals` supprime avant lecture les objectifs dont `event_date` est strictement antérieure à la date courante en `Europe/Paris`. Un objectif daté du jour reste visible ; une liaison facultative depuis un plan de course est mise à `NULL` avant suppression.
+- La ligne temporelle conserve une dépendance visuelle légère : rail horizontal, jalons, espacement logarithmique selon le nombre de jours et cartes compactes. Le premier objectif est discrètement mis en avant.
+- Sur l'accueil, le prochain objectif utilise une carte large avec échéance `J-n`, date, lieu, distance, terrain, cible et accès à `/goals`.
 
 ### Paramètres (`/settings`)
 - Conteneur `default`.
