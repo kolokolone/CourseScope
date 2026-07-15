@@ -1,4 +1,4 @@
-export const PACE_VISUAL_SMOOTHING_DISTANCE_KM = 0.2;
+export const PACE_VISUAL_SMOOTHING_DISTANCE_KM = 0.4;
 
 type PacePoint = {
   distance_km: number;

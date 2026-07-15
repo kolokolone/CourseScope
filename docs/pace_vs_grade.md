@@ -1,7 +1,7 @@
 # Allure vs pente (`pace-vs-grade`)
 
 > **Type** : Référence technique · **Endpoint** : `GET /activity/{id}/pace-vs-grade`
-> **Dernière mise à jour** : v1.2.12
+> **Dernière mise à jour** : v1.2.13
 
 ## Objectif
 

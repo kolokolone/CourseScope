@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.13] - 2026-07-15
+
+### Changed
+- **Allure vs distance** : fenêtre de la série de présentation portée de 200 m à 400 m pour une courbe visuellement plus douce, sans modifier le lissage métier backend de 100 m, les temps, les infobulles ou les histogrammes.
+
 ## [1.2.12] - 2026-07-15
 
 ### Fixed

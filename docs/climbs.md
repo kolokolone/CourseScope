@@ -1,7 +1,7 @@
 # Détection des montées (`climbs`)
 
 > **Type** : Référence technique · **Endpoint** : `GET /activity/{id}/real` (champ `climbs`)
-> **Dernière mise à jour** : v1.2.12
+> **Dernière mise à jour** : v1.2.13
 
 ## Objectif
 
