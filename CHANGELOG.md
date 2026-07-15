@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.15] - 2026-07-15
+
+### Fixed
+- **Indexation complète** : le bouton des réglages lance directement le recalcul lent forcé, sans course avec une indexation rapide démarrée en arrière-plan.
+
+### Changed
+- **Cache VO₂max** : une activité dont le Parquet contient déjà un VO₂max valide entre 10 et 95 ne relit plus son fichier FIT et ne réécrit plus inutilement le Parquet pendant une indexation complète.
+- **Validation** : couverture de la non-lecture FIT, de la conservation exacte du Parquet enrichi et du déclenchement slow-only depuis les réglages.
+
 ## [1.2.14] - 2026-07-15
 
 ### Changed

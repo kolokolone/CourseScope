@@ -106,6 +106,8 @@ Une activite est reindexee si au moins un critere est vrai:
 - `backfill_missing`: traite les activites non indexees
 - `backfill_full`: recalcule tout
 
+Lors du recalcul, un Parquet contenant déjà une dernière valeur `vo2max` finie comprise entre `10` et `95` est considéré comme enrichi. Le fichier FIT n'est alors pas relu et le Parquet n'est pas réécrit. Une valeur absente, non numérique ou hors plage conserve le backfill FIT historique.
+
 ## 5) Etat d execution et observabilite
 
 ### 5.1 Etat runtime unifie
@@ -200,7 +202,7 @@ La slow est declenchee:
 ### 8.3 Boutons maintenance
 
 - `Indexation rapide`: lance uniquement fast
-- `Indexation complete`: lance fast puis slow forcee
+- `Indexation complete`: lance directement une indexation slow forcee (`backfill_full`), sans phase fast préalable
 
 ## 9) UI/UX de suivi
 

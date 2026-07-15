@@ -287,6 +287,80 @@ def test_slow_reindexes_when_metrics_version_changes(tmp_path, monkeypatch):
     assert state.last_result.indexed == 1
 
 
+def test_slow_full_keeps_enriched_parquet_unchanged(tmp_path, monkeypatch):
+    monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
+
+    from backend.config import get_activities_dir
+    from backend.db.models import Activity, UserSettings
+    from backend.db.session import init_db, make_engine, make_session_factory
+    from backend.progress.indexation_runner import start_slow_indexation_in_background
+
+    _wait_runner_done()
+    engine = make_engine()
+    init_db(engine)
+    factory = make_session_factory(engine)
+
+    activities_dir = get_activities_dir().resolve()
+    activity_id = "00000000-0000-0000-0000-0000000001f8"
+    activity_dir, parquet_path, _ = _write_activity_fs(
+        activities_dir, activity_id, file_hash="h" * 64, with_fit=True
+    )
+    enriched = pd.read_parquet(parquet_path)
+    enriched["vo2max"] = 52.4
+    enriched.to_parquet(parquet_path, engine="pyarrow")
+    parquet_before = parquet_path.read_bytes()
+    fit_load_calls = 0
+
+    def _unexpected_fit_load(_stream):
+        nonlocal fit_load_calls
+        fit_load_calls += 1
+        return object()
+
+    monkeypatch.setattr("progress._utils.load_fit", _unexpected_fit_load)
+    monkeypatch.setattr("progress._utils._extract_fit_vo2max", lambda _fit: 54.8)
+
+    session = factory()
+    try:
+        session.add(
+            UserSettings(
+                id=1,
+                vma_kmh=None,
+                vo2max_lastest=None,
+                hr_max_manual_bpm=None,
+                hr_max_source="detected",
+                updated_at_utc="2026-02-03T10:00:00Z",
+            )
+        )
+        session.add(
+            Activity(
+                id=activity_id,
+                name="VO2max cached",
+                activity_type="real",
+                started_at_utc="2026-02-03T10:00:00Z",
+                created_at_utc="2026-02-03T10:00:00Z",
+                file_hash_sha256="h" * 64,
+                original_path=str((activity_dir / "original.fit").resolve()),
+                parquet_path=str(parquet_path.resolve()),
+            )
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    start_slow_indexation_in_background(
+        factory,
+        reason="test_vo2max_cache",
+        strategy="backfill_full",
+        force=True,
+    )
+    state = _wait_runner_done()
+
+    assert state.last_result is not None
+    assert state.last_result.indexed == 1
+    assert fit_load_calls == 0
+    assert parquet_path.read_bytes() == parquet_before
+
+
 def test_slow_ignores_activity_already_up_to_date(tmp_path, monkeypatch):
     monkeypatch.setenv("COURSESCOPE_DATA_DIR", str(tmp_path))
 

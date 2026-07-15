@@ -127,7 +127,7 @@ describe('SettingsPage', () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(indexFastMock).toHaveBeenCalledWith({ reason: 'settings_manual' });
+      expect(indexFastMock).not.toHaveBeenCalled();
       expect(indexSlowMock).toHaveBeenCalledWith({
         strategy: 'backfill_full',
         reason: 'settings_manual',

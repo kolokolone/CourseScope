@@ -82,7 +82,26 @@ def _infer_started_at_utc_from_df(df: pd.DataFrame) -> str | None:
         return None
 
 
-def _maybe_backfill_vo2max_from_fit(activity_dir: Path, parquet_path: Path, df: pd.DataFrame) -> pd.DataFrame:
+def _has_valid_vo2max(df: pd.DataFrame) -> bool:
+    if df is None or df.empty or "vo2max" not in df.columns:
+        return False
+
+    values = pd.to_numeric(df["vo2max"], errors="coerce").dropna()
+    if values.empty:
+        return False
+
+    value = float(values.iloc[-1])
+    return bool(math.isfinite(value) and 10.0 <= value <= 95.0)
+
+
+def _maybe_backfill_vo2max_from_fit(
+    activity_dir: Path, parquet_path: Path, df: pd.DataFrame
+) -> pd.DataFrame:
+    # Le Parquet est la source enrichie persistante. S'il contient deja une
+    # valeur exploitable, ne pas reparcourir le FIT ni reecrire le fichier.
+    if _has_valid_vo2max(df):
+        return df
+
     fit_path = _find_original_fit_path(activity_dir)
     if fit_path is None or not fit_path.exists():
         return df

@@ -43,14 +43,12 @@ export function MaintenanceSettings() {
   });
 
   const indexFullMutation = useMutation<ProgressIndexStatusResponse, Error, void>({
-    mutationFn: async () => {
-      await progressApi.indexFast({ reason: 'settings_manual' });
-      return progressApi.indexSlow({
+    mutationFn: () =>
+      progressApi.indexSlow({
         strategy: 'backfill_full',
         reason: 'settings_manual',
         force: true,
-      });
-    },
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['progress', 'index-status'] });
       queryClient.invalidateQueries({ queryKey: ['progress'] });
@@ -100,7 +98,7 @@ export function MaintenanceSettings() {
   };
 
   const handleFullIndexation = async () => {
-    if (!window.confirm('Lancer une indexation complete (rapide puis recalcul total) ?')) return;
+    if (!window.confirm('Lancer une indexation complete (recalcul total) ?')) return;
     try {
       await indexFullMutation.mutateAsync();
       await progressIndexStatus.refetch();

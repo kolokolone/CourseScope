@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+
+import pandas as pd
 
 from tests.unit._bootstrap import ensure_project_on_path
 
@@ -36,6 +41,48 @@ class _FakeFit:
 
 
 class TestFitLoaderVo2max(unittest.TestCase):
+    def test_backfill_skips_fit_and_parquet_write_when_vo2max_is_valid(self) -> None:
+        from progress._utils import _maybe_backfill_vo2max_from_fit
+
+        df = pd.DataFrame({"vo2max": [None, 52.4]})
+
+        with TemporaryDirectory() as tmp_dir:
+            activity_dir = Path(tmp_dir)
+            (activity_dir / "original.fit").write_bytes(b"fit")
+            parquet_path = activity_dir / "df.parquet"
+
+            with (
+                patch("progress._utils.load_fit") as load_fit_mock,
+                patch.object(pd.DataFrame, "to_parquet") as to_parquet_mock,
+            ):
+                result = _maybe_backfill_vo2max_from_fit(activity_dir, parquet_path, df)
+
+        self.assertIs(result, df)
+        load_fit_mock.assert_not_called()
+        to_parquet_mock.assert_not_called()
+
+    def test_backfill_still_reads_fit_when_existing_vo2max_is_invalid(self) -> None:
+        from progress._utils import _maybe_backfill_vo2max_from_fit
+
+        df = pd.DataFrame({"vo2max": [None, 120.0]})
+
+        with TemporaryDirectory() as tmp_dir:
+            activity_dir = Path(tmp_dir)
+            (activity_dir / "original.fit").write_bytes(b"fit")
+            parquet_path = activity_dir / "df.parquet"
+
+            with (
+                patch("progress._utils.load_fit", return_value=object()) as load_fit_mock,
+                patch("progress._utils._extract_fit_vo2max", return_value=54.8),
+                patch.object(pd.DataFrame, "to_parquet") as to_parquet_mock,
+            ):
+                result = _maybe_backfill_vo2max_from_fit(activity_dir, parquet_path, df)
+
+        load_fit_mock.assert_called_once()
+        to_parquet_mock.assert_called_once_with(parquet_path, engine="pyarrow")
+        self.assertIsNot(result, df)
+        self.assertTrue(bool((result["vo2max"] == 54.8).all()))
+
     def test_extracts_vo2max_from_user_metrics_first(self) -> None:
         from core.fit_loader import _extract_fit_vo2max
 
