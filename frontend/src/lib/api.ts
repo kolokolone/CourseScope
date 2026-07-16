@@ -467,10 +467,7 @@ export const progressApi = {
     to: string;
     type?: ProgressType;
     limit?: number;
-    bin_step_s_per_km?: 5 | 10;
-    session_tag?: ProgressSessionTag;
-    terrain_tag?: ProgressTerrainTag;
-    endurance_only?: boolean;
+    bin_step_s_per_km?: 5 | 10 | 20 | 30;
   }) => {
     const sp = new URLSearchParams();
     sp.append('from', params.from);
@@ -478,9 +475,6 @@ export const progressApi = {
     sp.append('type', params.type ?? 'real');
     if (typeof params.limit === 'number') sp.append('limit', String(params.limit));
     if (typeof params.bin_step_s_per_km === 'number') sp.append('bin_step_s_per_km', String(params.bin_step_s_per_km));
-    if (params.session_tag) sp.append('session_tag', params.session_tag);
-    if (params.terrain_tag) sp.append('terrain_tag', params.terrain_tag);
-    if (params.endurance_only) sp.append('endurance_only', 'true');
     return apiRequest<ProgressPaceHrWaterfallResponse>(`/progress/pace-hr-waterfall?${sp.toString()}`);
   },
 

@@ -19,8 +19,6 @@ import { rollingMean } from '@/lib/chartUtils';
 import type {
   ProgressActivity,
   ProgressSeriesMetric,
-  ProgressSessionTag,
-  ProgressTerrainTag,
 } from '@/types/api';
 import CalendarHeatmap from '@/components/features/progress/CalendarHeatmap';
 import TrainingLoadChart from '@/components/features/progress/TrainingLoadChart';
@@ -51,11 +49,8 @@ export default function ProgressPage() {
   const [range, setRange] = React.useState<HistoryRange>('6m');
   const [volumeMetric, setVolumeMetric] = React.useState<ProgressSeriesMetric>('distance_m');
   const [bestDuration, setBestDuration] = React.useState(1200);
-  const [waterfallLimit, setWaterfallLimit] = React.useState<10 | 30 | 60>(60);
-  const [waterfallBinStep, setWaterfallBinStep] = React.useState<5 | 10>(5);
-  const [waterfallSessionTag, setWaterfallSessionTag] = React.useState<'all' | ProgressSessionTag>('all');
-  const [waterfallTerrainTag, setWaterfallTerrainTag] = React.useState<'all' | ProgressTerrainTag>('all');
-  const [waterfallEnduranceOnly, setWaterfallEnduranceOnly] = React.useState(false);
+  const [waterfallLimit, setWaterfallLimit] = React.useState<10 | 30 | 60 | 120>(60);
+  const [waterfallBinStep, setWaterfallBinStep] = React.useState<5 | 10 | 20 | 30>(10);
 
   // Trigger fast indexation once on mount
   React.useEffect(() => {
@@ -123,9 +118,6 @@ export default function ProgressPage() {
     type: 'real',
     limit: waterfallLimit,
     bin_step_s_per_km: waterfallBinStep,
-    session_tag: waterfallSessionTag === 'all' ? undefined : waterfallSessionTag,
-    terrain_tag: waterfallTerrainTag === 'all' ? undefined : waterfallTerrainTag,
-    endurance_only: waterfallEnduranceOnly,
   });
 
   const volumeData = React.useMemo(() => {
@@ -413,14 +405,8 @@ export default function ProgressPage() {
         error={waterfallQuery.error ? (waterfallQuery.error as Error) : null}
         waterfallLimit={waterfallLimit}
         waterfallBinStep={waterfallBinStep}
-        waterfallSessionTag={waterfallSessionTag}
-        waterfallTerrainTag={waterfallTerrainTag}
-        waterfallEnduranceOnly={waterfallEnduranceOnly}
         onLimitChange={setWaterfallLimit}
         onBinStepChange={setWaterfallBinStep}
-        onSessionTagChange={setWaterfallSessionTag}
-        onTerrainTagChange={setWaterfallTerrainTag}
-        onEnduranceOnlyChange={setWaterfallEnduranceOnly}
       />
     </div>
   );

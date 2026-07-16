@@ -661,9 +661,6 @@ export interface ProgressPaceHrWaterfallPoint {
 export interface ProgressPaceHrWaterfallActivity {
   activity_id: string;
   start_ts_utc: string;
-  session_tag: ProgressSessionTag | string;
-  terrain_tag: ProgressTerrainTag | string;
-  race_marker: boolean;
   points: ProgressPaceHrWaterfallPoint[];
 }
 

@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from core.metrics import compute_garmin_like_stats
 from core.best_efforts import compute_best_efforts_by_duration
 from core.derived import compute_derived_series
-from core.pace_hr import prepare_pace_hr_samples
+from core.pace_hr import PACE_HR_BIN_STEPS_S_PER_KM, prepare_pace_hr_samples
 from core.splits import compute_splits
 from core.climbs import compute_climbs
 from core.stats.basic_stats import compute_basic_stats
@@ -38,7 +38,7 @@ from progress._utils import (
 )
 
 
-METRICS_VERSION = 8
+METRICS_VERSION = 9
 
 
 def build_fingerprint(meta: dict[str, Any], parquet_path: Path) -> str:
@@ -222,14 +222,13 @@ def _classify_session_and_terrain(
 def _build_pace_hr_bins(
     *,
     df: pd.DataFrame,
-    moving_mask: pd.Series,
     activity_id: str,
     activity_type: str,
     start_ts_utc: str,
-    pace_bin_step_s_per_km: float = 10.0,
+    pace_bin_steps_s_per_km: tuple[int, ...] = PACE_HR_BIN_STEPS_S_PER_KM,
     min_time_s_bin: float = 60.0,
 ) -> list[ProgressPaceHrBin]:
-    prepared = prepare_pace_hr_samples(df, moving_mask=moving_mask)
+    prepared = prepare_pace_hr_samples(df)
     valid_mask = prepared["valid"]
     if not bool(valid_mask.any()):
         return []
@@ -244,51 +243,55 @@ def _build_pace_hr_bins(
     if work.empty:
         return []
 
-    step = float(pace_bin_step_s_per_km)
-    work["pace_bin"] = (work["pace"] / step).round() * step
-
     rows: list[ProgressPaceHrBin] = []
-    for pace_bin, g in work.groupby("pace_bin", sort=True):
-        values = g["hr"].astype(float).tolist()
-        weights = g["dt"].astype(float).tolist()
-        time_s_bin = float(sum(w for w in weights if math.isfinite(w) and w > 0))
-        if not math.isfinite(time_s_bin) or time_s_bin < float(min_time_s_bin):
+    for requested_step in pace_bin_steps_s_per_km:
+        step = int(requested_step)
+        if step <= 0:
             continue
-        weighted_sum = 0.0
-        for v, w in zip(values, weights):
-            if not (math.isfinite(v) and math.isfinite(w) and w > 0):
+        work["pace_bin"] = (work["pace"] / float(step)).round() * float(step)
+
+        for pace_bin, g in work.groupby("pace_bin", sort=True):
+            values = g["hr"].astype(float).tolist()
+            weights = g["dt"].astype(float).tolist()
+            time_s_bin = float(sum(w for w in weights if math.isfinite(w) and w > 0))
+            if not math.isfinite(time_s_bin) or time_s_bin < float(min_time_s_bin):
                 continue
-            weighted_sum += float(v) * float(w)
-        hr_mean_w_bpm_raw = (weighted_sum / time_s_bin) if time_s_bin > 0 else None
-        hr_q50_w_bpm_raw = _weighted_median(values, weights)
-        hr_mean_w_bpm: float | None = None
-        if hr_mean_w_bpm_raw is not None:
-            v = float(hr_mean_w_bpm_raw)
-            if math.isfinite(v):
-                hr_mean_w_bpm = v
-        hr_q50_w_bpm: float | None = None
-        if hr_q50_w_bpm_raw is not None:
-            v = float(hr_q50_w_bpm_raw)
-            if math.isfinite(v):
-                hr_q50_w_bpm = v
+            weighted_sum = 0.0
+            for v, w in zip(values, weights):
+                if not (math.isfinite(v) and math.isfinite(w) and w > 0):
+                    continue
+                weighted_sum += float(v) * float(w)
+            hr_mean_w_bpm_raw = (weighted_sum / time_s_bin) if time_s_bin > 0 else None
+            hr_q50_w_bpm_raw = _weighted_median(values, weights)
+            hr_mean_w_bpm: float | None = None
+            if hr_mean_w_bpm_raw is not None:
+                v = float(hr_mean_w_bpm_raw)
+                if math.isfinite(v):
+                    hr_mean_w_bpm = v
+            hr_q50_w_bpm: float | None = None
+            if hr_q50_w_bpm_raw is not None:
+                v = float(hr_q50_w_bpm_raw)
+                if math.isfinite(v):
+                    hr_q50_w_bpm = v
 
-        pace_bin_num = pd.to_numeric(g["pace_bin"], errors="coerce")
-        pace_bin_arr = pd.Series(pace_bin_num).to_numpy(dtype=float)
-        if pace_bin_arr.size == 0:
-            continue
-        pace_bin_value = float(pace_bin_arr[0])
+            pace_bin_num = pd.to_numeric(g["pace_bin"], errors="coerce")
+            pace_bin_arr = pd.Series(pace_bin_num).to_numpy(dtype=float)
+            if pace_bin_arr.size == 0:
+                continue
+            pace_bin_value = float(pace_bin_arr[0])
 
-        rows.append(
-            ProgressPaceHrBin(
-                activity_id=activity_id,
-                activity_type=activity_type,
-                start_ts_utc=start_ts_utc,
-                pace_bin_s_per_km=pace_bin_value,
-                time_s_bin=float(time_s_bin),
-                hr_mean_w_bpm=hr_mean_w_bpm,
-                hr_q50_w_bpm=hr_q50_w_bpm,
+            rows.append(
+                ProgressPaceHrBin(
+                    activity_id=activity_id,
+                    activity_type=activity_type,
+                    start_ts_utc=start_ts_utc,
+                    bin_step_s_per_km=step,
+                    pace_bin_s_per_km=pace_bin_value,
+                    time_s_bin=float(time_s_bin),
+                    hr_mean_w_bpm=hr_mean_w_bpm,
+                    hr_q50_w_bpm=hr_q50_w_bpm,
+                )
             )
-        )
     return rows
 
 
@@ -737,7 +740,6 @@ def index_activity(
 
     pace_hr_bins = _build_pace_hr_bins(
         df=df,
-        moving_mask=derived.moving_mask,
         activity_id=activity_id,
         activity_type=activity_type,
         start_ts_utc=start_ts_utc,

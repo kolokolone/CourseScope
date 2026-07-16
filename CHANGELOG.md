@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.16] - 2026-07-16
+
+### Changed
+- **Pipeline Pace-HR simplifié** : suppression du masque de mouvement, du découpage sur les pauses et trous, du contrôle de saut FC et de l'exclusion des transitions ; conservation de l'allure continue sur 30 secondes, de Hampel sur 11 secondes, de la médiane FC sur 5 secondes et des dix premières minutes avec distance positive.
+- **Indexation multi-résolution** : calcul indépendant des bins `5/10/20/30 s/km` directement depuis les échantillons nettoyés, avec médiane FC pondérée et minimum de 60 secondes pour chaque résolution.
+- **Contrat Waterfall** : lecture directe des bins définitifs sans réagrégation statistique, suppression des filtres session/terrain/endurance et ajout de la limite 120 activités avec 60 par défaut.
+- **Schéma analytique** : ajout de `bin_step_s_per_km`, migration idempotente de la table dérivée et passage à `METRICS_VERSION = 9` pour forcer le recalcul.
+
+### Added
+- **Validation** : tests du pipeline continu, des bornes FC, de l'absence d'exclusion des transitions, de la cohérence statistique multi-résolution, de la migration et du contrat API natif.
+
 ## [1.2.15] - 2026-07-15
 
 ### Fixed

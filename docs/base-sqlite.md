@@ -319,14 +319,15 @@ Table centrale des dashboards de progression. Une ligne par activité, 31 colonn
 | `activity_id` | TEXT(36) | NOT NULL | Activité |
 | `activity_type` | TEXT(32) | NOT NULL | `real` pour les nouvelles activités ; valeur historique conservée si déjà indexée |
 | `start_ts_utc` | TEXT | NOT NULL | Date de l'activité |
+| `bin_step_s_per_km` | INTEGER | NOT NULL | Résolution native : `5`, `10`, `20` ou `30` s/km |
 | `pace_bin_s_per_km` | REAL | NOT NULL | Centre du bin d'allure (s/km) |
 | `time_s_bin` | REAL | NOT NULL | Temps passé dans le bin |
 | `hr_mean_w_bpm` | REAL | NULL | FC moyenne pondérée par le temps |
 | `hr_q50_w_bpm` | REAL | NULL | FC médiane pondérée |
 
-**Index** : PK sur `id`, UNIQUE sur `(activity_id, pace_bin_s_per_km)`, INDEX sur `start_ts_utc`, INDEX sur `(activity_type, start_ts_utc)`, INDEX sur `pace_bin_s_per_km`.
+**Index** : PK sur `id`, UNIQUE sur `(activity_id, bin_step_s_per_km, pace_bin_s_per_km)`, INDEX sur `start_ts_utc`, INDEX sur `(activity_type, start_ts_utc)`, INDEX sur `(bin_step_s_per_km, start_ts_utc)`, INDEX sur `(bin_step_s_per_km, pace_bin_s_per_km)`.
 
-**Utilisation** : alimente `/progress/hr-at-pace`, `/progress/pace-at-hr` et `/progress/pace-hr-waterfall`. Le `hr_q50_w_bpm` est préféré au `hr_mean_w_bpm` car plus robuste aux outliers. Depuis `METRICS_VERSION = 8`, les bins sont produits après masque de mouvement partagé, rejet des trous temporels, allure glissante sur 30 secondes, nettoyage robuste de la FC, retrait des 10 premières minutes en mouvement et exclusion des transitions d'allure. Voir [pace_hr_waterfall.md](pace_hr_waterfall.md).
+**Utilisation** : alimente `/progress/hr-at-pace`, `/progress/pace-at-hr` et `/progress/pace-hr-waterfall`. Le `hr_q50_w_bpm` est préféré au `hr_mean_w_bpm` car plus robuste aux outliers. Depuis `METRICS_VERSION = 9`, les résolutions `5/10/20/30 s/km` sont toutes calculées directement depuis les échantillons nettoyés. Le pipeline utilise une allure glissante sur 30 secondes, un filtre Hampel FC sur 11 secondes, une médiane FC sur 5 secondes et retire les 10 premières minutes avec distance positive. Il n'applique plus de masque de mouvement, de découpage sur les trous, de contrôle de saut FC ou d'exclusion des transitions. Voir [pace_hr_waterfall.md](pace_hr_waterfall.md).
 
 #### 2.8.4 `progress_activity_tags` — Classification automatique
 

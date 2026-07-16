@@ -1,0 +1,1 @@
+"""CourseScope test package."""

@@ -1,13 +1,13 @@
 # Pace-HR Waterfall 3D
 
 > **Type** : Spécification métrique · **Page** : `/progress` · **Endpoint** : `GET /progress/pace-hr-waterfall`
-> **Dernière mise à jour** : v1.2.14
+> **Dernière mise à jour** : v1.2.16
 
 ## Objectif
 
 Le Pace-HR Waterfall 3D compare, activité après activité, la fréquence cardiaque observée pour une allure donnée. Les courbes sont ordonnées de la plus ancienne à la plus récente. À allure équivalente, une fréquence cardiaque plus basse peut indiquer une amélioration de l'efficacité aérobie.
 
-La métrique est calculée lors de l'indexation lente et persistée dans `progress_pace_hr_bins`. Le rendu 3D ne relit pas les fichiers FIT/GPX.
+La métrique est calculée lors de l'indexation lente et persistée dans `progress_pace_hr_bins`. Le rendu 3D ne relit pas les FIT/GPX et ne recalcule aucune statistique.
 
 ## Sources
 
@@ -15,129 +15,120 @@ Le pipeline utilise les colonnes du DataFrame canonique de l'activité :
 
 | Colonne | Unité | Rôle |
 |---|---:|---|
-| `delta_time_s` | s | Pondération temporelle et détection des trous |
-| `delta_distance_m` | m | Calcul de l'allure glissante |
-| `speed_m_s` | m/s | Détection des pauses via le masque de mouvement partagé |
+| `delta_time_s` | s | Fenêtre d'allure et pondération des bins |
+| `delta_distance_m` | m | Calcul de l'allure glissante et temps initial en mouvement |
+| `speed_m_s` | m/s | Disponible dans la source, mais non utilisée par ce pipeline |
 | `heart_rate` | bpm | Fréquence cardiaque brute |
 
 ## Pipeline de préparation
 
-Le prétraitement est implémenté dans `backend/core/pace_hr.py`. Il est appliqué avant la construction des bins par `backend/progress/indexer.py`.
+Le prétraitement est implémenté dans `backend/core/pace_hr.py`. Il est volontairement continu et minimal : il n'utilise pas le masque de mouvement partagé, ne segmente pas les pauses ou les trous d'enregistrement et n'exclut pas les transitions d'allure.
 
-### 1. Masque de mouvement partagé
+### 1. Normalisation arithmétique minimale
 
-Le calcul réutilise `compute_moving_mask()` :
+Les temps et distances non finis ou négatifs sont remplacés par zéro afin de garder les sommes définies. Aucun seuil adaptatif de trou temporel n'est appliqué. Un intervalle long reste donc dans la fenêtre et une distance nulle n'entraîne pas de coupure de série.
 
-- médiane glissante de vitesse sur trois points ;
-- seuil de mouvement à `0,5 m/s` ;
-- pause reconnue après au moins `5 s` sous le seuil ;
-- premier point de reprise conservé hors du temps en mouvement selon le comportement historique du masque.
+### 2. Allure glissante
 
-Le Waterfall utilise ainsi la même définition du mouvement que les autres métriques de progression.
-
-### 2. Trous temporels
-
-La cadence d'échantillonnage de référence est la médiane des `delta_time_s` strictement positifs. La limite admise est :
-
-```text
-max_gap_s = min(15 s, max(5 s, 3 × delta_time_median))
-```
-
-Un intervalle non fini, négatif, nul ou supérieur à cette limite est exclu. Une pause ou un trou coupe la série en segments indépendants : aucune fenêtre de lissage ne traverse la coupure.
-
-### 3. Allure glissante
-
-L'allure n'est plus l'allure instantanée du point. Elle est calculée sur une fenêtre de `30 s` :
+L'allure est recalculée sur une fenêtre continue de `30 s` :
 
 ```text
 pace_s_per_km = temps_cumulé_fenêtre / distance_cumulée_fenêtre_km
 ```
 
-Cette formulation évite la moyenne arithmétique d'allures et reste robuste aux variations de fréquence d'échantillonnage. Une fenêtre incomplète ne produit pas de valeur.
+Une fenêtre incomplète ou sans distance ne produit pas de valeur. Une pause ou un trou peut influencer la valeur de la fenêtre, mais ne redémarre pas le calcul.
 
-### 4. Nettoyage de la fréquence cardiaque
+### 3. Nettoyage de la fréquence cardiaque
 
-La FC est d'abord limitée aux valeurs strictement comprises entre `40` et `240 bpm`.
-
-Le nettoyage applique ensuite, séparément dans chaque segment continu :
+La FC est limitée aux valeurs strictement comprises entre `40` et `240 bpm`, puis le pipeline applique :
 
 1. un filtre de Hampel centré sur `11 s` ;
 2. un seuil de `3 × 1,4826 × MAD`, avec un plancher de `8 bpm` ;
-3. le rejet des variations supérieures à `5 bpm/s` ;
-4. une médiane centrée finale sur `5 s`, avec au moins trois observations valides.
+3. une médiane centrée finale sur `5 s`, avec au moins trois observations valides.
 
-Un point rejeté n'est pas interpolé et ne contribue à aucun bin.
+Il n'existe plus de contrôle de variation en bpm/s. Un point rejeté par Hampel ou hors bornes reste absent et n'est pas interpolé.
 
-### 5. Échauffement
+### 4. Échauffement initial
 
-Les `600` premières secondes de temps réellement en mouvement sont exclues. Le compteur ne progresse pas pendant une pause ou un trou temporel.
+Les `600` premières secondes avec `delta_distance_m > 0` sont exclues. Sans masque de mouvement lissé, une distance positive est la définition minimale du temps en mouvement pour ce compteur.
 
-Une activité trop courte peut donc ne produire aucun bin Pace-HR.
+### 5. Éligibilité finale
 
-### 6. Changements d'allure
-
-L'allure glissante courante est comparée à celle observée environ `15 s` auparavant. Une transition est détectée si :
+Un échantillon contribue aux bins lorsque :
 
 ```text
-abs(delta_pace) >= max(30 s/km, 8 % de l'allure précédente)
-```
-
-Comme l'allure glissante révèle la transition après son début, l'exclusion est étendue rétroactivement jusqu'au début de la fenêtre de comparaison. La transition complète et les `30 s` de mouvement suivant sa détection sont ainsi exclues. Cette exclusion évite d'associer la FC de la transition à une allure qui vient de changer.
-
-## Masque final
-
-Un échantillon contribue aux bins uniquement si toutes les conditions suivantes sont vraies :
-
-```text
-moving_mask
-AND delta_time valide
-AND delta_distance positive
+delta_time_s > 0
 AND échauffement terminé
-AND hors transition d'allure
 AND allure glissante finie et comprise entre 0 et 1800 s/km
-AND FC nettoyée finie et comprise entre 40 et 240 bpm
+AND FC nettoyée finie et issue d'une valeur brute entre 40 et 240 bpm
 ```
 
-## Agrégation par activité
+Il n'existe aucune condition liée au masque de mouvement, à une durée maximale d'intervalle ou à une transition d'allure.
 
-Les échantillons valides sont rangés dans des bins d'allure de `10 s/km`.
+## Indexation multi-résolution
 
-Pour chaque bin :
+Chaque activité est agrégée directement depuis les mêmes échantillons nettoyés dans quatre index natifs :
 
-- `time_s_bin` : somme des `delta_time_s` valides ;
-- `hr_mean_w_bpm` : moyenne FC pondérée par le temps ;
-- `hr_q50_w_bpm` : médiane FC pondérée par le temps ;
-- temps minimal conservé : `60 s`.
+- `5 s/km` ;
+- `10 s/km` ;
+- `20 s/km` ;
+- `30 s/km`.
 
-`hr_q50_w_bpm` est utilisée en priorité par les endpoints de progression.
+Pour chaque résolution et chaque bin :
 
-## Persistance et consommateurs
+- `time_s_bin` est la somme des `delta_time_s` valides ;
+- `hr_mean_w_bpm` est la moyenne FC pondérée par le temps ;
+- `hr_q50_w_bpm` est la médiane FC pondérée par le temps ;
+- le bin est conservé uniquement s'il contient au moins `60 s`.
 
-La table `progress_pace_hr_bins` alimente :
+Chaque résolution repart des échantillons nettoyés. Une résolution large n'est jamais calculée par moyenne de médianes provenant d'une résolution plus fine.
 
-- `GET /progress/pace-hr-waterfall` ;
-- `GET /progress/hr-at-pace` ;
-- `GET /progress/pace-at-hr`.
+## Persistance et migration
 
-Le schéma SQLite et les contrats JSON restent inchangés. Le nouveau pipeline correspond à `METRICS_VERSION = 8` et exige une indexation lente complète des activités existantes.
+La clé logique de `progress_pace_hr_bins` est :
 
-## Rendu
+```text
+(activity_id, bin_step_s_per_km, pace_bin_s_per_km)
+```
 
-Le rendu reste géré par `frontend/src/components/charts/PaceHr3DChart.tsx` :
+Le changement correspond à `METRICS_VERSION = 9`. Au premier démarrage, la migration reconstruit uniquement la table dérivée Pace-HR, puis une indexation lente recalcule les quatre résolutions des activités existantes.
 
-- axe X : activités ordonnées dans le temps ;
-- axe Y : fréquence cardiaque en bpm ;
-- axe Z : allure en s/km, affichée en min/km ;
-- couleur : gris pour les activités anciennes, rouge pour les plus récentes.
+`GET /progress/hr-at-pace` et `GET /progress/pace-at-hr` utilisent l'index natif `10 s/km`.
 
-Le style, le placement et le contrat du composant ne sont pas modifiés par le prétraitement.
+## Contrat du Waterfall
+
+`GET /progress/pace-hr-waterfall` accepte exclusivement `bin_step_s_per_km=5|10|20|30`. Toute autre valeur retourne une erreur indiquant les résolutions natives disponibles.
+
+Le chemin de lecture est strictement :
+
+```text
+activité
+↓
+bins définitifs de la résolution demandée
+↓
+réponse JSON
+↓
+affichage
+```
+
+Le service ne regroupe pas les bins, ne recalcule aucune moyenne et ne modifie pas leur résolution.
+
+La réponse d'une activité contient uniquement son identifiant, sa date et ses points. Les filtres `session`, `terrain` et `endurance_only` ne font plus partie du contrat du Waterfall.
+
+## Interface `/progress`
+
+- résolution par défaut : `10 s/km` ;
+- résolutions disponibles : `5`, `10`, `20`, `30 s/km` ;
+- nombre d'activités par défaut : `60` ;
+- limites disponibles : `10`, `30`, `60`, `120`.
+
+Le style et le placement du composant 3D restent inchangés.
 
 ## Cas sans données
 
-Une activité est absente du Waterfall lorsqu'elle ne contient pas assez de données valides après filtrage, par exemple :
+Une activité est absente lorsqu'elle ne contient pas assez de données après le nettoyage minimal, par exemple :
 
 - absence de FC ;
-- durée en mouvement inférieure à l'échauffement exclu ;
-- trous temporels importants ;
-- changements d'allure trop fréquents ;
-- moins de `60 s` dans chaque bin final.
+- moins de dix minutes avec distance positive ;
+- aucune fenêtre d'allure complète ;
+- moins de `60 s` dans chaque bin de la résolution demandée.

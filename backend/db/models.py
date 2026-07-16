@@ -358,10 +358,16 @@ class ProgressBestEffortPoint(Base):
 class ProgressPaceHrBin(Base):
     __tablename__ = "progress_pace_hr_bins"
     __table_args__ = (
-        UniqueConstraint("activity_id", "pace_bin_s_per_km", name="uq_progress_pace_hr_bin"),
+        UniqueConstraint(
+            "activity_id",
+            "bin_step_s_per_km",
+            "pace_bin_s_per_km",
+            name="uq_progress_pace_hr_bin",
+        ),
         Index("ix_progress_pace_hr_start", "start_ts_utc"),
         Index("ix_progress_pace_hr_type_start", "activity_type", "start_ts_utc"),
-        Index("ix_progress_pace_hr_pace", "pace_bin_s_per_km"),
+        Index("ix_progress_pace_hr_step_start", "bin_step_s_per_km", "start_ts_utc"),
+        Index("ix_progress_pace_hr_pace", "bin_step_s_per_km", "pace_bin_s_per_km"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -370,6 +376,7 @@ class ProgressPaceHrBin(Base):
     activity_type: Mapped[str] = mapped_column(String(32), nullable=False)
     start_ts_utc: Mapped[str] = mapped_column(Text, nullable=False)
 
+    bin_step_s_per_km: Mapped[int] = mapped_column(Integer, nullable=False)
     pace_bin_s_per_km: Mapped[float] = mapped_column(Float, nullable=False)
     time_s_bin: Mapped[float] = mapped_column(Float, nullable=False)
 

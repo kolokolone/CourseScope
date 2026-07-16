@@ -67,9 +67,9 @@ Le calendrier annuel étire ses colonnes de semaines sur la largeur disponible. 
 
 ### Prétraitement Pace-HR
 
-Le Waterfall et les séries HR@Pace/Pace@HR utilisent des bins pré-calculés après nettoyage du signal : masque de mouvement partagé, rejet des trous temporels, allure glissante sur 30 secondes, filtre Hampel et médiane FC, exclusion des 10 premières minutes en mouvement et des 30 secondes suivant un changement significatif d'allure.
+Le Waterfall et les séries HR@Pace/Pace@HR utilisent des bins pré-calculés après un nettoyage volontairement simple : allure continue sur 30 secondes, filtre Hampel FC sur 11 secondes, médiane FC sur 5 secondes et exclusion des 10 premières minutes avec distance positive. Le pipeline n'applique ni masque de mouvement, ni segmentation des trous, ni contrôle de saut FC, ni exclusion des transitions d'allure.
 
-Le détail des seuils, du masque final et de l'agrégation est documenté dans [pace_hr_waterfall.md](pace_hr_waterfall.md).
+Les index natifs `5/10/20/30 s/km` sont calculés séparément lors de l'indexation. L'API Waterfall sélectionne l'index demandé sans refaire de calcul statistique. Le détail est documenté dans [pace_hr_waterfall.md](pace_hr_waterfall.md).
 
 ## Performance
 

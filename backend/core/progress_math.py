@@ -46,33 +46,6 @@ def interp_linear(points: list[tuple[float, float]], target_x: float) -> float |
     return None
 
 
-def aggregate_curve(points: list[tuple[float, float, float]], bin_step: float) -> list[dict[str, float]]:
-    """Agrège une courbe (pace, HR, weight) par buckets de pace.
-
-    Chaque point est un tuple (pace_s_per_km, hr_bpm, weight_s).
-    Retourne une liste de dicts avec pace_bin_s_per_km, hr_bpm, time_s_bin.
-    """
-    if not points:
-        return []
-    grouped: dict[float, list[tuple[float, float]]] = {}
-    step = max(1.0, float(bin_step))
-    for pace, hr, weight in points:
-        if not (math.isfinite(pace) and math.isfinite(hr) and math.isfinite(weight) and weight > 0):
-            continue
-        bucket = round(pace / step) * step
-        grouped.setdefault(bucket, []).append((hr, weight))
-
-    out: list[dict[str, float]] = []
-    for pace_bin in sorted(grouped.keys()):
-        values = grouped[pace_bin]
-        total = sum(w for _, w in values)
-        if total <= 0:
-            continue
-        hr_mean = sum(v * w for v, w in values) / total
-        out.append({"pace_bin_s_per_km": float(pace_bin), "hr_bpm": float(hr_mean), "time_s_bin": float(total)})
-    return out
-
-
 def compute_streaks(active_dates: set[str], reference_date: str) -> tuple[int, int]:
     """Calcule la plus longue streak et la streak courante.
 

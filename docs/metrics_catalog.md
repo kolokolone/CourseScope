@@ -449,14 +449,13 @@ Response: `{ ok, activity_id }`.
 
 ### Pace-HR Waterfall (GET /progress/pace-hr-waterfall)
 
-Returns cleaned and binned Pace↔HR curves per activity for 3D rendering. Before binning, the pipeline applies the shared moving mask, rejects abnormal timestamp gaps, computes pace over a 30-second rolling window, filters isolated HR artifacts, removes the first 10 moving minutes, and excludes the 30 moving seconds following a significant pace change. Full algorithm: [pace_hr_waterfall.md](pace_hr_waterfall.md).
+Returns definitive Pace↔HR bins per activity for 3D rendering. The requested resolution must be one of the native indexes `5`, `10`, `20` or `30 s/km`; the endpoint never re-aggregates stored bins. The simplified preprocessing computes pace over a continuous 30-second window, applies Hampel and median HR filters, and removes the first 10 minutes with positive distance. It does not use the shared moving mask, gap segmentation, HR slew rejection or pace-transition exclusion. Full algorithm: [pace_hr_waterfall.md](pace_hr_waterfall.md).
+
+Query parameters specific to this endpoint: `bin_step_s_per_km=5|10|20|30` (default `10`) and `limit=1..120` (default `60`). Session, terrain and endurance filters are not part of the Waterfall contract.
 
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |
 | `activities[].start_ts_utc` | string | - | ISO UTC timestamp |
-| `activities[].session_tag` | string | - | session tag |
-| `activities[].terrain_tag` | string | - | terrain tag |
-| `activities[].race_marker` | bool | - | race marker |
 | `activities[].points[].pace_bin_s_per_km` | float | s/km | pace bin |
 | `activities[].points[].hr_bpm` | float | bpm | aggregated HR |
 | `activities[].points[].time_s_bin` | float | s | time weight |

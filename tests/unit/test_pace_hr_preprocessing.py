@@ -50,54 +50,36 @@ class TestPaceHrPreprocessing(unittest.TestCase):
             "pace_window_s": 3.0,
             "hr_hampel_window_s": 7.0,
             "hr_median_window_s": 5.0,
-            "transition_min_change_s_per_km": 10_000.0,
-            "transition_min_change_ratio": 10.0,
-            "hr_max_slew_bpm_per_s": 50.0,
         }
         defaults.update(overrides)
         return replace(DEFAULT_PACE_HR_PREPROCESSING_CONFIG, **defaults)
 
-    def test_reuses_the_real_moving_mask_and_restarts_windows_after_pause(self) -> None:
-        from core.derived import compute_moving_mask
+    def test_keeps_a_continuous_pace_window_across_zero_distance_points(self) -> None:
         from core.pace_hr import prepare_pace_hr_samples
 
-        paces = [300.0] * 25
-        df = _activity_frame(paces)
-        df.loc[8:14, ["delta_distance_m", "speed_m_s", "pace_s_per_km"]] = [
+        df = _activity_frame([300.0] * 25)
+        df.loc[8:9, ["delta_distance_m", "speed_m_s", "pace_s_per_km"]] = [
             0.0,
             0.0,
             math.nan,
         ]
-        moving_mask = compute_moving_mask(df)
 
-        prepared = prepare_pace_hr_samples(
-            df, moving_mask=moving_mask, config=self._config()
-        )
+        prepared = prepare_pace_hr_samples(df, config=self._config())
 
-        self.assertFalse(bool(prepared.loc[8:14, "valid"].any()))
-        self.assertTrue(math.isnan(float(prepared.loc[16, "pace_smoothed_s_per_km"])))
-        self.assertTrue(bool(prepared.loc[18:, "valid"].any()))
+        self.assertTrue(math.isfinite(float(prepared.loc[10, "pace_smoothed_s_per_km"])))
+        self.assertTrue(bool(prepared.loc[10, "valid"]))
 
-    def test_rejects_long_time_gap_and_does_not_smooth_across_it(self) -> None:
+    def test_keeps_long_recording_intervals_in_the_rolling_pace(self) -> None:
         from core.pace_hr import prepare_pace_hr_samples
 
         dt = [1.0] * 20
         dt[10] = 20.0
         df = _activity_frame([300.0] * 20, delta_times_s=dt)
-        config = self._config(gap_floor_s=3.0, gap_multiplier=3.0, gap_ceiling_s=5.0)
 
-        prepared = prepare_pace_hr_samples(
-            df,
-            moving_mask=pd.Series(True, index=df.index),
-            config=config,
-        )
+        prepared = prepare_pace_hr_samples(df, config=self._config())
 
-        self.assertFalse(bool(prepared.loc[10, "time_interval_valid"]))
-        self.assertFalse(bool(prepared.loc[10, "valid"]))
-        self.assertTrue(math.isnan(float(prepared.loc[12, "pace_smoothed_s_per_km"])))
-        self.assertTrue(
-            math.isfinite(float(prepared.loc[13, "pace_smoothed_s_per_km"]))
-        )
+        self.assertEqual(float(prepared.loc[10, "delta_time_s"]), 20.0)
+        self.assertAlmostEqual(float(prepared.loc[10, "pace_smoothed_s_per_km"]), 300.0)
 
     def test_smooths_noisy_pace_using_time_over_distance(self) -> None:
         from core.pace_hr import prepare_pace_hr_samples
@@ -105,7 +87,6 @@ class TestPaceHrPreprocessing(unittest.TestCase):
         df = _activity_frame([280.0, 320.0] * 20)
         prepared = prepare_pace_hr_samples(
             df,
-            moving_mask=pd.Series(True, index=df.index),
             config=self._config(pace_window_s=6.0),
         )
 
@@ -114,61 +95,58 @@ class TestPaceHrPreprocessing(unittest.TestCase):
         self.assertLess(float(np.nanstd(values)), 1.0)
         self.assertAlmostEqual(float(np.nanmedian(values)), 298.7, delta=1.0)
 
-    def test_hampel_filter_rejects_isolated_hr_spike(self) -> None:
+    def test_hampel_filter_rejects_only_the_isolated_hr_spike(self) -> None:
         from core.pace_hr import prepare_pace_hr_samples
 
         heart_rates = [140.0] * 30
         heart_rates[15] = 220.0
         df = _activity_frame([300.0] * 30, heart_rates=heart_rates)
-        prepared = prepare_pace_hr_samples(
-            df,
-            moving_mask=pd.Series(True, index=df.index),
-            config=self._config(hr_max_slew_bpm_per_s=5.0),
-        )
+        prepared = prepare_pace_hr_samples(df, config=self._config())
 
         self.assertAlmostEqual(float(prepared.loc[14, "heart_rate_clean_bpm"]), 140.0)
         self.assertTrue(math.isnan(float(prepared.loc[15, "heart_rate_clean_bpm"])))
+        self.assertAlmostEqual(float(prepared.loc[16, "heart_rate_clean_bpm"]), 140.0)
         self.assertFalse(bool(prepared.loc[15, "valid"]))
+        self.assertTrue(bool(prepared.loc[16, "valid"]))
 
-    def test_excludes_first_ten_seconds_of_moving_time_when_configured(self) -> None:
+    def test_rejects_heart_rate_outside_physiological_bounds(self) -> None:
+        from core.pace_hr import prepare_pace_hr_samples
+
+        heart_rates = [140.0] * 30
+        heart_rates[12] = 40.0
+        heart_rates[18] = 240.0
+        prepared = prepare_pace_hr_samples(
+            _activity_frame([300.0] * 30, heart_rates=heart_rates),
+            config=self._config(),
+        )
+
+        self.assertTrue(math.isnan(float(prepared.loc[12, "heart_rate_clean_bpm"])))
+        self.assertTrue(math.isnan(float(prepared.loc[18, "heart_rate_clean_bpm"])))
+
+    def test_excludes_first_ten_seconds_of_positive_distance_time(self) -> None:
         from core.pace_hr import prepare_pace_hr_samples
 
         df = _activity_frame([300.0] * 25)
+        df.loc[5:7, "delta_distance_m"] = 0.0
         prepared = prepare_pace_hr_samples(
             df,
-            moving_mask=pd.Series(True, index=df.index),
             config=self._config(warmup_moving_time_s=10.0),
         )
 
-        self.assertFalse(bool(prepared.loc[:9, "after_warmup"].any()))
-        self.assertTrue(bool(prepared.loc[10, "after_warmup"]))
-        self.assertFalse(bool(prepared.loc[:9, "valid"].any()))
-        self.assertTrue(bool(prepared.loc[10:, "valid"].any()))
+        self.assertFalse(bool(prepared.loc[:12, "after_warmup"].any()))
+        self.assertTrue(bool(prepared.loc[13, "after_warmup"]))
 
-    def test_excludes_seconds_following_significant_pace_change(self) -> None:
+    def test_does_not_exclude_samples_after_a_pace_transition(self) -> None:
         from core.pace_hr import prepare_pace_hr_samples
 
         df = _activity_frame(([300.0] * 40) + ([240.0] * 40))
-        config = self._config(
-            transition_lookback_s=5.0,
-            transition_min_change_s_per_km=30.0,
-            transition_min_change_ratio=0.08,
-            transition_exclusion_s=10.0,
-        )
-        prepared = prepare_pace_hr_samples(
-            df,
-            moving_mask=pd.Series(True, index=df.index),
-            config=config,
-        )
+        prepared = prepare_pace_hr_samples(df, config=self._config())
 
-        unstable = np.flatnonzero(~prepared["transition_stable"].to_numpy(dtype=bool))
-        unstable_after_change = unstable[unstable >= 40]
-        self.assertGreaterEqual(unstable_after_change.size, 10)
-        self.assertEqual(int(unstable_after_change[0]), 40)
-        self.assertFalse(bool(prepared.loc[40, "valid"]))
-        self.assertFalse(bool(prepared.loc[unstable_after_change[0], "valid"]))
+        self.assertTrue(bool(prepared.loc[40, "valid"]))
+        self.assertTrue(bool(prepared.loc[41:50, "valid"].all()))
 
-    def test_bin_builder_uses_cleaned_samples(self) -> None:
+    def test_bin_builder_computes_each_native_resolution_from_samples(self) -> None:
+        from core.pace_hr import PACE_HR_BIN_STEPS_S_PER_KM
         from progress.indexer import _build_pace_hr_bins
 
         heart_rates = [140.0] * 720
@@ -176,17 +154,46 @@ class TestPaceHrPreprocessing(unittest.TestCase):
         df = _activity_frame([300.0] * 720, heart_rates=heart_rates)
         bins = _build_pace_hr_bins(
             df=df,
-            moving_mask=pd.Series(True, index=df.index),
             activity_id="activity",
             activity_type="real",
             start_ts_utc="2026-07-15T08:00:00Z",
         )
 
-        self.assertEqual(len(bins), 1)
-        self.assertEqual(bins[0].pace_bin_s_per_km, 300.0)
-        self.assertEqual(bins[0].hr_q50_w_bpm, 140.0)
-        self.assertGreaterEqual(bins[0].time_s_bin, 60.0)
-        self.assertLess(bins[0].time_s_bin, 120.0)
+        self.assertEqual(len(bins), len(PACE_HR_BIN_STEPS_S_PER_KM))
+        self.assertEqual(
+            {row.bin_step_s_per_km for row in bins},
+            set(PACE_HR_BIN_STEPS_S_PER_KM),
+        )
+        for row in bins:
+            self.assertEqual(row.pace_bin_s_per_km, 300.0)
+            self.assertEqual(row.hr_q50_w_bpm, 140.0)
+            self.assertGreaterEqual(row.time_s_bin, 60.0)
+            self.assertLess(row.time_s_bin, 120.0)
+
+    def test_wider_resolution_recomputes_the_weighted_median_from_samples(self) -> None:
+        from progress.indexer import _build_pace_hr_bins
+
+        paces = ([310.0] * 660) + ([320.0] * 120)
+        heart_rates = ([140.0] * 600) + ([100.0] * 60) + ([200.0] * 120)
+        bins = _build_pace_hr_bins(
+            df=_activity_frame(paces, heart_rates=heart_rates),
+            activity_id="activity",
+            activity_type="real",
+            start_ts_utc="2026-07-15T08:00:00Z",
+            pace_bin_steps_s_per_km=(10, 20),
+        )
+
+        ten_second_bins = [row for row in bins if row.bin_step_s_per_km == 10]
+        twenty_second_bins = [row for row in bins if row.bin_step_s_per_km == 20]
+        self.assertEqual(len(ten_second_bins), 2)
+        self.assertEqual(len(twenty_second_bins), 1)
+
+        wider = twenty_second_bins[0]
+        mean_of_ten_second_medians = sum(
+            float(row.hr_q50_w_bpm) * row.time_s_bin for row in ten_second_bins
+        ) / sum(row.time_s_bin for row in ten_second_bins)
+        self.assertEqual(wider.hr_q50_w_bpm, 200.0)
+        self.assertNotAlmostEqual(wider.hr_q50_w_bpm, mean_of_ten_second_medians)
 
 
 if __name__ == "__main__":

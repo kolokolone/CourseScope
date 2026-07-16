@@ -6,6 +6,12 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.responses import JSONResponse
 
 from api._helpers import get_db_session_factory
+from core.pace_hr import PACE_HR_BIN_STEPS_S_PER_KM
+from core.utils import (
+    parse_ts_utc as _parse_ts_utc_core,
+    parse_csv_floats as _parse_csv_floats,
+    parse_optional_bool as _parse_optional_bool,
+)
 from db.models import ProgressActivityTag, utc_now_iso
 from db.progress_repository import ProgressRepository
 from db.settings_repository import SettingsRepository
@@ -15,13 +21,6 @@ from progress.indexation_runner import (
     start_slow_indexation_in_background,
 )
 from services.progress_service import ProgressService
-
-from core.utils import (
-    parse_ts_utc as _parse_ts_utc_core,
-    parse_csv_floats as _parse_csv_floats,
-    parse_optional_bool as _parse_optional_bool,
-)
-
 
 
 def _parse_ts_utc(value: str | None, *, is_end: bool) -> str | None:
@@ -440,20 +439,19 @@ async def get_progress_pace_hr_waterfall(
     from_ts: str | None = Query(None, alias="from"),
     to_ts: str | None = Query(None, alias="to"),
     activity_type: str | None = Query(None, alias="type"),
-    limit: int = Query(30, ge=1, le=120),
-    bin_step_s_per_km: int = Query(10, ge=1, le=60),
-    session_tag: str | None = Query(None),
-    terrain_tag: str | None = Query(None),
-    endurance_only: bool = Query(False),
+    limit: int = Query(60, ge=1, le=120),
+    bin_step_s_per_km: int = Query(10),
 ):
     db_session_factory = get_db_session_factory(request)
 
     if activity_type is not None and activity_type not in {"real", "theoretical"}:
         raise HTTPException(status_code=400, detail="Invalid type")
-    if session_tag is not None and session_tag not in SESSION_TAGS:
-        raise HTTPException(status_code=400, detail="Invalid session_tag")
-    if terrain_tag is not None and terrain_tag not in TERRAIN_TAGS:
-        raise HTTPException(status_code=400, detail="Invalid terrain_tag")
+    if bin_step_s_per_km not in PACE_HR_BIN_STEPS_S_PER_KM:
+        supported = ", ".join(str(step) for step in PACE_HR_BIN_STEPS_S_PER_KM)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported Pace-HR resolution. Native resolutions: {supported} s/km.",
+        )
 
     from_ts_utc = _parse_ts_utc(from_ts, is_end=False)
     to_ts_utc = _parse_ts_utc(to_ts, is_end=True)
@@ -466,15 +464,12 @@ async def get_progress_pace_hr_waterfall(
             from_ts_utc=from_ts_utc,
             to_ts_utc=to_ts_utc,
             activity_type=activity_type,
-            session_tag=session_tag,
-            terrain_tag=terrain_tag,
-            endurance_only=bool(endurance_only),
+            bin_step_s_per_km=bin_step_s_per_km,
         )
-        tag_map = repo.get_activity_tags_map(session, activity_ids=sorted({r.activity_id for r in rows}))
     finally:
         session.close()
 
-    activities = ProgressService.compute_waterfall(rows, tag_map, float(bin_step_s_per_km))
+    activities = ProgressService.compute_waterfall(rows)
     if len(activities) > int(limit):
         activities = activities[-int(limit):]
     return {"activities": activities}

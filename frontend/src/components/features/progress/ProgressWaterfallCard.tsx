@@ -4,23 +4,16 @@ import * as React from 'react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PaceHr3DChart } from '@/components/charts/PaceHr3DChart';
-import type { ProgressPaceHrWaterfallActivity, ProgressSessionTag, ProgressTerrainTag } from '@/types/api';
-import { SESSION_FILTER_OPTIONS, TERRAIN_FILTER_OPTIONS } from '@/components/features/progress/constants';
+import type { ProgressPaceHrWaterfallActivity } from '@/types/api';
 
 type ProgressWaterfallCardProps = {
   activities: ProgressPaceHrWaterfallActivity[];
   isLoading: boolean;
   error: Error | null;
-  waterfallLimit: 10 | 30 | 60;
-  waterfallBinStep: 5 | 10;
-  waterfallSessionTag: 'all' | ProgressSessionTag;
-  waterfallTerrainTag: 'all' | ProgressTerrainTag;
-  waterfallEnduranceOnly: boolean;
-  onLimitChange: (limit: 10 | 30 | 60) => void;
-  onBinStepChange: (step: 5 | 10) => void;
-  onSessionTagChange: (tag: 'all' | ProgressSessionTag) => void;
-  onTerrainTagChange: (tag: 'all' | ProgressTerrainTag) => void;
-  onEnduranceOnlyChange: (value: boolean) => void;
+  waterfallLimit: 10 | 30 | 60 | 120;
+  waterfallBinStep: 5 | 10 | 20 | 30;
+  onLimitChange: (limit: 10 | 30 | 60 | 120) => void;
+  onBinStepChange: (step: 5 | 10 | 20 | 30) => void;
 };
 
 export function ProgressWaterfallCard({
@@ -29,14 +22,8 @@ export function ProgressWaterfallCard({
   error,
   waterfallLimit,
   waterfallBinStep,
-  waterfallSessionTag,
-  waterfallTerrainTag,
-  waterfallEnduranceOnly,
   onLimitChange,
   onBinStepChange,
-  onSessionTagChange,
-  onTerrainTagChange,
-  onEnduranceOnlyChange,
 }: ProgressWaterfallCardProps) {
   return (
     <Card>
@@ -49,11 +36,12 @@ export function ProgressWaterfallCard({
               <select
                 className="h-8 rounded-md border bg-background px-2 text-sm"
                 value={waterfallLimit}
-                onChange={(e) => onLimitChange(Number(e.target.value) as 10 | 30 | 60)}
+                onChange={(e) => onLimitChange(Number(e.target.value) as 10 | 30 | 60 | 120)}
               >
                 <option value={10}>10</option>
                 <option value={30}>30</option>
                 <option value={60}>60</option>
+                <option value={120}>120</option>
               </select>
             </label>
             <label className="flex items-center gap-2">
@@ -61,47 +49,13 @@ export function ProgressWaterfallCard({
               <select
                 className="h-8 rounded-md border bg-background px-2 text-sm"
                 value={waterfallBinStep}
-                onChange={(e) => onBinStepChange(Number(e.target.value) as 5 | 10)}
+                onChange={(e) => onBinStepChange(Number(e.target.value) as 5 | 10 | 20 | 30)}
               >
-                <option value={5}>5s</option>
-                <option value={10}>10s</option>
+                <option value={5}>5 s/km</option>
+                <option value={10}>10 s/km</option>
+                <option value={20}>20 s/km</option>
+                <option value={30}>30 s/km</option>
               </select>
-            </label>
-            <label className="flex items-center gap-2">
-              Session
-              <select
-                className="h-8 rounded-md border bg-background px-2 text-sm"
-                value={waterfallSessionTag}
-                onChange={(e) => onSessionTagChange(e.target.value as 'all' | ProgressSessionTag)}
-              >
-                {SESSION_FILTER_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
-              Terrain
-              <select
-                className="h-8 rounded-md border bg-background px-2 text-sm"
-                value={waterfallTerrainTag}
-                onChange={(e) => onTerrainTagChange(e.target.value as 'all' | ProgressTerrainTag)}
-              >
-                {TERRAIN_FILTER_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={waterfallEnduranceOnly}
-                onChange={(e) => onEnduranceOnlyChange(e.target.checked)}
-              />
-              Endurance only
             </label>
           </div>
         </div>
@@ -112,7 +66,7 @@ export function ProgressWaterfallCard({
         ) : error ? (
           <div className="text-sm text-red-600">Erreur de chargement.</div>
         ) : (activities?.length ?? 0) === 0 ? (
-          <div className="text-muted-foreground">Pas assez de donnees pour afficher le waterfall 3D avec les filtres actuels.</div>
+          <div className="text-muted-foreground">Pas assez de donnees pour afficher le waterfall 3D.</div>
         ) : (
           <>
             <PaceHr3DChart activities={activities} />

@@ -3,7 +3,7 @@
 import math
 from datetime import datetime, timezone, timedelta
 
-from core.progress_math import aggregate_curve, interp_linear, compute_streaks
+from core.progress_math import interp_linear, compute_streaks
 from core.utils import bucket_start
 
 
@@ -207,18 +207,16 @@ class ProgressService:
         return {"series": out_series}
 
     # ------------------------------------------------------------------
-    # (d) 3D Waterfall — pace/HR/time aggregation per activity
+    # (d) 3D Waterfall — direct mapping of indexed bins per activity
     # ------------------------------------------------------------------
     @staticmethod
-    def compute_waterfall(rows, tags_map: dict, bin_step_s_per_km: float) -> list[dict]:
-        """Build pace/HR waterfall data from pace-hr rows.
+    def compute_waterfall(rows) -> list[dict]:
+        """Expose the definitive indexed Pace-HR bins without re-aggregation.
 
         Each row must expose ``.hr_q50_w_bpm``, ``.hr_mean_w_bpm``,
         ``.pace_bin_s_per_km``, ``.time_s_bin``, ``.activity_id``,
         ``.start_ts_utc``.
 
-        ``tags_map`` is a dict of activity_id → tag object with
-        ``.session_tag``, ``.terrain_tag``, ``.race_marker`` attributes.
         """
         by_activity: dict[str, dict] = {}
         for r in rows:
@@ -232,24 +230,27 @@ class ProgressService:
                 {
                     "activity_id": r.activity_id,
                     "start_ts_utc": r.start_ts_utc,
-                    "points_raw": [],
+                    "points": [],
                 },
             )
-            item["points_raw"].append((float(r.pace_bin_s_per_km), float(hr_value), float(r.time_s_bin)))
+            item["points"].append(
+                {
+                    "pace_bin_s_per_km": float(r.pace_bin_s_per_km),
+                    "hr_bpm": float(hr_value),
+                    "time_s_bin": float(r.time_s_bin),
+                }
+            )
 
         activities = []
-        for activity_id, item in by_activity.items():
-            points = aggregate_curve(list(item["points_raw"]), float(bin_step_s_per_km))
-            if len(points) < 1:
+        for item in by_activity.values():
+            points = list(item["points"])
+            if not points:
                 continue
-            tag = tags_map.get(activity_id)
+            points.sort(key=lambda point: float(point["pace_bin_s_per_km"]))
             activities.append(
                 {
-                    "activity_id": activity_id,
+                    "activity_id": item["activity_id"],
                     "start_ts_utc": item["start_ts_utc"],
-                    "session_tag": tag.session_tag if tag is not None else "unknown",
-                    "terrain_tag": tag.terrain_tag if tag is not None else "unknown",
-                    "race_marker": bool(tag.race_marker) if tag is not None else False,
                     "points": points,
                 }
             )

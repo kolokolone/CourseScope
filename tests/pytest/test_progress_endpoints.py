@@ -148,6 +148,7 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
                 activity_id="a1",
                 activity_type="real",
                 start_ts_utc="2026-02-03T10:00:00Z",
+                bin_step_s_per_km=10,
                 pace_bin_s_per_km=300.0,
                 time_s_bin=120.0,
                 hr_mean_w_bpm=140.0,
@@ -157,6 +158,7 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
                 activity_id="a1",
                 activity_type="real",
                 start_ts_utc="2026-02-03T10:00:00Z",
+                bin_step_s_per_km=10,
                 pace_bin_s_per_km=330.0,
                 time_s_bin=120.0,
                 hr_mean_w_bpm=148.0,
@@ -166,6 +168,7 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
                 activity_id="a2",
                 activity_type="real",
                 start_ts_utc="2026-02-04T10:00:00Z",
+                bin_step_s_per_km=10,
                 pace_bin_s_per_km=300.0,
                 time_s_bin=120.0,
                 hr_mean_w_bpm=138.0,
@@ -175,6 +178,7 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
                 activity_id="a2",
                 activity_type="real",
                 start_ts_utc="2026-02-04T10:00:00Z",
+                bin_step_s_per_km=10,
                 pace_bin_s_per_km=330.0,
                 time_s_bin=120.0,
                 hr_mean_w_bpm=146.0,
@@ -184,6 +188,7 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
                 activity_id="a3",
                 activity_type="real",
                 start_ts_utc="2026-02-10T10:00:00Z",
+                bin_step_s_per_km=10,
                 pace_bin_s_per_km=300.0,
                 time_s_bin=120.0,
                 hr_mean_w_bpm=142.0,
@@ -193,10 +198,21 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
                 activity_id="a3",
                 activity_type="real",
                 start_ts_utc="2026-02-10T10:00:00Z",
+                bin_step_s_per_km=10,
                 pace_bin_s_per_km=330.0,
                 time_s_bin=120.0,
                 hr_mean_w_bpm=150.0,
                 hr_q50_w_bpm=150.0,
+            ),
+            ProgressPaceHrBin(
+                activity_id="a1",
+                activity_type="real",
+                start_ts_utc="2026-02-03T10:00:00Z",
+                bin_step_s_per_km=20,
+                pace_bin_s_per_km=300.0,
+                time_s_bin=240.0,
+                hr_mean_w_bpm=141.0,
+                hr_q50_w_bpm=141.0,
             ),
         ]
 
@@ -294,13 +310,43 @@ def test_progress_series_and_best_efforts(tmp_path, monkeypatch):
                 "to": "2026-02-28",
                 "limit": 30,
                 "bin_step_s_per_km": 10,
-                "session_tag": "easy",
             },
         )
         assert waterfall.status_code == 200
         w_payload = waterfall.json()
-        assert len(w_payload["activities"]) == 1
+        assert len(w_payload["activities"]) == 3
         assert w_payload["activities"][0]["activity_id"] == "a1"
+        assert w_payload["activities"][0]["points"] == [
+            {"pace_bin_s_per_km": 300.0, "hr_bpm": 140.0, "time_s_bin": 120.0},
+            {"pace_bin_s_per_km": 330.0, "hr_bpm": 148.0, "time_s_bin": 120.0},
+        ]
+        assert "session_tag" not in w_payload["activities"][0]
+
+        waterfall_20 = client.get(
+            "/progress/pace-hr-waterfall",
+            params={
+                "from": "2026-02-01",
+                "to": "2026-02-28",
+                "bin_step_s_per_km": 20,
+            },
+        )
+        assert waterfall_20.status_code == 200
+        assert waterfall_20.json()["activities"] == [
+            {
+                "activity_id": "a1",
+                "start_ts_utc": "2026-02-03T10:00:00Z",
+                "points": [
+                    {"pace_bin_s_per_km": 300.0, "hr_bpm": 141.0, "time_s_bin": 240.0}
+                ],
+            }
+        ]
+
+        unsupported_waterfall = client.get(
+            "/progress/pace-hr-waterfall",
+            params={"bin_step_s_per_km": 15},
+        )
+        assert unsupported_waterfall.status_code == 400
+        assert "Native resolutions: 5, 10, 20, 30 s/km" in unsupported_waterfall.json()["detail"]
 
         tag_update = client.post(
             "/progress/tags",

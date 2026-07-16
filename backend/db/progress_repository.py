@@ -28,6 +28,7 @@ class ProgressSeriesRow:
 class ProgressPaceHrRow:
     activity_id: str
     start_ts_utc: str
+    bin_step_s_per_km: int
     pace_bin_s_per_km: float
     time_s_bin: float
     hr_mean_w_bpm: float | None
@@ -323,6 +324,7 @@ class ProgressRepository:
         from_ts_utc: str | None,
         to_ts_utc: str | None,
         activity_type: str | None,
+        bin_step_s_per_km: int = 10,
         session_tag: str | None = None,
         terrain_tag: str | None = None,
         endurance_only: bool = False,
@@ -330,11 +332,14 @@ class ProgressRepository:
         stmt = select(
             ProgressPaceHrBin.activity_id,
             ProgressPaceHrBin.start_ts_utc,
+            ProgressPaceHrBin.bin_step_s_per_km,
             ProgressPaceHrBin.pace_bin_s_per_km,
             ProgressPaceHrBin.time_s_bin,
             ProgressPaceHrBin.hr_mean_w_bpm,
             ProgressPaceHrBin.hr_q50_w_bpm,
         ).select_from(ProgressPaceHrBin)
+
+        stmt = stmt.where(ProgressPaceHrBin.bin_step_s_per_km == int(bin_step_s_per_km))
 
         if session_tag is not None or terrain_tag is not None or endurance_only:
             stmt = stmt.join(ProgressActivityTag, ProgressActivityTag.activity_id == ProgressPaceHrBin.activity_id)
@@ -357,11 +362,20 @@ class ProgressRepository:
         )
         rows = session.execute(stmt).all()
         out: list[ProgressPaceHrRow] = []
-        for activity_id, start_ts_utc, pace_bin_s_per_km, time_s_bin, hr_mean_w_bpm, hr_q50_w_bpm in rows:
+        for (
+            activity_id,
+            start_ts_utc,
+            stored_bin_step_s_per_km,
+            pace_bin_s_per_km,
+            time_s_bin,
+            hr_mean_w_bpm,
+            hr_q50_w_bpm,
+        ) in rows:
             out.append(
                 ProgressPaceHrRow(
                     activity_id=str(activity_id),
                     start_ts_utc=str(start_ts_utc),
+                    bin_step_s_per_km=int(stored_bin_step_s_per_km),
                     pace_bin_s_per_km=float(pace_bin_s_per_km),
                     time_s_bin=float(time_s_bin),
                     hr_mean_w_bpm=(float(hr_mean_w_bpm) if hr_mean_w_bpm is not None else None),

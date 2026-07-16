@@ -161,10 +161,7 @@ export function useProgressPaceHrWaterfall(params: {
   to: string;
   type?: ProgressType;
   limit?: number;
-  bin_step_s_per_km?: 5 | 10;
-  session_tag?: ProgressSessionTag;
-  terrain_tag?: ProgressTerrainTag;
-  endurance_only?: boolean;
+  bin_step_s_per_km?: 5 | 10 | 20 | 30;
 }) {
   const paramString = JSON.stringify(params);
 
