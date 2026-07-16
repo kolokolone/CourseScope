@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.19] - 2026-07-16
+
+### Changed
+- **Temps de passage compacts** : les cartes plein écran regroupent distance, altitude, D+ et D− sur une ligne, puis passage, pause et départ sur une seconde ligne afin de réduire leur hauteur sur desktop et mobile.
+
 ## [1.2.18] - 2026-07-16
 
 ### Added

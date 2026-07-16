@@ -18,6 +18,15 @@ function roundedMeters(value: number): string {
   return formatNumber(value, { integer: true });
 }
 
+function PassageMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="truncate text-[10px] leading-tight text-muted-foreground" title={label}>{label}</dt>
+      <dd className="mt-0.5 truncate text-xs font-medium leading-tight tabular-nums" title={value}>{value}</dd>
+    </div>
+  );
+}
+
 export function RacePassageTimeline({ passages }: { passages: RaceTimelinePassage[] }) {
   if (passages.length === 0) {
     return <p className="text-sm text-muted-foreground">Aucun temps de passage disponible.</p>;
@@ -37,34 +46,32 @@ export function RacePassageTimeline({ passages }: { passages: RaceTimelinePassag
             </li>
           ) : null}
           <li>
-            <article className="rounded-lg border border-border bg-card p-3 text-card-foreground shadow-sm">
+            <article className="rounded-lg border border-border border-t-4 border-t-primary bg-card px-2.5 pb-2.5 pt-2 text-card-foreground shadow-sm">
               <h3 className="break-words text-center text-sm font-semibold">
                 {passage.kind === 'stop' && passage.stop_type ? `${RACE_STOP_ICONS[passage.stop_type]} ` : ''}
                 {passage.label}
               </h3>
-              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                <dt className="text-muted-foreground">Passage</dt>
-                <dd className="text-right font-medium tabular-nums">{formatPassageTime(passage.arrival_time_iso, passage.arrival_elapsed_time_s)}</dd>
-                <dt className="text-muted-foreground">Distance</dt>
-                <dd className="text-right font-medium tabular-nums">{formatNumber(passage.distance_km, { decimals: 2 })} km</dd>
-                <dt className="text-muted-foreground">Altitude</dt>
-                <dd className="text-right font-medium tabular-nums">{passage.elevation_m == null ? '—' : `${roundedMeters(passage.elevation_m)} m`}</dd>
-                <dt className="text-muted-foreground">D+ cumulé</dt>
-                <dd className="text-right font-medium tabular-nums">{roundedMeters(passage.cumulative_elevation_gain_m)} m</dd>
-                <dt className="text-muted-foreground">D− cumulé</dt>
-                <dd className="text-right font-medium tabular-nums">{roundedMeters(passage.cumulative_elevation_loss_m)} m</dd>
-                {passage.kind === 'stop' ? (
-                  <>
-                    <dt className="text-muted-foreground">Durée</dt>
-                    <dd className="text-right font-medium tabular-nums">{formatDurationSeconds(passage.duration_s)}</dd>
-                    {passage.duration_s > 0 ? (
-                      <>
-                        <dt className="text-muted-foreground">Départ</dt>
-                        <dd className="text-right font-medium tabular-nums">{formatPassageTime(passage.departure_time_iso, passage.departure_elapsed_time_s)}</dd>
-                      </>
-                    ) : null}
-                  </>
-                ) : null}
+              <dl className="mt-2 grid grid-cols-4 gap-x-2">
+                <PassageMetric label="Distance" value={`${formatNumber(passage.distance_km, { decimals: 2 })} km`} />
+                <PassageMetric label="Altitude" value={passage.elevation_m == null ? '—' : `${roundedMeters(passage.elevation_m)} m`} />
+                <PassageMetric label="D+" value={`${roundedMeters(passage.cumulative_elevation_gain_m)} m`} />
+                <PassageMetric label="D−" value={`${roundedMeters(passage.cumulative_elevation_loss_m)} m`} />
+              </dl>
+              <dl className="mt-2 grid grid-cols-3 gap-x-2 border-t border-border pt-2">
+                <PassageMetric
+                  label="Temps de passage"
+                  value={formatPassageTime(passage.arrival_time_iso, passage.arrival_elapsed_time_s)}
+                />
+                <PassageMetric
+                  label="Durée de pause"
+                  value={passage.kind === 'stop' ? formatDurationSeconds(passage.duration_s) : '—'}
+                />
+                <PassageMetric
+                  label="Temps de départ"
+                  value={passage.kind === 'arrival'
+                    ? '—'
+                    : formatPassageTime(passage.departure_time_iso, passage.departure_elapsed_time_s)}
+                />
               </dl>
             </article>
           </li>
