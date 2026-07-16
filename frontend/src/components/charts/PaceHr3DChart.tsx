@@ -147,7 +147,7 @@ export function PaceHr3DChart({ activities }: Props) {
   }, [activities]);
 
   return (
-    <div className="h-[440px] w-full rounded-md border bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="h-72 w-full min-w-0 rounded-md border bg-gradient-to-br from-slate-50 to-slate-100 md:h-[440px]">
       <Canvas camera={{ position: [7.2, 4.8, 7.2], fov: 45 }}>
         <ambientLight intensity={0.7} />
         <directionalLight position={[8, 8, 6]} intensity={0.5} />

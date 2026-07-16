@@ -118,9 +118,9 @@ function EditablePlanningLists({ traceId, plan, scenario }: { traceId: TraceId; 
           actions={<Button size="sm" variant="outline" onClick={addNutrition}>Ajouter</Button>}
         >
           {scenario.nutrition?.length ? scenario.nutrition.map((item, index) => (
-            <div key={item.id ?? index} className="flex justify-between border-b py-2 text-sm">
-              <span>Km {item.distance_km.toFixed(1)} · {item.item_type}</span>
-              <span className="text-muted-foreground">{item.amount}</span>
+            <div key={item.id ?? index} className="flex flex-col gap-1 border-b py-2 text-sm md:flex-row md:items-start md:justify-between">
+              <span className="break-words">Km {item.distance_km.toFixed(1)} · {item.item_type}</span>
+              <span className="break-words text-muted-foreground md:text-right">{item.amount}</span>
             </div>
           )) : <EmptyState message="Aucun apport planifié." />}
         </AnalysisCard>
@@ -132,16 +132,16 @@ function EditablePlanningLists({ traceId, plan, scenario }: { traceId: TraceId; 
         >
           <div className="space-y-2">
             {plan.equipment?.length ? plan.equipment.map((item, index) => (
-              <label key={item.id ?? index} className="flex items-center gap-3 rounded-md border p-3 text-sm">
+              <label key={item.id ?? index} className="flex min-w-0 items-start gap-3 rounded-md border p-3 text-sm">
                 <input type="checkbox" checked={item.is_checked} onChange={() => toggleEquipment(index)} />
-                <span className={item.is_checked ? 'text-muted-foreground line-through' : ''}>{item.label}</span>
+                <span className={`min-w-0 break-words ${item.is_checked ? 'text-muted-foreground line-through' : ''}`}>{item.label}</span>
               </label>
             )) : <EmptyState message="Checklist vide." />}
           </div>
           {plan.equipment?.length || plan.course_points?.length ? <div className="mt-4 border-t pt-4">
             {plan.equipment?.length ? <Button size="sm" variant="ghost" onClick={addPoint}>Ajouter un point remarquable</Button> : null}
             {plan.course_points?.map((point, index) => (
-              <span key={point.id ?? index} className="ml-2 inline-flex rounded-full bg-muted px-2 py-1 text-xs">
+              <span key={point.id ?? index} className="mt-2 inline-flex max-w-full break-words rounded-full bg-muted px-2 py-1 text-xs md:ml-2 md:mt-0">
                 Km {point.distance_km}: {point.label}
               </span>
             ))}
@@ -164,8 +164,10 @@ function ScenarioComparison({ traceId, plan }: { traceId: TraceId; plan: RacePla
       {plan.scenarios.length < 2 ? (
         <EmptyState message="Créez au moins deux scénarios pour les comparer." />
       ) : compare.data ? (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[620px] text-sm">
+        <>
+          <p className="mb-2 text-xs text-muted-foreground md:hidden">Balayez horizontalement pour comparer les scénarios.</p>
+          <div className="max-w-full overflow-x-auto">
+            <table className="w-full min-w-[620px] text-sm">
             <thead>
               <tr>
                 <th className="p-2 text-left">Scénario</th>
@@ -186,8 +188,9 @@ function ScenarioComparison({ traceId, plan }: { traceId: TraceId; plan: RacePla
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        </>
       ) : <EmptyState message="Lancez la comparaison pour calculer tous les scénarios avec le même pipeline." />}
     </AnalysisCard>
   );
@@ -252,7 +255,7 @@ export function TracePlanningPage({ traceId }: { traceId: TraceId }) {
       ) : (
         <>
           <AnalysisCard id="apercu-plan" title="Aperçu du plan">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
               <MiniMetric label="Course" value={formatDurationSeconds(preview.totals.running_time_s)} />
               <MiniMetric label="Pauses" value={formatDurationSeconds(preview.totals.stop_time_s)} />
               <MiniMetric label="Arrivée" value={preview.totals.arrival_time_iso ? new Date(preview.totals.arrival_time_iso).toLocaleTimeString() : '—'} />
@@ -325,7 +328,7 @@ export function TracePlanningPage({ traceId }: { traceId: TraceId }) {
           <ScenarioComparison traceId={traceId} plan={plan} />
 
           <AnalysisCard id="qualite" title="Qualité des données et diagnostic">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
               <MiniMetric label="Altimétrie" value={preview.quality.altimetry_quality} tone={preview.quality.altimetry_quality === 'high' ? 'success' : 'warning'} />
               <MiniMetric label="Interpolation" value={formatNumber(preview.quality.interpolated_elevation_ratio * 100, { decimals: 1 })} unit="%" />
               <MiniMetric label="Densité" value={formatNumber(preview.quality.sampling_density_points_per_km, { decimals: 0 })} unit="pts/km" />

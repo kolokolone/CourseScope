@@ -94,19 +94,19 @@ export function ActivityUpload({
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
+      <CardHeader className="p-4 md:p-6">
         <CardTitle className="text-base flex items-center gap-2">
           <Upload className="h-5 w-5" />
           {title ?? 'Upload activite reelle'}
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
         {description ? <div className="text-sm text-muted-foreground mb-3">{description}</div> : null}
         {!uploadingFile ? (
           <div
             {...getRootProps()}
             className={`
-              border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+              border-2 border-dashed rounded-lg p-5 md:p-8 text-center cursor-pointer
               transition-colors duration-200 ease-in-out
               ${isDragActive 
                 ? 'border-primary bg-primary/5' 
@@ -115,14 +115,14 @@ export function ActivityUpload({
             `}
           >
             <input {...getInputProps()} />
-            <div className="flex flex-col items-center gap-4">
-              <FileText className="h-12 w-12 text-gray-400" />
+            <div className="flex flex-col items-center gap-3 md:gap-4">
+              <FileText className="h-10 w-10 text-gray-400 md:h-12 md:w-12" />
               <div>
                 {isDragActive ? (
                   <p className="text-lg font-medium">Drop the file here...</p>
                 ) : (
                   <div className="text-center">
-                    <p className="text-lg font-medium mb-2">
+                    <p className="mb-2 text-base font-medium md:text-lg">
                       Drag & drop a GPX/FIT file here, or click to select
                     </p>
                     <p className="text-sm text-gray-500">
@@ -135,11 +135,11 @@ export function ActivityUpload({
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4">
+              <div className="flex min-w-0 items-center gap-3">
                 <FileText className="h-5 w-5 text-blue-600" />
-                <div>
-                  <p className="font-medium">{uploadingFile.name}</p>
+                <div className="min-w-0">
+                  <p className="break-all font-medium">{uploadingFile.name}</p>
                   <p className="text-sm text-gray-500">
                     {(uploadingFile.size / (1024 * 1024)).toFixed(2)} MB
                   </p>

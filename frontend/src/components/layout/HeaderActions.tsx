@@ -19,12 +19,14 @@ export function ActivitiesHeaderActions() {
     <Button
       variant="outline"
       size="sm"
+      className="px-2.5 md:px-3"
       onClick={() => syncMutation.mutate()}
       disabled={syncMutation.isPending}
       title="Synchroniser avec Garmin"
+      aria-label="Synchroniser avec Garmin"
     >
-      <RefreshCw className="mr-2 h-4 w-4" />
-      Sync Garmin
+      <RefreshCw className="h-4 w-4 md:mr-2" />
+      <span className="hidden md:inline">Sync Garmin</span>
     </Button>
   );
 }

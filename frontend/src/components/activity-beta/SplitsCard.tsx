@@ -81,6 +81,21 @@ export function SplitsCard({ activity, className }: SplitsCardProps) {
     };
   }, [splits]);
 
+  const splitRows = splits.map((split, idx) => {
+    const paceSec = split.pace_s_per_km;
+    const deviation = paceSec !== null ? paceSec - avgPace : null;
+    return {
+      split,
+      idx,
+      paceSec,
+      deviation,
+      barWidth: splitPaceBarWidth(paceSec, bestPace ?? 0, worstPace ?? 0),
+      isBest: idx === bestIdx,
+      isWorst: idx === worstIdx,
+      kmLabel: formatKmLabel(split.split_index, split.distance_km, idx === splits.length - 1),
+    };
+  });
+
   if (splits.length === 0) {
     return (
       <div className={cn("rounded-2xl border border-slate-200 bg-white shadow-sm", className)}>
@@ -97,19 +112,36 @@ export function SplitsCard({ activity, className }: SplitsCardProps) {
 
   return (
     <div className={cn("rounded-2xl border border-slate-200 bg-white shadow-sm", className)}>
-      <div className="px-5 pt-5">
+      <div className="px-4 pt-4 md:px-5 md:pt-5">
         <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-slate-950">Splits</h2>
         <p className="mt-1 text-sm text-slate-500">Découpage kilométrique de la séance.</p>
       </div>
-      <div className="px-5 pb-5 pt-4">
-        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="px-4 pb-4 pt-4 md:px-5 md:pb-5">
+        <div className="mb-4 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
           <MiniStat label="Meilleur km" value={formatPaceSecondsPerKm(bestPace!)} unit="/km" tone="good" />
           <MiniStat label="Km le plus lent" value={formatPaceSecondsPerKm(worstPace!)} unit="/km" tone="warning" />
           <MiniStat label="Écart" value={spreadText} />
           <MiniStat label="Régularité" value={regularityLabel} />
         </div>
 
-        <div className="-mx-2 overflow-x-auto px-2">
+        <div className="space-y-2 md:hidden">
+          {splitRows.map(({ split, idx, paceSec, deviation, isBest, isWorst, kmLabel }) => (
+            <article key={idx} className={`rounded-lg border p-3 ${isBest ? 'border-green-200 bg-green-50/50' : isWorst ? 'border-orange-200 bg-orange-50/50' : 'border-slate-200'}`}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold tabular-nums">Km {kmLabel}</span>
+                <span className="font-semibold tabular-nums">{paceSec !== null ? formatPaceSecondsPerKm(paceSec) : '—'} /km</span>
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                <div><dt className="text-slate-500">FC moyenne</dt><dd className="mt-0.5 tabular-nums text-slate-950">{isValidNumber(split.avg_hr_bpm) ? `${Math.round(split.avg_hr_bpm as number)} bpm` : '—'}</dd></div>
+                <div><dt className="text-slate-500">D+/D−</dt><dd className="mt-0.5 tabular-nums text-slate-950">{isSplitNumber(split.elev_delta_m) ? `${split.elev_delta_m > 0 ? '+' : ''}${Math.round(split.elev_delta_m)} m` : '—'}</dd></div>
+                <div><dt className="text-slate-500">Temps</dt><dd className="mt-0.5 tabular-nums text-slate-950">{split.time_s !== null ? formatDurationSeconds(split.time_s) : '—'}</dd></div>
+                <div><dt className="text-slate-500">Écart</dt><dd className={`mt-0.5 tabular-nums ${deviation !== null && deviation > 0 ? 'text-orange-600' : 'text-green-600'}`}>{deviation !== null ? `${deviation > 0 ? '+' : ''}${formatPaceSecondsPerKm(Math.abs(deviation))}` : '—'}</dd></div>
+              </dl>
+            </article>
+          ))}
+        </div>
+
+        <div className="-mx-2 hidden overflow-x-auto px-2 md:block">
           <table className="min-w-[720px] w-full text-sm">
             <thead className="text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -122,18 +154,10 @@ export function SplitsCard({ activity, className }: SplitsCardProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {splits.map((split, idx) => {
-                const paceSec = split.pace_s_per_km;
-                const barWidth = splitPaceBarWidth(paceSec, bestPace!, worstPace!);
-                const deviation = paceSec !== null ? paceSec - avgPace : null;
-                const isBest = idx === bestIdx;
-                const isWorst = idx === worstIdx;
-                const isLast = idx === splits.length - 1;
-
-                return (
+              {splitRows.map(({ split, idx, paceSec, barWidth, deviation, isBest, isWorst, kmLabel }) => (
                   <tr key={idx} className={isBest ? 'bg-green-50/50' : isWorst ? 'bg-orange-50/50' : ''}>
                     <td className="tabular-nums py-2 pr-2 border-b border-slate-100 text-slate-950 text-xs">
-                      {formatKmLabel(split.split_index, split.distance_km, isLast)}
+                      {kmLabel}
                     </td>
                     <td className="tabular-nums py-2 px-2 border-b border-slate-100">
                       <div className="flex items-center gap-1.5">
@@ -164,8 +188,7 @@ export function SplitsCard({ activity, className }: SplitsCardProps) {
                       ) : '—'}
                     </td>
                   </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         </div>

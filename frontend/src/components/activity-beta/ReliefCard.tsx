@@ -156,7 +156,7 @@ export function ReliefCard({ activity, activityId, className }: ReliefCardProps)
       ) : (
         <>
           {/* --- Metrics grid --- */}
-          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+          <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4 lg:grid-cols-8">
             {isValidNumber(elevGain) ? (
               <MiniMetric label="D+" value={String(Math.round(elevGain))} unit="m" />
             ) : null}
@@ -184,7 +184,7 @@ export function ReliefCard({ activity, activityId, className }: ReliefCardProps)
           </div>
 
           {/* --- Altitude area chart --- */}
-          <div className="h-[350px] lg:h-[380px]">
+          <div className="h-72 md:h-[350px] lg:h-[380px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
                 data={mergedData}

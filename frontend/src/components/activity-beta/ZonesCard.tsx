@@ -101,12 +101,12 @@ export function ZonesCard({ activity, className }: ZonesCardProps) {
 
   return (
     <div className={cn("rounded-2xl border border-slate-200 bg-white shadow-sm", className)}>
-      <div className="flex items-start justify-between gap-3 px-5 pt-5">
-        <div>
+      <div className="flex flex-col items-stretch gap-3 px-4 pt-4 md:flex-row md:items-start md:justify-between md:px-5 md:pt-5">
+        <div className="min-w-0">
           <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-slate-950">Zones</h2>
           <p className="mt-1 text-sm text-slate-500">R&eacute;partition du temps par zone d&apos;effort.</p>
         </div>
-        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+        <div className="flex max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-slate-100 p-0.5 md:inline-flex">
           {(['FC', 'Allure', 'Puissance'] as const).map((tab) => {
             if (tab === 'Puissance' && !hasPowerZones) return null;
             return (
@@ -125,7 +125,7 @@ export function ZonesCard({ activity, className }: ZonesCardProps) {
           })}
         </div>
       </div>
-      <div className="px-5 pb-5 pt-4">
+      <div className="px-4 pb-4 pt-4 md:px-5 md:pb-5">
         {selectedZones.length === 0 ? (
           <p className="text-sm text-slate-500 italic">Aucune donnée de zones pour cet onglet.</p>
         ) : (
@@ -143,7 +143,21 @@ export function ZonesCard({ activity, className }: ZonesCardProps) {
                 />
               ))}
             </div>
-            <table className="w-full text-sm">
+            <div className="space-y-2 md:hidden">
+              {normalizedZones.map((zone) => (
+                <article key={zone.id} className="rounded-lg border border-slate-200 p-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-slate-950"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: ZONE_COLORS[zone.id] }} />Z{zone.id + 1} · {zone.label}</span>
+                    <span className="shrink-0 tabular-nums text-slate-600">{zone.display_pct.toFixed(1)}%</span>
+                  </div>
+                  <dl className="mt-2 grid grid-cols-1 gap-2 text-xs">
+                    <div className="flex items-start justify-between gap-3"><dt className="text-slate-500">Intervalle</dt><dd className="break-words text-right tabular-nums text-slate-700">{zone.range || '—'}</dd></div>
+                    <div className="flex items-center justify-between gap-3"><dt className="text-slate-500">Temps</dt><dd className="tabular-nums text-slate-950">{formatDurationSeconds(zone.time_s)}</dd></div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+            <table className="hidden w-full text-sm md:table">
               <thead className="text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="text-left font-semibold py-2 pr-2 border-b border-slate-200">Zone</th>

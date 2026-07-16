@@ -141,7 +141,7 @@ export function PlanningSettings({
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
       <div className="space-y-3 lg:col-span-7">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <label className="text-sm">
             <span className="mb-1 block text-muted-foreground">Scénario actif</span>
             <select
@@ -167,7 +167,7 @@ export function PlanningSettings({
           </label>
           <div className="text-sm">
             <label htmlFor="race-target" className="mb-1 block text-muted-foreground">Valeur cible</label>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 md:flex-row">
               <div className="relative min-w-0 flex-1">
                 <input
                   id="race-target"
@@ -186,7 +186,7 @@ export function PlanningSettings({
                   {targetUnit}
                 </span>
               </div>
-              <Button onClick={saveObjective} disabled={updateScenario.isPending}>Appliquer</Button>
+              <Button className="w-full md:w-auto" onClick={saveObjective} disabled={updateScenario.isPending}>Appliquer</Button>
             </div>
           </div>
         </div>
@@ -197,7 +197,7 @@ export function PlanningSettings({
       </div>
 
       <div className="space-y-3 lg:col-span-5">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <label className="text-sm">
             <span className="mb-1 block text-muted-foreground">Date</span>
             <input
@@ -230,7 +230,7 @@ export function PlanningSettings({
             />
           </label>
         </div>
-        <Button variant="outline" size="sm" onClick={addScenario}>
+        <Button className="w-full md:w-auto" variant="outline" size="sm" onClick={addScenario}>
           <Plus className="mr-1 h-4 w-4" />Nouveau scénario
         </Button>
       </div>

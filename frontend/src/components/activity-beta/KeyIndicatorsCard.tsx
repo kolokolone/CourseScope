@@ -53,7 +53,7 @@ export function KeyIndicatorsCard({ activity, className }: KeyIndicatorsCardProp
         </p>
       </div>
       <div className="px-5 pb-5 pt-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {hasSpeed && (
             <MiniMetric label="Vitesse moyenne" value={formatNumber(avgSpeed as number, { decimals: 1 })} unit="km/h" />
           )}

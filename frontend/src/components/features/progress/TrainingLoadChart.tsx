@@ -110,7 +110,7 @@ export default function TrainingLoadChart() {
   return (
     <div className="space-y-5">
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {[
           { label: 'ACWR', value: current.acwr, decimals: 2 },
           { label: 'Monotonie', value: current.monotony, decimals: 1 },
@@ -136,9 +136,9 @@ export default function TrainingLoadChart() {
       {/* Graphique */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:justify-between">
             <CardTitle className="text-base">Charge d'entraînement</CardTitle>
-            <select className="h-8 rounded-md border px-2 text-sm" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            <select aria-label="Période" className="h-9 w-full rounded-md border px-2 text-sm md:h-8 md:w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))}>
               {DAY_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </div>

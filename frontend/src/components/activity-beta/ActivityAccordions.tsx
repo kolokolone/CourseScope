@@ -33,11 +33,11 @@ const DEBUG_IDS = ['series-index', 'limits'];
 function Accordion({ title, children, defaultOpen }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   return (
     <details className="group border-t border-slate-100 first:border-t-0" open={defaultOpen}>
-      <summary className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors list-none">
-        <span className="text-sm font-semibold text-slate-950">{title}</span>
-        <ChevronDown className="h-4 w-4 text-slate-400 group-open:rotate-180 transition-transform" />
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-4 transition-colors hover:bg-slate-50 md:px-5">
+        <span className="min-w-0 break-words text-sm font-semibold text-slate-950">{title}</span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
       </summary>
-      <div className="px-5 pb-5 pt-2 border-t border-slate-100">{children}</div>
+      <div className="border-t border-slate-100 px-4 pb-4 pt-2 md:px-5 md:pb-5">{children}</div>
     </details>
   );
 }

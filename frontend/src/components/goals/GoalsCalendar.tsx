@@ -75,8 +75,10 @@ export function GoalsCalendar({ goals }: GoalsCalendarProps) {
         <CardTitle className="text-base">Calendrier des objectifs</CardTitle>
       </CardHeader>
       <CardContent className="px-4 pb-4">
-        <div className="overflow-auto rounded-md border border-slate-200/80 text-xs text-muted-foreground">
-          <div className="grid grid-cols-7">
+        <p className="mb-2 text-xs text-muted-foreground md:hidden">Balayez horizontalement pour parcourir les semaines.</p>
+        <div className="max-w-full overflow-auto rounded-md border border-slate-200/80 text-xs text-muted-foreground">
+          <div className="min-w-[44rem] md:min-w-0">
+            <div className="grid grid-cols-7">
             {model.weekLabels.map((label) => (
               <div key={label} className="border-b border-r border-slate-200/80 bg-slate-50/70 px-2 py-1 font-medium last:border-r-0">
                 {label}
@@ -84,7 +86,7 @@ export function GoalsCalendar({ goals }: GoalsCalendarProps) {
             ))}
           </div>
 
-          {model.weeks.map((week) => {
+            {model.weeks.map((week) => {
             const rowHeightClass = week.maxGoalsInDay === 0 ? 'min-h-[2.5rem]' : week.maxGoalsInDay === 1 ? 'min-h-[7rem]' : 'min-h-[9.75rem]';
             return (
               <div key={week.key} className={`grid grid-cols-7 ${rowHeightClass}`}>
@@ -111,7 +113,8 @@ export function GoalsCalendar({ goals }: GoalsCalendarProps) {
                 })}
               </div>
             );
-          })}
+            })}
+          </div>
         </div>
       </CardContent>
     </Card>

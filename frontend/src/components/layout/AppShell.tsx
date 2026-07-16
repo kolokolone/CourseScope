@@ -54,12 +54,12 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="h-screen overflow-hidden bg-background text-foreground">
-      <div className="grid h-full md:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="grid h-full grid-cols-[minmax(0,1fr)] md:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="hidden h-screen overflow-y-auto border-r border-border md:block">
           <Sidebar pathname={pathname} version={versionQuery.data?.version} />
         </aside>
 
-        <div className="flex min-h-0 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-col">
           <TopHeader
             title={pageMetadata.title}
             subtitle={pageMetadata.subtitle}
@@ -68,7 +68,7 @@ export function AppShell({ children }: AppShellProps) {
             actions={HeaderActions ? <HeaderActions /> : null}
           />
 
-          <main className="min-h-0 flex-1 overflow-y-auto">
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             <PageContainer variant={pageMetadata.container}>{children}</PageContainer>
           </main>
         </div>

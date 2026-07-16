@@ -157,6 +157,24 @@ export default function ActivitiesPage() {
 
   const weekly = React.useMemo(() => buildWeeklySeries(items, range), [items, range]);
 
+  const displayItems = React.useMemo(() => items.map((activity) => {
+    const startedAt = new Date(activity.started_at ?? activity.created_at);
+    return {
+      activity,
+      label: activity.name || activity.filename,
+      dateLabel: Number.isNaN(startedAt.getTime()) ? '—' : startedAt.toLocaleDateString(),
+      distance: typeof activity.stats_sidebar.distance_km === 'number'
+        ? formatNumber(activity.stats_sidebar.distance_km, { decimals: 1 })
+        : '—',
+      elevation: typeof activity.stats_sidebar.elevation_gain_m === 'number'
+        ? formatNumber(activity.stats_sidebar.elevation_gain_m, { integer: true })
+        : '—',
+      duration: typeof activity.stats_sidebar.elapsed_time_s === 'number'
+        ? formatDurationSeconds(activity.stats_sidebar.elapsed_time_s)
+        : '—',
+    };
+  }), [items]);
+
   const currentWeekKey = React.useMemo(() => {
     const ws = weekStartUtc(new Date());
     const { year, week } = isoWeek(ws);
@@ -189,12 +207,12 @@ export default function ActivitiesPage() {
     <div className="space-y-4">
       <Card>
         <CardHeader className="py-3 px-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:justify-between">
             <CardTitle className="text-base">Kilometres par semaine</CardTitle>
-            <label className="text-sm text-muted-foreground flex items-center gap-2">
+            <label className="flex flex-col gap-1 text-sm text-muted-foreground md:flex-row md:items-center md:gap-2">
               Intervalle
               <select
-                className="h-8 rounded-md border bg-background px-2 text-sm"
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm md:h-8 md:w-auto"
                 value={range}
                 onChange={(e) => setRange(e.target.value as HistoryRange)}
               >
@@ -248,8 +266,56 @@ export default function ActivitiesPage() {
           ) : items.length === 0 ? (
             <div className="text-muted-foreground">Aucune activite.</div>
           ) : (
-            <div className="overflow-auto rounded-md border">
-              <table className="w-full text-sm">
+            <>
+              <div className="mb-3 grid grid-cols-1 gap-2 md:hidden">
+                <label className="text-sm text-muted-foreground">
+                  <span className="mb-1 block">Trier par</span>
+                  <select
+                    data-testid="activities-mobile-sort-key"
+                    className="h-10 w-full rounded-md border bg-background px-3 text-foreground"
+                    value={sortKey}
+                    onChange={(event) => setSortKey(event.target.value as SortKey)}
+                  >
+                    <option value="date">Date</option>
+                    <option value="distance_km">Distance</option>
+                    <option value="elevation_gain_m">Dénivelé</option>
+                  </select>
+                </label>
+                <label className="text-sm text-muted-foreground">
+                  <span className="mb-1 block">Sens</span>
+                  <select
+                    data-testid="activities-mobile-sort-dir"
+                    className="h-10 w-full rounded-md border bg-background px-3 text-foreground"
+                    value={sortDir}
+                    onChange={(event) => setSortDir(event.target.value as SortDir)}
+                  >
+                    <option value="desc">Décroissant</option>
+                    <option value="asc">Croissant</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="space-y-3 md:hidden">
+                {displayItems.map(({ activity, label, dateLabel, distance, elevation, duration }) => (
+                  <button
+                    key={activity.id}
+                    type="button"
+                    className="w-full rounded-lg border border-border p-4 text-left transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => router.push(getActivityDetailPath(activity.id, activity.activity_type))}
+                  >
+                    <div className="break-words font-medium" title={label}>{label}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">{dateLabel}</div>
+                    <dl className="mt-3 grid grid-cols-1 gap-2 text-sm">
+                      <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Distance</dt><dd className="tabular-nums">{distance === '—' ? distance : `${distance} km`}</dd></div>
+                      <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Dénivelé</dt><dd className="tabular-nums">{elevation === '—' ? elevation : `${elevation} m`}</dd></div>
+                      <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Durée</dt><dd className="tabular-nums">{duration}</dd></div>
+                    </dl>
+                  </button>
+                ))}
+              </div>
+
+              <div className="hidden overflow-auto rounded-md border md:block">
+                <table className="w-full text-sm">
                 <thead className="bg-muted/40">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">
@@ -290,35 +356,23 @@ export default function ActivitiesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {items.map((a) => {
-                    const dist = a.stats_sidebar.distance_km;
-                    const elev = a.stats_sidebar.elevation_gain_m;
-                    const dur = a.stats_sidebar.elapsed_time_s;
-                    const dt = new Date(a.started_at ?? a.created_at);
-                    const dateLabel = Number.isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString();
-                    return (
+                  {displayItems.map(({ activity: a, label, dateLabel, distance, elevation, duration }) => (
                       <tr
                         key={a.id}
                         className="hover:bg-accent/30 cursor-pointer"
                         onClick={() => router.push(getActivityDetailPath(a.id, a.activity_type))}
                       >
                         <td className="px-3 py-2 whitespace-nowrap">{dateLabel}</td>
-                        <td className="px-3 py-2 max-w-[32rem] truncate">{a.name || a.filename}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {typeof dist === 'number' ? formatNumber(dist, { decimals: 1 }) : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {typeof elev === 'number' ? formatNumber(elev, { integer: true }) : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {typeof dur === 'number' ? formatDurationSeconds(dur) : '—'}
-                        </td>
+                        <td className="px-3 py-2 max-w-[32rem] truncate" title={label}>{label}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{distance}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{elevation}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{duration}</td>
                       </tr>
-                    );
-                  })}
+                  ))}
                 </tbody>
-              </table>
-            </div>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

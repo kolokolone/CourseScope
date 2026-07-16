@@ -14,8 +14,9 @@ describe('trace planning layout', () => {
     const page = source('src/components/trace-planning/TracePlanningPage.tsx');
     const distributions = source('src/components/trace-planning/PlanningCharts.tsx');
 
-    expect(synchronized).toContain('height="430px"');
-    expect(synchronized).toContain('heightClassName="h-[430px]"');
+    expect(synchronized).toContain('className="h-72 w-full md:h-[430px]"');
+    expect(synchronized).toContain('height="100%"');
+    expect(synchronized).toContain('heightClassName="h-72 md:h-[430px]"');
     expect(synchronized).toContain('Allure vs distance');
     expect(synchronized).toContain('<TheoreticalPaceElevationChart');
     expect(synchronized).toContain('<FullscreenCourseView');
@@ -31,6 +32,8 @@ describe('trace planning layout', () => {
     expect(editor.indexOf('placeholder="Nom (optionnel)"')).toBeLessThan(editor.indexOf('placeholder="Distance km"'));
     expect(editor.indexOf('>Nom</th>')).toBeLessThan(editor.indexOf('>Distance</th>'));
     expect(editor).toContain('placeholder="Minutes ou mm:ss"');
+    expect(editor).toContain('className="space-y-3 md:hidden"');
+    expect(editor).toContain('className="hidden overflow-x-auto rounded-lg border md:block"');
   });
 
   it('places both histogram cards before collapsible splits', () => {

@@ -93,9 +93,9 @@ export default function CalendarHeatmap() {
   if (days.length === 0) {
     return (
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col items-stretch justify-between gap-3 space-y-0 md:flex-row md:items-center">
           <CardTitle className="text-base">Calendrier</CardTitle>
-          <select className="h-8 rounded-md border px-2 text-sm" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          <select aria-label="Année" className="h-9 w-full rounded-md border px-2 text-sm md:h-8 md:w-auto" value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {yearOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         </CardHeader>
@@ -141,14 +141,14 @@ export default function CalendarHeatmap() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
             <CardTitle className="text-base">Calendrier</CardTitle>
             <p className="text-sm text-muted-foreground">
               {total_active_days} jours actifs · {longest_streak}j record · {current_streak}j série en cours
             </p>
           </div>
-          <select className="h-8 rounded-md border px-2 text-sm" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          <select aria-label="Année" className="h-9 w-full rounded-md border px-2 text-sm md:h-8 md:w-auto" value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {yearOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         </div>
@@ -156,7 +156,8 @@ export default function CalendarHeatmap() {
 
       <CardContent>
         {/* Jours, mois et cellules partagent la meme grille pour rester alignes. */}
-        <div className="overflow-x-auto">
+        <p className="mb-2 text-xs text-muted-foreground md:hidden">Balayez horizontalement pour parcourir l&apos;année.</p>
+        <div className="max-w-full overflow-x-auto">
           <div
             className="grid w-full"
             style={{
@@ -224,7 +225,7 @@ export default function CalendarHeatmap() {
         </div>
         {tooltip ? (
           <div
-            className="pointer-events-none fixed z-[1000] min-w-40 -translate-x-1/2 -translate-y-[calc(100%+10px)] rounded-md border border-border bg-card px-2.5 py-2 text-xs text-card-foreground opacity-100 shadow-lg"
+            className="pointer-events-none fixed z-[1000] min-w-40 max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-[calc(100%+10px)] rounded-md border border-border bg-card px-2.5 py-2 text-xs text-card-foreground opacity-100 shadow-lg"
             style={{ left: tooltip.x, top: tooltip.y, backgroundColor: 'var(--card)' }}
             role="tooltip"
           >

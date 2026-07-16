@@ -73,16 +73,16 @@ export function ProgressVolumeChart({
   return (
     <Card>
       <CardHeader className="py-3 px-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             {volumeSpec.label}
           </CardTitle>
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-muted-foreground flex items-center gap-2">
+          <div className="grid grid-cols-1 gap-2 md:flex md:items-center md:gap-3">
+            <label className="flex flex-col gap-1 text-sm text-muted-foreground md:flex-row md:items-center md:gap-2">
               Intervalle
               <select
-                className="h-8 rounded-md border bg-background px-2 text-sm"
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm md:h-8 md:w-auto"
                 value={range}
                 onChange={(e) => onRangeChange(e.target.value as HistoryRange)}
               >
@@ -92,10 +92,10 @@ export function ProgressVolumeChart({
                 <option value="all">Tout</option>
               </select>
             </label>
-            <label className="text-sm text-muted-foreground flex items-center gap-2">
+            <label className="flex flex-col gap-1 text-sm text-muted-foreground md:flex-row md:items-center md:gap-2">
               Metrique
               <select
-                className="h-8 rounded-md border bg-background px-2 text-sm"
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm md:h-8 md:w-auto"
                 value={volumeMetric}
                 onChange={(e) => onVolumeMetricChange(e.target.value as ProgressSeriesMetric)}
               >

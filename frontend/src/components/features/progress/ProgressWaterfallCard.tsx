@@ -28,13 +28,13 @@ export function ProgressWaterfallCard({
   return (
     <Card>
       <CardHeader className="py-3 px-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle className="text-base">Pace-HR Waterfall 3D</CardTitle>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <label className="flex items-center gap-2">
+          <div className="grid grid-cols-1 gap-2 text-sm text-muted-foreground md:flex md:flex-wrap md:items-center md:gap-3">
+            <label className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2">
               Limit
               <select
-                className="h-8 rounded-md border bg-background px-2 text-sm"
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm md:h-8 md:w-auto"
                 value={waterfallLimit}
                 onChange={(e) => onLimitChange(Number(e.target.value) as 10 | 30 | 60 | 120)}
               >
@@ -44,10 +44,10 @@ export function ProgressWaterfallCard({
                 <option value={120}>120</option>
               </select>
             </label>
-            <label className="flex items-center gap-2">
+            <label className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2">
               Bin step
               <select
-                className="h-8 rounded-md border bg-background px-2 text-sm"
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm md:h-8 md:w-auto"
                 value={waterfallBinStep}
                 onChange={(e) => onBinStepChange(Number(e.target.value) as 5 | 10 | 20 | 30)}
               >

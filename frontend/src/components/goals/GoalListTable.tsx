@@ -39,9 +39,9 @@ export function GoalListTable({
   return (
     <Card>
       <CardHeader className="py-3 px-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle className="text-base">Liste des objectifs</CardTitle>
-          <Button size="sm" onClick={onAdd}>
+          <Button className="w-full md:w-auto" size="sm" onClick={onAdd}>
             <Plus className="mr-1 h-4 w-4" />
             Ajouter un nouvel objectif
           </Button>
@@ -51,8 +51,50 @@ export function GoalListTable({
         {isLoading ? (
           <div className="text-muted-foreground">Chargement...</div>
         ) : (
-          <div className="overflow-auto rounded-md border">
-            <table className="w-full text-sm">
+          <>
+            <div className="mb-3 grid grid-cols-1 gap-2 md:hidden">
+              <label className="text-sm text-muted-foreground">
+                <span className="mb-1 block">Trier par</span>
+                <select
+                  className="h-10 w-full rounded-md border bg-background px-3 text-foreground"
+                  value={sortKey}
+                  onChange={(event) => onSort(event.target.value as SortKey)}
+                >
+                  <option value="name">Nom</option>
+                  <option value="date">Date</option>
+                  <option value="distance">Distance</option>
+                  <option value="location">Localisation</option>
+                  <option value="objective">Objectif</option>
+                  <option value="type">Type</option>
+                </select>
+              </label>
+              <div className="text-xs text-muted-foreground">Sens actuel : {sortDir === 'asc' ? 'croissant' : 'décroissant'}. Sélectionnez le même tri pour l’inverser.</div>
+            </div>
+
+            <div className="space-y-3 md:hidden">
+              {goals.map((goal) => (
+                <article key={goal.id} className="rounded-lg border border-border p-4">
+                  <div className="break-words font-medium" title={goal.name}>{goal.name}</div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                    <span>{formatDateLabel(goal.event_date)}</span>
+                    <span className="tabular-nums">{countdownByGoalId[goal.id] ?? goalCountdownLabel(goal, today)}</span>
+                  </div>
+                  <dl className="mt-3 space-y-2 text-sm">
+                    <div className="flex items-start justify-between gap-3"><dt className="text-muted-foreground">Distance</dt><dd className="tabular-nums">{formatNumber(goal.distance_km, { decimals: 1 })} km</dd></div>
+                    <div className="flex items-start justify-between gap-3"><dt className="text-muted-foreground">Localisation</dt><dd className="max-w-[65%] break-words text-right">{goal.location || '—'}</dd></div>
+                    <div className="flex items-start justify-between gap-3"><dt className="text-muted-foreground">Objectif</dt><dd className="tabular-nums text-right">{goalObjectiveLabel(goal)}</dd></div>
+                    <div className="flex items-start justify-between gap-3"><dt className="text-muted-foreground">Type</dt><dd>{goal.race_type === 'trail' ? 'Trail' : 'Course à pied'}</dd></div>
+                  </dl>
+                  <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-3">
+                    <Button size="sm" variant="outline" onClick={() => onEdit(goal)}>Modifier</Button>
+                    <Button size="sm" variant="outline" onClick={() => void onDelete(goal.id)} disabled={isDeleting}>Supprimer</Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="hidden overflow-auto rounded-md border md:block">
+              <table className="w-full text-sm">
               <thead className="bg-muted/40">
                 <tr>
                   {(['name', 'date', 'distance', null, 'location', 'objective', 'type', null] as const).map((key, i) => {
@@ -99,8 +141,9 @@ export function GoalListTable({
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

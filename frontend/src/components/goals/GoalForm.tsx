@@ -251,11 +251,11 @@ export function GoalForm({ isOpen, editingGoal, isSubmitting, onClose, onSubmit 
 
           {formError ? <div className="text-sm text-red-600">{formError}</div> : null}
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+          <div className="flex flex-col-reverse items-stretch gap-2 md:flex-row md:items-center md:justify-end">
+            <Button className="w-full md:w-auto" type="button" variant="outline" onClick={onClose}>
               Annuler
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button className="w-full md:w-auto" type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Enregistrement...' : isEditing ? 'Enregistrer les modifications' : 'Enregistrer l’objectif'}
             </Button>
           </div>

@@ -185,7 +185,7 @@ export function CompactAnalysisChart({ activityId, seriesAvailable, onDistanceHo
           <ToggleButton active={smoothWindow === 15} onClick={() => setSmoothWindow(15)}>15</ToggleButton>
         </div>
       </div>
-      <div className="h-[500px]">
+      <div className="h-72 md:h-[500px]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={mergedData}

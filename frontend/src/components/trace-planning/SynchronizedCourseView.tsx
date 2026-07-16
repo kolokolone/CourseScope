@@ -46,15 +46,15 @@ export function SynchronizedCourseView({
   return (
     <>
       <div className="space-y-4">
-        <div className="w-full">
-          <ActivityMap mapData={mapData} height="430px" allowPauseToggle={false} onMapClick={selectNearest} highlightedPoint={active?.lat != null && active.lon != null ? { lat: active.lat, lon: active.lon, label: `${active.distance_km.toFixed(2)} km` } : null} />
+        <div className="h-72 w-full md:h-[430px]">
+          <ActivityMap mapData={mapData} height="100%" allowPauseToggle={false} onMapClick={selectNearest} highlightedPoint={active?.lat != null && active.lon != null ? { lat: active.lat, lon: active.lon, label: `${active.distance_km.toFixed(2)} km` } : null} />
         </div>
         <div className="rounded-xl border border-border p-3">
           <h3 className="mb-2 text-sm font-semibold">Allure vs distance</h3>
           <TheoreticalPaceElevationChart
             data={profile}
             stops={stops}
-            heightClassName="h-[430px]"
+            heightClassName="h-72 md:h-[430px]"
             activePoint={active}
             onPointHover={setHovered}
           />

@@ -59,7 +59,7 @@ export function GoalsObjectivesMapLeaflet({ goals }: { goals: GoalItem[] }) {
 
   return (
     <div className="relative overflow-hidden rounded-lg border bg-card">
-      <div className="relative h-[420px] w-full">
+      <div className="relative h-72 w-full md:h-[420px]">
         <MapContainer center={fallbackCenter} zoom={5} scrollWheelZoom style={{ height: '100%', width: '100%' }}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

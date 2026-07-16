@@ -80,7 +80,7 @@ export function SynchronizedActivityView({
     >
       <div id="carte" className="scroll-mt-28">
         {hasMapData ? (
-          <div className="h-[420px] overflow-hidden rounded-xl border border-border bg-muted lg:h-[520px]">
+          <div className="h-72 overflow-hidden rounded-xl border border-border bg-muted md:h-[420px] lg:h-[520px]">
             <ActivityMap
               mapData={mapData ?? {}}
               activityId={activityId}

@@ -64,7 +64,7 @@ export function StopsEditor({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
         <input
           className="h-10 rounded-md border bg-background px-3"
           type="text"
@@ -107,7 +107,27 @@ export function StopsEditor({
         <Button onClick={add} disabled={create.isPending || parseStopDurationInput(duration) == null}>Ajouter la pause</Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="space-y-3 md:hidden">
+        {stops.map((stop) => (
+          <article key={stop.id} className="rounded-lg border border-border p-4">
+            <div className="break-words font-medium">{stop.label?.trim() || RACE_STOP_LABELS[stop.stop_type]}</div>
+            <dl className="mt-3 grid grid-cols-1 gap-2 text-sm">
+              <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Distance</dt><dd className="tabular-nums">{stop.distance_km.toFixed(2)} km</dd></div>
+              <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Type</dt><dd>{RACE_STOP_LABELS[stop.stop_type]}</dd></div>
+              <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Durée</dt><dd className="tabular-nums">{formatStopDurationInput(stop.duration_s)}</dd></div>
+              <div className="flex items-start justify-between gap-3"><dt className="text-muted-foreground">Arrivée</dt><dd className="text-right tabular-nums">{formatPassage(stop.arrival_time_iso, stop.arrival_elapsed_time_s)}</dd></div>
+              <div className="flex items-start justify-between gap-3"><dt className="text-muted-foreground">Départ</dt><dd className="text-right tabular-nums">{formatPassage(stop.departure_time_iso, stop.departure_elapsed_time_s)}</dd></div>
+            </dl>
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-3">
+              <Button size="sm" variant="outline" onClick={() => void edit(stop)}>Modifier</Button>
+              <Button size="sm" variant="outline" onClick={() => remove.mutate(stop.id)}>Supprimer</Button>
+            </div>
+          </article>
+        ))}
+        {stops.length === 0 ? <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">Aucun ravitaillement ni pause.</div> : null}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border md:block">
         <table className="w-full min-w-[820px] text-sm">
           <thead className="bg-muted/40">
             <tr>

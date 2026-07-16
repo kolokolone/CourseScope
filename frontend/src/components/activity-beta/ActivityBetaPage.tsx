@@ -53,7 +53,7 @@ export function ActivityBetaPage({ activityId }: { activityId: string }) {
       <ActivityBetaSubNav onSectionClick={handleSectionClick} />
 
       <section id="apercu" className="scroll-mt-28">
-        <div className="grid gap-4 xl:grid-cols-12">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-12">
           <ActivitySummaryCard activity={activity} className="xl:col-span-5" />
           <KeyIndicatorsCard activity={activity} className="xl:col-span-7" />
         </div>
@@ -69,11 +69,11 @@ export function ActivityBetaPage({ activityId }: { activityId: string }) {
         />
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-12">
-        <section id="splits" className="scroll-mt-28 xl:col-span-7">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-12">
+        <section id="splits" className="min-w-0 scroll-mt-28 xl:col-span-7">
           <SplitsCard activity={activity} />
         </section>
-        <section id="zones" className="scroll-mt-28 xl:col-span-5">
+        <section id="zones" className="min-w-0 scroll-mt-28 xl:col-span-5">
           <ZonesCard activity={activity} />
         </section>
       </div>

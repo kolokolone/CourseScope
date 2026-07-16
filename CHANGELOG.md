@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.20] - 2026-07-16
+
+### Changed
+- **Interface mobile** : toutes les routes applicatives disposent désormais de mises en page adaptées aux téléphones sous 768 px, avec cartes métier, contrôles empilés et graphiques redimensionnés, sans modifier la présentation desktop.
+
 ## [1.2.19] - 2026-07-16
 
 ### Changed

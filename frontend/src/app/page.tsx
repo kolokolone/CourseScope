@@ -126,16 +126,16 @@ export default function HomePage() {
                       className="w-full px-3 py-2 text-left hover:bg-accent/30 transition-colors"
                       onClick={() => router.push(getActivityDetailPath(activity.id, activity.activity_type))}
                     >
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
                         <div className="min-w-0">
-                          <div className="font-medium truncate">{activity.name || activity.filename}</div>
+                          <div className="break-words font-medium md:truncate" title={activity.name || activity.filename}>{activity.name || activity.filename}</div>
                         </div>
-                        <div className="shrink-0 flex items-center gap-4 text-sm tabular-nums text-muted-foreground">
+                        <div className="grid w-full grid-cols-2 gap-x-3 gap-y-1 text-sm tabular-nums text-muted-foreground md:flex md:w-auto md:shrink-0 md:items-center md:gap-4">
                           <div className="text-right">
                             {typeof dist === 'number' ? `${formatNumber(dist, { decimals: 1 })} km` : '—'}
                           </div>
                           <div className="text-right">{typeof elev === 'number' ? `D+ ${formatNumber(elev, { integer: true })} m` : '—'}</div>
-                          <div className="text-right w-[5.5rem]">{dateLabel}</div>
+                          <div className="col-span-2 md:w-[5.5rem] md:text-right">{dateLabel}</div>
                         </div>
                       </div>
                     </button>
@@ -150,13 +150,13 @@ export default function HomePage() {
         {nextGoal && daysToNextGoal !== null ? (
           <Card className="relative w-full overflow-hidden self-stretch">
             <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-br from-primary/12 via-primary/5 to-transparent" />
-            <CardContent className="relative flex h-full min-h-80 flex-col p-5 sm:p-6">
+            <CardContent className="relative flex h-full min-h-80 flex-col p-5 md:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
                     <Flag className="h-4 w-4" /> Prochain objectif
                   </div>
-                  <h2 className="mt-3 text-2xl font-semibold tracking-tight">{nextGoal.name}</h2>
+                  <h2 className="mt-3 break-words text-2xl font-semibold tracking-tight">{nextGoal.name}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1.5"><CalendarDays className="h-4 w-4" />{formatDateLabel(nextGoal.event_date)}</span>
                     {nextGoal.location ? <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" />{nextGoal.location}</span> : null}
@@ -168,7 +168,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
                 {[
                   { label: 'Distance', value: `${formatNumber(nextGoal.distance_km, { decimals: 1 })} km` },
                   { label: 'Terrain', value: nextGoal.race_type === 'trail' ? 'Trail' : 'Course' },
@@ -181,9 +181,9 @@ export default function HomePage() {
                 ))}
               </div>
 
-              <div className="mt-auto flex flex-col items-start justify-between gap-4 pt-6 sm:flex-row sm:items-end">
+              <div className="mt-auto flex flex-col items-stretch justify-between gap-4 pt-6 md:flex-row md:items-end">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground"><Route className="h-4 w-4" />Préparer l&apos;échéance et suivre les objectifs.</div>
-                <Button variant="outline" size="sm" onClick={() => router.push('/goals')}>
+                <Button className="w-full md:w-auto" variant="outline" size="sm" onClick={() => router.push('/goals')}>
                   Voir les objectifs <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -192,7 +192,7 @@ export default function HomePage() {
         ) : null}
 
         <Card
-          className="w-full max-w-[20rem] self-start"
+          className="mx-auto w-full max-w-[20rem] self-start md:mx-0"
           title="Superieur: 54.0+ (violet) | Excellent: 48.3-54.0 (bleu) | Bon: 44.0-48.3 (vert) | Passable: 40.5-44.0 (orange) | Mauvais: <40.5 (rouge)"
         >
           <CardContent className="flex aspect-square flex-col items-center justify-center gap-4 p-5 text-center">

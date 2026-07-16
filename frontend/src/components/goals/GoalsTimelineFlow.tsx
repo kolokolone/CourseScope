@@ -38,8 +38,34 @@ export function GoalsTimelineFlow({ goals, countdownByGoalId }: GoalsTimelineFlo
   if (sorted.length === 0) return null;
 
   return (
-    <div className="overflow-x-auto pb-2">
-      <div className="relative inline-flex min-w-full items-start pt-1">
+    <>
+      <div className="space-y-3 md:hidden">
+        <div className="rounded-xl border border-border bg-muted/35 p-3 text-sm">
+          <div className="font-semibold text-foreground">Aujourd&apos;hui</div>
+          <div className="mt-1 text-xs text-muted-foreground">{formatTodayLabel(today)}</div>
+        </div>
+        {sorted.map((goal, index) => {
+          const currentDate = dateAtStart(goal.event_date);
+          const badgeLabel = countdownByGoalId?.[goal.id] ?? daysDeltaLabel(today, currentDate);
+          const location = goal.location_city || goal.location;
+          return (
+            <article key={goal.id} className={`rounded-xl border border-l-4 p-4 shadow-sm ${index === 0 ? 'border-primary/40 border-l-primary bg-primary/[0.035]' : 'border-border border-l-border bg-card'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 break-words font-semibold text-foreground" title={goal.name}>{goal.name}</div>
+                <span className="shrink-0 rounded-full border border-border bg-card px-2 py-0.5 text-[11px] font-semibold text-primary">{badgeLabel}</span>
+              </div>
+              <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 shrink-0" />{formatDateLabel(goal.event_date)}</div>
+                <div className="flex items-center gap-1.5"><Route className="h-3.5 w-3.5 shrink-0" />{formatNumber(goal.distance_km, { decimals: 1 })} km · {goalObjectiveLabel(goal)}</div>
+                {location ? <div className="flex items-start gap-1.5"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="break-words">{location}</span></div> : null}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto pb-2 md:block">
+        <div className="relative inline-flex min-w-full items-start pt-1">
         <div className="absolute left-24 right-28 top-5 h-px bg-border" aria-hidden="true" />
 
         <div className="relative w-48 shrink-0">
@@ -86,7 +112,8 @@ export function GoalsTimelineFlow({ goals, countdownByGoalId }: GoalsTimelineFlo
             </React.Fragment>
           );
         })}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

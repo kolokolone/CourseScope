@@ -94,11 +94,11 @@ export function ActivityBetaHero({ activity, activityId }: ActivityBetaHeroProps
         <Activity className="h-4 w-4" />Analyse d&apos;activité
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex min-w-0 items-center justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           {!isEditing ? (
             <>
-              <h1 className="text-[28px] leading-[1.2] font-bold tracking-[-0.02em] text-slate-950 max-[720px]:text-[22px] truncate">
+              <h1 className="min-w-0 truncate text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-slate-950 md:text-[28px]" title={activityName}>
                 {activityName}
               </h1>
               <button onClick={handleStartEdit} className="text-slate-400 hover:text-slate-600 shrink-0" aria-label="Renommer">
@@ -106,16 +106,18 @@ export function ActivityBetaHero({ activity, activityId }: ActivityBetaHeroProps
               </button>
             </>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-1 flex-col items-stretch gap-2 md:flex-row md:items-center">
               <input
                 ref={inputRef}
-                className="h-9 rounded-md border border-slate-200 px-3 text-base font-semibold"
+                className="h-9 w-full min-w-0 rounded-md border border-slate-200 px-3 text-base font-semibold"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={handleKeyDown}
               />
-              <Button size="sm" onClick={handleSave}>Enregistrer</Button>
-              <Button size="sm" variant="ghost" onClick={handleCancel}>Annuler</Button>
+              <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
+                <Button size="sm" onClick={handleSave}>Enregistrer</Button>
+                <Button size="sm" variant="ghost" onClick={handleCancel}>Annuler</Button>
+              </div>
             </div>
           )}
         </div>
@@ -135,7 +137,7 @@ export function ActivityBetaHero({ activity, activityId }: ActivityBetaHeroProps
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mt-[18px]">
+      <div className="mt-[18px] grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <HeroKpiCard label="Distance" value={isValidNumber(distance) ? formatNumber(distance as number) : 'Non disponible'} unit="km" />
         <HeroKpiCard label="Temps total" value={isValidNumber(totalTime) ? formatDurationSeconds(totalTime as number) : 'Non disponible'} sub={isValidNumber(movingTime) ? `${formatDurationSeconds(movingTime as number)} en mouvement` : undefined} />
         <HeroKpiCard label="Allure moyenne" value={isValidNumber(avgPace) ? formatPace(avgPace as number) : 'Non disponible'} unit="/km" sub={gapText ? `GAP ${gapText}` : undefined} />

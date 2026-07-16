@@ -121,16 +121,17 @@ export function GarminSettings() {
       </CardHeader>
       <CardContent className="px-4 pb-4 space-y-4">
         <div className="rounded-md border p-3 text-sm">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:justify-between">
             <div className="font-medium">Statut</div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => garminStatus.refetch()} disabled={garminStatus.isFetching}>
+            <div className="grid grid-cols-1 gap-2 md:flex md:items-center">
+              <Button className="w-full md:w-auto" size="sm" variant="outline" onClick={() => garminStatus.refetch()} disabled={garminStatus.isFetching}>
                 Rafraichir
               </Button>
-              <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
+              <Button className="w-full md:w-auto" size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
                 Sync
               </Button>
               <Button
+                className="w-full md:w-auto"
                 size="sm"
                 variant="outline"
                 onClick={async () => {
@@ -172,12 +173,12 @@ export function GarminSettings() {
         </div>
 
         <div className="rounded-md border p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
+          <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
               <div className="font-medium">Identifiants</div>
               <div className="text-sm text-muted-foreground">Stockes localement sur disque (exclus de git).</div>
             </div>
-            <Button size="sm" variant="outline" onClick={() => credsStatus.refetch()} disabled={credsStatus.isFetching}>
+            <Button className="w-full md:w-auto" size="sm" variant="outline" onClick={() => credsStatus.refetch()} disabled={credsStatus.isFetching}>
               Verifier
             </Button>
           </div>
@@ -224,8 +225,9 @@ export function GarminSettings() {
                 />
               </label>
             ) : null}
-            <div className="flex items-end gap-2">
+            <div className="grid grid-cols-1 gap-2 md:flex md:items-end">
               <Button
+                className="w-full md:w-auto"
                 size="sm"
                 variant="outline"
                 onClick={() => saveCreds.mutate({ email, password })}
@@ -235,6 +237,7 @@ export function GarminSettings() {
                 Enregistrer
               </Button>
               <Button
+                className="w-full md:w-auto"
                 size="sm"
                 onClick={() => startConnect(canConnectWithTyped ? { email, password } : {})}
                 disabled={connect.isPending || otpStep || (!canConnectWithTyped && !canConnectWithStored)}
@@ -243,6 +246,7 @@ export function GarminSettings() {
               </Button>
               {otpStep ? (
                 <Button
+                  className="w-full md:w-auto"
                   size="sm"
                   onClick={confirmOtp}
                   disabled={connect.isPending || otp.trim().length === 0 || !mfaSessionId}
