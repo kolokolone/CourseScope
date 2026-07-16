@@ -139,6 +139,7 @@ class RaceStop(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     scenario_id: Mapped[str] = mapped_column(String(36), ForeignKey("race_scenarios.id"), nullable=False)
+    label: Mapped[str | None] = mapped_column(Text, nullable=True)
     distance_km: Mapped[float] = mapped_column(Float, nullable=False)
     stop_type: Mapped[str] = mapped_column(String(24), nullable=False)
     duration_s: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)

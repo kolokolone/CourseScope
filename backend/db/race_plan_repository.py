@@ -26,6 +26,11 @@ def _from_json(value: str | None) -> object | None:
     return json.loads(value) if value else None
 
 
+def _optional_text(value: object | None) -> str | None:
+    normalized = str(value).strip() if value is not None else ""
+    return normalized or None
+
+
 class RacePlanRepository:
     def list_for_trace(self, session: Session, trace_id: str) -> list[RacePlan]:
         statement = select(RacePlan).where(RacePlan.trace_id == trace_id).order_by(RacePlan.updated_at_utc.desc())
@@ -168,6 +173,7 @@ class RacePlanRepository:
         stop = RaceStop(
             id=str(uuid.uuid4()),
             scenario_id=scenario.id,
+            label=_optional_text(data.get("label")),
             distance_km=float(data.get("distance_km") or 0),
             stop_type=str(data.get("stop_type") or "other"),
             duration_s=float(data.get("duration_s") or 0),
@@ -183,6 +189,8 @@ class RacePlanRepository:
         return next((item for item in scenario.stops if item.id == stop_id), None)
 
     def update_stop(self, stop: RaceStop, data: dict[str, object]) -> RaceStop:
+        if "label" in data:
+            stop.label = _optional_text(data["label"])
         for key in {"distance_km", "stop_type", "duration_s", "notes", "sort_order"}:
             if key in data:
                 setattr(stop, key, data[key])
@@ -197,7 +205,7 @@ class RacePlanRepository:
 
 
 def stop_to_dict(stop: RaceStop) -> dict[str, object]:
-    return {"id": stop.id, "distance_km": stop.distance_km, "stop_type": stop.stop_type, "duration_s": stop.duration_s, "notes": stop.notes, "sort_order": stop.sort_order, "created_at_utc": stop.created_at_utc, "updated_at_utc": stop.updated_at_utc}
+    return {"id": stop.id, "label": stop.label, "distance_km": stop.distance_km, "stop_type": stop.stop_type, "duration_s": stop.duration_s, "notes": stop.notes, "sort_order": stop.sort_order, "created_at_utc": stop.created_at_utc, "updated_at_utc": stop.updated_at_utc}
 
 
 def scenario_to_dict(scenario: RaceScenario, *, full: bool = True) -> dict[str, object]:

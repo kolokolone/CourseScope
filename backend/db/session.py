@@ -43,6 +43,7 @@ def init_db(engine: Engine) -> None:
     # Explicit, idempotent migrations for existing local databases.
     importlib.import_module("db.migrations.20260714_race_planning").upgrade(engine)
     importlib.import_module("db.migrations.20260716_pace_hr_resolutions").upgrade(engine)
+    importlib.import_module("db.migrations.20260716_race_stop_label").upgrade(engine)
 
     # Lightweight migrations for SQLite (local default): add new nullable columns
     # without requiring users to delete their DB.

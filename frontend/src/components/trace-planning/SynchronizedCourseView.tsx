@@ -4,7 +4,8 @@ import * as React from 'react';
 
 import { TheoreticalPaceElevationChart } from '@/components/charts/TheoreticalPaceElevationChart';
 import { ActivityMap } from '@/components/maps/ActivityMap';
-import type { ActivityMapResponse, RaceProfilePoint, RaceStop } from '@/types/api';
+import type { ActivityMapResponse, RaceProfilePoint, RaceStop, RaceTimelinePassage } from '@/types/api';
+import { FullscreenCourseView } from './FullscreenCourseView';
 
 function mapPayload(profile: RaceProfilePoint[]): ActivityMapResponse {
   const geo = profile.filter((point) => point.lat != null && point.lon != null);
@@ -13,7 +14,21 @@ function mapPayload(profile: RaceProfilePoint[]): ActivityMapResponse {
   return { polyline: geo.map((point) => [point.lat as number, point.lon as number]), bbox: geo.length ? [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)] : undefined };
 }
 
-export function SynchronizedCourseView({ profile, stops }: { profile: RaceProfilePoint[]; stops: RaceStop[] }) {
+export function SynchronizedCourseView({
+  profile,
+  stops,
+  timeline,
+  fullscreenOpen,
+  onFullscreenClose,
+  fullscreenTriggerRef,
+}: {
+  profile: RaceProfilePoint[];
+  stops: RaceStop[];
+  timeline: RaceTimelinePassage[];
+  fullscreenOpen: boolean;
+  onFullscreenClose: () => void;
+  fullscreenTriggerRef: React.RefObject<HTMLButtonElement | null>;
+}) {
   const [selected, setSelected] = React.useState<RaceProfilePoint | null>(null);
   const [hovered, setHovered] = React.useState<RaceProfilePoint | null>(null);
   const active = hovered ?? selected;
@@ -29,20 +44,34 @@ export function SynchronizedCourseView({ profile, stops }: { profile: RaceProfil
     setSelected(nearest);
   }, [profile]);
   return (
-    <div className="space-y-4">
-      <div className="w-full">
-        <ActivityMap mapData={mapData} height="430px" allowPauseToggle={false} onMapClick={selectNearest} highlightedPoint={active?.lat != null && active.lon != null ? { lat: active.lat, lon: active.lon, label: `${active.distance_km.toFixed(2)} km` } : null} />
+    <>
+      <div className="space-y-4">
+        <div className="w-full">
+          <ActivityMap mapData={mapData} height="430px" allowPauseToggle={false} onMapClick={selectNearest} highlightedPoint={active?.lat != null && active.lon != null ? { lat: active.lat, lon: active.lon, label: `${active.distance_km.toFixed(2)} km` } : null} />
+        </div>
+        <div className="rounded-xl border border-border p-3">
+          <h3 className="mb-2 text-sm font-semibold">Allure vs distance</h3>
+          <TheoreticalPaceElevationChart
+            data={profile}
+            stops={stops}
+            heightClassName="h-[430px]"
+            activePoint={active}
+            onPointHover={setHovered}
+          />
+        </div>
       </div>
-      <div className="rounded-xl border border-border p-3">
-        <h3 className="mb-2 text-sm font-semibold">Allure vs distance</h3>
-        <TheoreticalPaceElevationChart
-          data={profile}
-          stops={stops}
-          heightClassName="h-[430px]"
-          activePoint={active}
-          onPointHover={setHovered}
-        />
-      </div>
-    </div>
+      <FullscreenCourseView
+        open={fullscreenOpen}
+        onClose={onFullscreenClose}
+        returnFocusRef={fullscreenTriggerRef}
+        mapData={mapData}
+        profile={profile}
+        stops={stops}
+        timeline={timeline}
+        activePoint={active}
+        onMapClick={selectNearest}
+        onPointHover={setHovered}
+      />
+    </>
   );
 }

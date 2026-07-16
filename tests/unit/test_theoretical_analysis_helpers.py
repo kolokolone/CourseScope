@@ -148,6 +148,38 @@ class TestRacePlanningPipeline(unittest.TestCase):
         times = [float(item["elapsed_time_s"]) for item in stopped["passages"]]
         self.assertTrue(all(b >= a for a, b in zip(times, times[1:])))
 
+    def test_timeline_preserves_same_distance_stops_and_full_profile_elevation(self) -> None:
+        from services.race_planning_service import calculate_race_plan_preview
+
+        preview = calculate_race_plan_preview(
+            linear_course(5.0),
+            scenario={"name": "timeline", "objective_type": "pace", "target_value": 360.0, "slope_model": "minetti"},
+            stops=[
+                {"id": "water", "label": "  Source  ", "distance_km": 1.0, "stop_type": "water", "duration_s": 60.0, "sort_order": 0},
+                {"id": "food", "label": None, "distance_km": 1.0, "stop_type": "nutrition", "duration_s": 90.0, "sort_order": 1},
+            ],
+        )
+
+        timeline = preview["timeline_passages"]
+        self.assertEqual([item["kind"] for item in timeline], ["start", "stop", "stop", "arrival"])
+        self.assertEqual(timeline[1]["label"], "Source")
+        self.assertEqual(timeline[2]["label"], "Alimentation")
+        self.assertEqual(float(timeline[2]["distance_from_previous_km"]), 0.0)
+        self.assertEqual(float(timeline[2]["elevation_gain_from_previous_m"]), 0.0)
+        self.assertEqual(float(timeline[2]["elevation_loss_from_previous_m"]), 0.0)
+        self.assertEqual(float(timeline[2]["arrival_elapsed_time_s"]), float(timeline[1]["departure_elapsed_time_s"]))
+        self.assertAlmostEqual(float(timeline[-1]["cumulative_elevation_gain_m"]), float(preview["totals"]["elevation_gain_m"]), places=9)
+        self.assertAlmostEqual(float(timeline[-1]["cumulative_elevation_loss_m"]), float(preview["totals"]["elevation_loss_m"]), places=9)
+        self.assertIsNone(timeline[1]["lat"])
+        self.assertIsNone(timeline[1]["lon"])
+
+        renamed_hash = calculate_race_plan_preview(
+            linear_course(5.0),
+            scenario={"name": "timeline", "objective_type": "pace", "target_value": 360.0, "slope_model": "minetti"},
+            stops=[{"id": "water", "label": "Autre nom", "distance_km": 1.0, "stop_type": "water", "duration_s": 60.0}],
+        )["scenario_hash"]
+        self.assertNotEqual(preview["scenario_hash"], renamed_hash)
+
     def test_histograms_conserve_time_and_apply_display_rules(self) -> None:
         from services.race_planning_service import calculate_race_plan_preview
 

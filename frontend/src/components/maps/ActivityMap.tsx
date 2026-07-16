@@ -7,7 +7,17 @@ import type { ActivityMapResponse } from '@/types/api';
 
 type MapColorMetric = 'pace' | 'heart_rate' | 'grade' | 'power';
 
-interface ActivityMapProps {
+export interface RaceStopMapMarker {
+  id: string;
+  lat: number;
+  lon: number;
+  symbol: string;
+  label: string;
+  distanceKm: number;
+  durationS: number;
+}
+
+export interface ActivityMapProps {
   mapData: Partial<ActivityMapResponse>;
   activityId?: string;
   height?: string;
@@ -16,6 +26,8 @@ interface ActivityMapProps {
   colorMetric?: MapColorMetric;
   onMapClick?: (lat: number, lon: number) => void;
   highlightedPoint?: { lat: number; lon: number; label?: string } | null;
+  raceStopMarkers?: RaceStopMapMarker[];
+  fitBoundsKey?: string | number;
 }
 
 const ActivityMapLeaflet = dynamic(

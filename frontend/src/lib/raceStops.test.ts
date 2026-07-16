@@ -10,6 +10,15 @@ describe('race stop durations', () => {
 
   it('rejects malformed or overflowing seconds', () => {
     expect(parseStopDurationInput('2:60')).toBeNull();
-    expect(parseStopDurationInput('120')).toBeNull();
+    expect(parseStopDurationInput('-3')).toBeNull();
+    expect(parseStopDurationInput('3.5')).toBeNull();
+    expect(parseStopDurationInput('3:5')).toBeNull();
+    expect(parseStopDurationInput('')).toBeNull();
+  });
+
+  it('treats whole numbers as minutes and trims outer spaces', () => {
+    expect(parseStopDurationInput('3')).toBe(180);
+    expect(parseStopDurationInput('0')).toBe(0);
+    expect(parseStopDurationInput(' 120 ')).toBe(7_200);
   });
 });

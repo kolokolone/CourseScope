@@ -99,7 +99,7 @@ La qualité fournit notamment le taux d'interpolation, le taux de correction, la
 5. splits kilométriques ;
 6. ascensions ;
 7. passages et points personnalisés ;
-8. pauses ;
+8. pauses et timeline départ–arrêts–arrivée ;
 9. histogrammes ;
 10. alertes et stratégie calculée ;
 11. qualité et météo disponible.
@@ -136,6 +136,8 @@ Un plan contient notamment la date, l'heure de départ, le fuseau IANA, le scén
 
 Types de pause : `water`, `nutrition`, `water_nutrition`, `assistance`, `other`.
 
+Chaque pause possède un `label` UTF-8 optionnel, limité à 200 caractères et normalisé après suppression des espaces externes. Une valeur vide est persistée en `null` ; l'interface utilise alors le libellé du type de pause. La saisie de durée accepte soit des minutes entières (`3` signifie 180 secondes), soit `mm:ss` (`12:34` signifie 754 secondes). Le contrat API reste exclusivement exprimé en secondes via `duration_s`.
+
 Pour une pause à la distance `d` :
 
 - les passages strictement avant `d` ne changent pas ;
@@ -150,6 +152,12 @@ Si le plan contient `race_date`, `start_time` et un fuseau valide, les passages 
 
 Les `splits[]` utilisent uniquement les kilomètres entiers et le reliquat final : un point remarquable à `5,5 km` ne découpe donc plus le split `5–6 km`. Chaque split ajoute des cumuls rétrocompatibles (`cumulative_running_time_s`, `cumulative_stop_time_s`, `cumulative_elapsed_time_s`), une `passage_time_iso` éventuelle et `is_partial` pour le dernier intervalle incomplet. Les passages personnalisés conservent leur `label` et leur `kind`.
 
+### Timeline des temps de passage
+
+`timeline_passages[]` est une sortie additive de `plan-preview`, distincte de `passages[]`. Son ordre est strict : départ, chaque pause triée par distance puis `sort_order`, arrivée. Deux pauses au même kilomètre restent deux éléments distincts.
+
+Le backend calcule sur le profil complet, avant downsampling, l'altitude, les coordonnées disponibles, les cumuls D+/D− et les écarts depuis le passage précédent. Les D− sont des magnitudes positives. Les coordonnées sont `null` lorsque la trace n'en fournit pas ; la timeline reste alors exploitable sans marqueur cartographique. Les heures d'arrivée et de départ reprennent les temps déjà calculés pour les pauses.
+
 ## Trois graphiques calculés côté backend
 
 ### Allure vs distance
@@ -157,6 +165,8 @@ Les `splits[]` utilisent uniquement les kilomètres entiers et le reliquat final
 `profile[]` fournit directement : `distance_km`, `pace_s_per_km`, `elevation_m`, `grade_pct`, `grade_robust_pct`, `elapsed_time_s`, `passage_time_iso`, `lat` et `lon`.
 
 Le frontend ne recalcule ni l'allure métier, ni les temps. Le downsampling backend est basé sur la distance et conserve les extrema d'altitude et de pente. Pour la seule géométrie SVG, `addVisualPace` construit une série de présentation avec un noyau gaussien métrique de 400 m, puis Recharts utilise une interpolation `basis`. Cette fenêtre visuelle est indépendante du lissage métier backend de 100 m : elle ne le remplace pas et n'entre dans aucun calcul. `pace_s_per_km`, `elapsed_time_s`, les infobulles et les histogrammes restent strictement ceux du backend. Le graphique est rendu sous la carte pleine largeur et possède la même hauteur. L'altitude est verte avec un dégradé sous la courbe ; l'allure théorique est bleue. Le survol/clic reste synchronisé avec la carte. Chaque pause ajoute une ligne verticale grise en pointillés et un pictogramme typé à sa distance. Les valeurs ne sont affichées que dans une infobulle compacte au pointeur, sans seconde ligne persistante sous le titre.
+
+Le bouton à droite de « Carte et allure synchronisées » ouvre un dialog couvrant le viewport. Sur desktop, la timeline scrolle à gauche tandis que la carte et le graphique occupent la zone principale ; sur mobile, les trois zones passent en pile. La carte est remontée, invalidée et recentrée sur tout le parcours à chaque ouverture. Les pauses dotées de coordonnées affichent leur symbole et un popup ; les autres restent dans la timeline. Le dialog se ferme par son bouton ou `Escape`, restaure le scroll et rend le focus au bouton d'ouverture.
 
 ### Temps par allure
 
@@ -221,6 +231,7 @@ Exemple de calcul pur sans persistance préalable :
   },
   "stops": [
     {
+      "label": "Ravito de Pupillin",
       "distance_km": 8,
       "stop_type": "water",
       "duration_s": 120,
@@ -234,13 +245,13 @@ Exemple de calcul pur sans persistance préalable :
 
 La page route ne fait que convertir le paramètre en `TraceId` et rendre `TracePlanningPage`. `useTracePlanning` charge la trace, le plan actif, le scénario sélectionné et le preview.
 
-Sections : hero/KPI, paramètres, aperçu, carte et allure synchronisées, histogrammes d'allure et de pente, roadbook, pauses, stratégie, nutrition, matériel, comparaison et qualité. Le roadbook est fermé par défaut et utilise un disclosure accessible. À l'ouverture, il présente les passages clés et ascensions avant les splits kilométriques détaillés, avec une représentation mobile dédiée.
+Sections : hero/KPI, paramètres, aperçu, carte et allure synchronisées, histogrammes d'allure et de pente, roadbook, pauses, stratégie, nutrition, matériel, comparaison et qualité. La carte synchronisée propose le mode plein écran décrit ci-dessus. Le roadbook est fermé par défaut et utilise un disclosure accessible. À l'ouverture, il présente les passages clés et ascensions avant les splits kilométriques détaillés, avec une représentation mobile dédiée.
 
 La date est conservée localement pendant la saisie afin qu'un rafraîchissement React Query ne remplace pas une année partiellement saisie. Une date ISO complète ou le choix « Aujourd'hui » du calendrier natif déclenche la persistance.
 
 ## Migration
 
-La migration `20260714_race_planning` est idempotente et enregistrée dans `schema_migrations`.
+Les migrations `20260714_race_planning` et `20260716_race_stop_label` sont idempotentes et enregistrées dans `schema_migrations`. La seconde ajoute uniquement la colonne nullable `race_stops.label` et conserve toutes les lignes existantes.
 
 ```powershell
 Push-Location backend
@@ -248,7 +259,7 @@ Push-Location backend
 Pop-Location
 ```
 
-L'initialisation backend applique également cette migration après `Base.metadata.create_all()`.
+L'initialisation backend applique également toutes les migrations connues après `Base.metadata.create_all()`.
 
 ## Vérification
 

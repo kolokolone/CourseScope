@@ -549,9 +549,30 @@ Le corps accepte soit `plan_id`/`scenario_id`, soit un plan et un scénario stru
 | `profile[].distance_km` | float | km | distance d'affichage |
 | `profile[].pace_s_per_km` | float | s/km | allure issue du coût Minetti, gain descendant régularisé et lissage métrique backend |
 | `profile[].grade_robust_pct` | float | % | pente du calcul métier |
+| `stops[].label` | string\|null | - | nom personnalisé normalisé ; `null` déclenche le libellé du type |
 | `passages[]` | array<object> | - | départ, passages kilométriques/personnalisés et arrivée |
 | `passages[].kind` | string | - | `start`, `kilometer`, `landmark`, `custom_segment` ou `arrival` |
 | `passages[].label` | string | - | libellé utilisateur ou libellé calculé |
+| `timeline_passages[]` | array<object> | - | départ, chaque pause ordonnée, puis arrivée ; calculé sur le profil complet |
+| `timeline_passages[].id` | string | - | `start`, `stop:{id ou ordre}` ou `arrival` |
+| `timeline_passages[].kind` | `start`\|`stop`\|`arrival` | - | nature du passage |
+| `timeline_passages[].stop_id` | string\|null | - | identifiant persistant de la pause |
+| `timeline_passages[].stop_type` | string\|null | - | type de pause, `null` au départ et à l'arrivée |
+| `timeline_passages[].label` | string | - | nom personnalisé ou libellé de repli |
+| `timeline_passages[].distance_km` | float | km | distance cumulée depuis le départ |
+| `timeline_passages[].lat` | float\|null | deg | latitude du point valide le plus proche |
+| `timeline_passages[].lon` | float\|null | deg | longitude du point valide le plus proche |
+| `timeline_passages[].elevation_m` | float\|null | m | altitude interpolée au passage |
+| `timeline_passages[].cumulative_elevation_gain_m` | float | m | D+ cumulé depuis le départ |
+| `timeline_passages[].cumulative_elevation_loss_m` | float | m | D− cumulé, exprimé comme magnitude positive |
+| `timeline_passages[].distance_from_previous_km` | float | km | distance depuis le passage précédent |
+| `timeline_passages[].elevation_gain_from_previous_m` | float | m | D+ depuis le passage précédent |
+| `timeline_passages[].elevation_loss_from_previous_m` | float | m | D− depuis le passage précédent |
+| `timeline_passages[].arrival_elapsed_time_s` | float | s | temps écoulé avant la pause |
+| `timeline_passages[].departure_elapsed_time_s` | float | s | temps écoulé après la pause |
+| `timeline_passages[].arrival_time_iso` | string\|null | - | ETA d'arrivée zonée si le plan est daté |
+| `timeline_passages[].departure_time_iso` | string\|null | - | ETA de départ zonée si le plan est daté |
+| `timeline_passages[].duration_s` | float | s | durée de pause, zéro au départ et à l'arrivée |
 | `splits[]` | array<object> | - | vrais splits kilométriques, indépendants des points personnalisés |
 | `splits[].cumulative_running_time_s` | float | s | cumul de course à la fin du split |
 | `splits[].cumulative_stop_time_s` | float | s | cumul des pauses à la fin du split |

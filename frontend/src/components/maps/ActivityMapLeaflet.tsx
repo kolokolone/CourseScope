@@ -1,25 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMapEvents } from 'react-leaflet';
+import { divIcon } from 'leaflet';
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 
 import { Button } from '@/components/ui/button';
 import { useSeriesData } from '@/hooks/useActivity';
+import { formatStopDurationInput } from '@/lib/raceStops';
 import { useUiPrefsStore } from '@/store/uiPrefsStore';
-import type { ActivityMapResponse } from '@/types/api';
-
-type MapColorMetric = 'pace' | 'heart_rate' | 'grade' | 'power';
-
-interface ActivityMapProps {
-  mapData: Partial<ActivityMapResponse>;
-  activityId?: string;
-  height?: string;
-  pauseItems?: unknown;
-  allowPauseToggle?: boolean;
-  colorMetric?: MapColorMetric;
-  onMapClick?: (lat: number, lon: number) => void;
-  highlightedPoint?: { lat: number; lon: number; label?: string } | null;
-}
+import type { ActivityMapProps } from '@/components/maps/ActivityMap';
 
 type PauseItem = { lat: number; lon: number; label?: string; duration_s?: number };
 
@@ -74,7 +63,31 @@ function MapClickHandler({ onMapClick }: { onMapClick?: (lat: number, lon: numbe
   return null;
 }
 
-export function ActivityMapLeaflet({ mapData, activityId, height = '400px', pauseItems, allowPauseToggle = true, colorMetric, onMapClick, highlightedPoint }: ActivityMapProps) {
+function MapViewportController({ bounds, fitBoundsKey }: { bounds?: [[number, number], [number, number]]; fitBoundsKey?: string | number }) {
+  const map = useMap();
+  React.useEffect(() => {
+    if (!bounds) return;
+    const frame = window.requestAnimationFrame(() => {
+      map.invalidateSize();
+      map.fitBounds(bounds, { padding: [20, 20] });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [bounds, fitBoundsKey, map]);
+  return null;
+}
+
+function escapeHtml(value: string): string {
+  const replacements: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+  return value.replace(/[&<>"']/g, (character) => replacements[character] ?? character);
+}
+
+export function ActivityMapLeaflet({ mapData, activityId, height = '400px', pauseItems, allowPauseToggle = true, colorMetric, onMapClick, highlightedPoint, raceStopMarkers = [], fitBoundsKey }: ActivityMapProps) {
   const hasMapData = mapData && mapData.polyline && mapData.polyline.length > 0;
 
   const showColorByPace = useUiPrefsStore((s) => s.mapColorByPace);
@@ -180,6 +193,25 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
     return segs;
   }, [effectiveColorMetric, activityId, metricValues, polyline]);
 
+  const typedStopMarkers = React.useMemo(() => raceStopMarkers.map((marker) => ({
+    ...marker,
+    icon: divIcon({
+      className: '',
+      html: `<span style="display:flex;width:32px;height:32px;align-items:center;justify-content:center;border:2px solid var(--background);border-radius:9999px;background:var(--card);box-shadow:0 1px 4px rgba(15,23,42,.35);font-size:16px;line-height:1">${escapeHtml(marker.symbol)}</span>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      popupAnchor: [0, -18],
+    }),
+  })), [raceStopMarkers]);
+
+  const highlightedIcon = React.useMemo(() => divIcon({
+    className: '',
+    html: '<span style="display:block;width:18px;height:18px;border:3px solid var(--background);border-radius:9999px;background:var(--primary);box-shadow:0 1px 5px rgba(15,23,42,.5)"></span>',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+    popupAnchor: [0, -11],
+  }), []);
+
   if (!hasMapData) {
     return (
       <div className="bg-gray-100 rounded-lg flex items-center justify-center" style={{ height }}>
@@ -221,6 +253,7 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
       </div>
 
       <MapContainer bounds={bounds} scrollWheelZoom style={{ height: '100%', width: '100%' }}>
+        <MapViewportController bounds={bounds} fitBoundsKey={fitBoundsKey} />
         <MapClickHandler onMapClick={onMapClick} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -275,10 +308,25 @@ export function ActivityMapLeaflet({ mapData, activityId, height = '400px', paus
             </Popup>
           </CircleMarker>
         ))}
+        {typedStopMarkers.map((marker) => (
+          <Marker
+            key={marker.id}
+            position={[marker.lat, marker.lon]}
+            icon={marker.icon}
+            zIndexOffset={500}
+          >
+            <Popup>
+              <div className="text-sm">
+                <div className="font-medium">{marker.label}</div>
+                <div className="text-gray-500">{marker.distanceKm.toFixed(2)} km · {formatStopDurationInput(marker.durationS)}</div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
         {highlightedPoint ? (
-          <CircleMarker center={[highlightedPoint.lat, highlightedPoint.lon]} radius={8} pathOptions={{ color: 'var(--primary)', fillColor: 'var(--primary)', fillOpacity: 0.7 }}>
+          <Marker position={[highlightedPoint.lat, highlightedPoint.lon]} icon={highlightedIcon} zIndexOffset={1000}>
             {highlightedPoint.label ? <Popup>{highlightedPoint.label}</Popup> : null}
-          </CircleMarker>
+          </Marker>
         ) : null}
       </MapContainer>
     </div>

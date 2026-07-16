@@ -98,11 +98,11 @@ export function useCreateScenario(traceId: TraceId, planId: RacePlanId) {
 }
 
 export function useCreateStop(traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId) {
-  return usePlanningMutation((payload: { distance_km: number; stop_type: RaceStopType; duration_s: number; notes?: string }) => tracesApi.createStop(traceId, planId, scenarioId, payload), traceId);
+  return usePlanningMutation((payload: { label?: string | null; distance_km: number; stop_type: RaceStopType; duration_s: number; notes?: string }) => tracesApi.createStop(traceId, planId, scenarioId, payload), traceId);
 }
 
 export function useUpdateStop(traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId) {
-  return usePlanningMutation((variables: { stopId: string; payload: Partial<{ distance_km: number; stop_type: RaceStopType; duration_s: number; notes: string | null }> }) => tracesApi.updateStop(traceId, planId, scenarioId, variables.stopId, variables.payload), traceId);
+  return usePlanningMutation((variables: { stopId: string; payload: Partial<{ label: string | null; distance_km: number; stop_type: RaceStopType; duration_s: number; notes: string | null }> }) => tracesApi.updateStop(traceId, planId, scenarioId, variables.stopId, variables.payload), traceId);
 }
 
 export function useDeleteStop(traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId) {

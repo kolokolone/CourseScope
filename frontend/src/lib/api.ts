@@ -312,10 +312,10 @@ export const tracesApi = {
   updateScenario: async (traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId, payload: Partial<{ name: string; objective_type: RaceObjectiveType; target_value: number; vma_kmh: number | null; calibration_factor: number; is_active: boolean; strategy_segments: RacePlanPreview['calculated_strategy']; nutrition: import('@/types/api').RaceNutritionItem[] }>) => apiRequest<{ scenario: RaceScenario; preview_required: true }>(`/traces/${traceId}/plans/${planId}/scenarios/${scenarioId}`, {
     method: 'PATCH', body: JSON.stringify(payload),
   }),
-  createStop: async (traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId, payload: { distance_km: number; stop_type: RaceStopType; duration_s: number; notes?: string }) => apiRequest<{ stop: RaceStop; preview_required: true }>(`/traces/${traceId}/plans/${planId}/scenarios/${scenarioId}/stops`, {
+  createStop: async (traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId, payload: { label?: string | null; distance_km: number; stop_type: RaceStopType; duration_s: number; notes?: string }) => apiRequest<{ stop: RaceStop; preview_required: true }>(`/traces/${traceId}/plans/${planId}/scenarios/${scenarioId}/stops`, {
     method: 'POST', body: JSON.stringify(payload),
   }),
-  updateStop: async (traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId, stopId: string, payload: Partial<{ distance_km: number; stop_type: RaceStopType; duration_s: number; notes: string | null }>) => apiRequest<{ stop: RaceStop; preview_required: true }>(`/traces/${traceId}/plans/${planId}/scenarios/${scenarioId}/stops/${stopId}`, {
+  updateStop: async (traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId, stopId: string, payload: Partial<{ label: string | null; distance_km: number; stop_type: RaceStopType; duration_s: number; notes: string | null }>) => apiRequest<{ stop: RaceStop; preview_required: true }>(`/traces/${traceId}/plans/${planId}/scenarios/${scenarioId}/stops/${stopId}`, {
     method: 'PATCH', body: JSON.stringify(payload),
   }),
   deleteStop: async (traceId: TraceId, planId: RacePlanId, scenarioId: RaceScenarioId, stopId: string) => apiRequest<{ deleted: true }>(`/traces/${traceId}/plans/${planId}/scenarios/${scenarioId}/stops/${stopId}`, {

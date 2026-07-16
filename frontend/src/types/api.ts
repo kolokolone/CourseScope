@@ -248,6 +248,7 @@ export type RaceStopType = 'water' | 'nutrition' | 'water_nutrition' | 'assistan
 
 export interface RaceStop {
   id: string;
+  label?: string | null;
   distance_km: number;
   stop_type: RaceStopType;
   duration_s: number;
@@ -370,6 +371,28 @@ export interface RacePassage {
   elevation_m: number;
 }
 
+export interface RaceTimelinePassage {
+  id: string;
+  kind: 'start' | 'stop' | 'arrival';
+  stop_id: string | null;
+  stop_type: RaceStopType | null;
+  label: string;
+  distance_km: number;
+  lat: number | null;
+  lon: number | null;
+  elevation_m: number | null;
+  cumulative_elevation_gain_m: number;
+  cumulative_elevation_loss_m: number;
+  distance_from_previous_km: number;
+  elevation_gain_from_previous_m: number;
+  elevation_loss_from_previous_m: number;
+  arrival_elapsed_time_s: number;
+  departure_elapsed_time_s: number;
+  arrival_time_iso: string | null;
+  departure_time_iso: string | null;
+  duration_s: number;
+}
+
 export interface RaceSplit {
   index: number;
   start_distance_km: number;
@@ -432,6 +455,7 @@ export interface RacePlanPreview {
   };
   profile: RaceProfilePoint[];
   passages: RacePassage[];
+  timeline_passages: RaceTimelinePassage[];
   splits: RaceSplit[];
   climbs: RaceClimb[];
   segments: Array<RaceStrategySegment & { id: string; name: string; distance_km: number; running_time_s: number; stop_time_s: number; elapsed_time_s: number; pace_s_per_km: number; elevation_gain_m: number }>;

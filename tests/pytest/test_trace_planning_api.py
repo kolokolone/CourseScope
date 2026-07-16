@@ -41,19 +41,29 @@ def test_trace_plan_save_reload_stops_and_comparison(tmp_path, monkeypatch):
             'course_points': [{'distance_km': 0.5, 'point_type': 'landmark', 'label': 'Belvédère'}],
         })
         assert plan_patch.status_code == 200
-        stop = client.post(f'/traces/{trace_id}/plans/{plan_id}/scenarios/{scenario_id}/stops', json={'distance_km': 1.0, 'stop_type': 'water_nutrition', 'duration_s': 90})
+        stop = client.post(f'/api/traces/{trace_id}/plans/{plan_id}/scenarios/{scenario_id}/stops', json={'label': '  Ravito de Pupillin  ', 'distance_km': 1.0, 'stop_type': 'water_nutrition', 'duration_s': 90})
         assert stop.status_code == 201
+        stop_body = stop.json()['stop']
+        assert stop_body['label'] == 'Ravito de Pupillin'
 
-        preview = client.post(f'/traces/{trace_id}/plan-preview', json={'plan_id': plan_id, 'scenario_id': scenario_id})
+        preview = client.post(f'/api/traces/{trace_id}/plan-preview', json={'plan_id': plan_id, 'scenario_id': scenario_id})
         assert preview.status_code == 200, preview.text
         body = preview.json()
         assert body['totals']['stop_time_s'] == 90
         assert body['totals']['arrival_time_iso'] is not None
         preview_stop = body['stops'][0]
+        assert preview_stop['label'] == 'Ravito de Pupillin'
         assert preview_stop['stop_type'] == 'water_nutrition'
         assert preview_stop['departure_elapsed_time_s'] - preview_stop['arrival_elapsed_time_s'] == 90
         assert preview_stop['arrival_time_iso'] is not None
         assert preview_stop['departure_time_iso'] is not None
+        timeline = body['timeline_passages']
+        assert [row['kind'] for row in timeline] == ['start', 'stop', 'arrival']
+        assert timeline[1]['stop_id'] == stop_body['id']
+        assert timeline[1]['label'] == 'Ravito de Pupillin'
+        assert timeline[1]['duration_s'] == 90
+        assert timeline[-1]['cumulative_elevation_gain_m'] == body['totals']['elevation_gain_m']
+        assert timeline[-1]['cumulative_elevation_loss_m'] == body['totals']['elevation_loss_m']
         passage_times = [row['elapsed_time_s'] for row in body['passages']]
         assert passage_times == sorted(passage_times)
         assert any(row.get('label') == 'Belvédère' for row in body['passages'])
@@ -69,10 +79,18 @@ def test_trace_plan_save_reload_stops_and_comparison(tmp_path, monkeypatch):
         assert comparison.status_code == 200, comparison.text
         assert len(comparison.json()['scenarios']) == 2
 
+        cleared = client.patch(
+            f'/traces/{trace_id}/plans/{plan_id}/scenarios/{scenario_id}/stops/{stop_body["id"]}',
+            json={'label': '   '},
+        )
+        assert cleared.status_code == 200
+        assert cleared.json()['stop']['label'] is None
+
         reloaded = client.get(f'/traces/{trace_id}/plans/{plan_id}')
         assert reloaded.status_code == 200
         active = next(item for item in reloaded.json()['scenarios'] if item['id'] == scenario_id)
         assert active['stops'][0]['duration_s'] == 90
+        assert active['stops'][0]['label'] is None
 
 
 def test_trace_original_download_returns_exact_source_on_both_routes(tmp_path, monkeypatch):

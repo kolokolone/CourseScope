@@ -44,7 +44,7 @@ Le rattachement d'une activité privilégie `local_date`, avec repli UTC uniquem
 | Best efforts progression | Inline dans `page.tsx` | ✅ |
 | VO2max (3 derniers mois) | Inline dans `page.tsx` | ✅ |
 
-L'axe VO2max commence à `80 %` de la plus petite valeur visible et conserve une marge supérieure, y compris lorsque toutes les valeurs sont identiques.
+L'axe VO2max commence à `95 %` de la plus petite valeur visible et conserve une marge supérieure, y compris lorsque toutes les valeurs sont identiques.
 
 ### Efficacité / Durabilité
 | Graphique | Composant | Statut |
@@ -53,6 +53,8 @@ L'axe VO2max commence à `80 %` de la plus petite valeur visible et conserve une
 | Découplage cardiaque | Inline dans `page.tsx` | ✅ |
 | HR @ pace fixe (2-3 allures) | Inline dans `page.tsx` | ✅ |
 | Pace @ HR fixe (2-3 FC) | Inline dans `page.tsx` | ✅ |
+
+Les trois références HR@allure et allure@FC utilisent le même ordre de couleurs documentées dans les deux cartes : bleu théorique, teal allure et orange puissance. La moyenne lissée reste distincte en bleu marine pointillé.
 
 ### Phase 3 (qualité pro)
 | Graphique | Composant | Statut |

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.18] - 2026-07-16
+
+### Added
+- **Ravitaillements nommés** : nom optionnel persistant, migration additive et saisie de durée en minutes entières ou `mm:ss`.
+- **Vue course plein écran** : timeline départ–arrêts–arrivée calculée par le backend, cumuls D+/D−, intervalles, carte recentrée, marqueurs typés et graphique d'allure synchronisé.
+
+### Changed
+- **Progression** : borne basse VO₂max portée à 95 % du minimum visible et références HR/allure différenciées par la palette bleu, teal et orange.
+
+### Fixed
+- **Compatibilité des plans** : les anciennes pauses sans nom conservent un libellé de type et les pauses partageant la même distance restent distinctes dans la timeline.
+
 ## [1.2.17] - 2026-07-16
 
 ### Added

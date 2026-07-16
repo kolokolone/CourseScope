@@ -22,7 +22,8 @@ export function formatStopDurationInput(seconds: number): string {
 }
 
 export function parseStopDurationInput(value: string): number | null {
-  const match = value.trim().match(/^(\d+):([0-5]\d)$/);
-  if (!match) return null;
-  return Number(match[1]) * 60 + Number(match[2]);
+  const normalized = value.trim();
+  if (/^\d+$/.test(normalized)) return Number(normalized) * 60;
+  const match = normalized.match(/^(\d+):([0-5]\d)$/);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }

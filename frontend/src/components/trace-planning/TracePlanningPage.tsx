@@ -1,6 +1,7 @@
 'use client';
 
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import * as React from 'react';
+import { AlertTriangle, CheckCircle2, Maximize2 } from 'lucide-react';
 
 import { AnalysisCard } from '@/components/analysis/AnalysisCard';
 import { AnalysisSubNav } from '@/components/analysis/AnalysisSubNav';
@@ -194,6 +195,9 @@ function ScenarioComparison({ traceId, plan }: { traceId: TraceId; plan: RacePla
 
 export function TracePlanningPage({ traceId }: { traceId: TraceId }) {
   const planning = useTracePlanning(traceId);
+  const [fullscreenOpen, setFullscreenOpen] = React.useState(false);
+  const fullscreenTriggerRef = React.useRef<HTMLButtonElement>(null);
+  const closeFullscreen = React.useCallback(() => setFullscreenOpen(false), []);
 
   if (planning.detail.isLoading || planning.plan.isLoading) {
     return (
@@ -269,8 +273,28 @@ export function TracePlanningPage({ traceId }: { traceId: TraceId }) {
             id="carte-profil"
             title="Carte et allure synchronisées"
             description="Carte pleine largeur ; survolez l’allure ou cliquez sur la carte pour inspecter le même point."
+            actions={(
+              <Button
+                ref={fullscreenTriggerRef}
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={() => setFullscreenOpen(true)}
+                aria-label="Afficher la carte en plein écran"
+                title="Afficher la carte en plein écran"
+              >
+                <Maximize2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            )}
           >
-            <SynchronizedCourseView profile={preview.profile} stops={preview.stops} />
+            <SynchronizedCourseView
+              profile={preview.profile}
+              stops={preview.stops}
+              timeline={preview.timeline_passages ?? []}
+              fullscreenOpen={fullscreenOpen}
+              onFullscreenClose={closeFullscreen}
+              fullscreenTriggerRef={fullscreenTriggerRef}
+            />
           </AnalysisCard>
 
           <PlanningCharts preview={preview} />

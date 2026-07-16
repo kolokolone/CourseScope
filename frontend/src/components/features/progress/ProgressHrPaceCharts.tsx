@@ -17,6 +17,7 @@ import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
 import { formatDateLabel } from '@/lib/dateUtils';
 import { finiteNumber } from '@/components/features/progress/utils';
 import { SERIES_COLORS } from '@/components/features/progress/constants';
+import { CHART_COLORS } from '@/lib/chartColors';
 
 type ProgressHrPaceChartsProps = {
   hrAtPaceData: Array<Record<string, number | null>>;
@@ -90,8 +91,9 @@ export function ProgressHrPaceCharts({
                     type="monotone"
                     dataKey="mean_trend"
                     name="Moyenne lissee"
-                    stroke="#000000"
+                    stroke={CHART_COLORS.running}
                     strokeWidth={1}
+                    strokeDasharray="5 3"
                     dot={false}
                     isAnimationActive={false}
                     connectNulls
@@ -162,8 +164,9 @@ export function ProgressHrPaceCharts({
                     type="monotone"
                     dataKey="mean_trend"
                     name="Moyenne lissee"
-                    stroke="#000000"
+                    stroke={CHART_COLORS.running}
                     strokeWidth={1}
+                    strokeDasharray="5 3"
                     dot={false}
                     isAnimationActive={false}
                     connectNulls

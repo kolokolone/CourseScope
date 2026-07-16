@@ -1,4 +1,5 @@
 import type { ProgressSeriesMetric } from '@/types/api';
+import { REFERENCE_SERIES_COLORS } from '@/lib/chartColors';
 
 export type VolumeMetricSpec = {
   metric: ProgressSeriesMetric;
@@ -34,4 +35,4 @@ export const VOLUME_METRICS: VolumeMetricSpec[] = [
 
 export const HR_AT_PACE_REFS = [300, 330, 360] as const;
 export const PACE_AT_HR_REFS = [140, 150, 160] as const;
-export const SERIES_COLORS = ['#0f172a', '#334155', '#64748b', '#93c5fd', '#16a34a'];
+export const SERIES_COLORS = REFERENCE_SERIES_COLORS;

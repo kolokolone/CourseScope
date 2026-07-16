@@ -22,6 +22,13 @@ MINETTI_UPHILL_COMPRESSION_EXPONENT = 0.80
 DOWNHILL_GRADE_POINTS_PCT = np.array([-30.0, -25.0, -18.0, -15.0, -12.0, -10.0, -8.0, -5.0, -3.0, 0.0])
 DOWNHILL_PACE_RATIO_POINTS = np.array([1.20, 1.10, 1.00, 0.95, 0.90, 0.88, 0.90, 0.94, 0.97, 1.00])
 PACE_SMOOTHING_WINDOW_M = 100.0
+RACE_STOP_LABELS = {
+    "water": "Eau",
+    "nutrition": "Alimentation",
+    "water_nutrition": "Eau et alimentation",
+    "assistance": "Assistance",
+    "other": "Autre",
+}
 
 
 def minetti_cost_ratio(grade_pct: np.ndarray | float) -> np.ndarray:
@@ -210,6 +217,138 @@ def _iso_at(start: datetime | None, elapsed_s: float) -> str | None:
     return (start + timedelta(seconds=float(elapsed_s))).isoformat() if start is not None else None
 
 
+def _nearest_coordinates(
+    profile: pd.DataFrame,
+    distance_m: np.ndarray,
+    target_m: float,
+) -> tuple[float | None, float | None]:
+    latitudes = profile["lat"].to_numpy(dtype=float)
+    longitudes = profile["lon"].to_numpy(dtype=float)
+    valid_indices = np.flatnonzero(np.isfinite(latitudes) & np.isfinite(longitudes))
+    if valid_indices.size == 0:
+        return None, None
+    nearest_index = int(
+        valid_indices[
+            np.argmin(np.abs(distance_m[valid_indices] - float(target_m)))
+        ]
+    )
+    return float(latitudes[nearest_index]), float(longitudes[nearest_index])
+
+
+def _build_timeline_passages(
+    *,
+    profile: pd.DataFrame,
+    distance_m: np.ndarray,
+    cumulative_running_s: np.ndarray,
+    cumulative_elevation_gain_m: np.ndarray,
+    cumulative_elevation_loss_m: np.ndarray,
+    stops: list[dict[str, object]],
+    start_datetime: datetime | None,
+    total_distance_km: float,
+) -> list[dict[str, object]]:
+    elevation_m = profile["elevation_m"].to_numpy(dtype=float)
+
+    def course_metrics(distance_km: float) -> dict[str, object]:
+        target_m = distance_km * 1000.0
+        latitude, longitude = _nearest_coordinates(profile, distance_m, target_m)
+        return {
+            "lat": latitude,
+            "lon": longitude,
+            "elevation_m": float(np.interp(target_m, distance_m, elevation_m)),
+            "cumulative_elevation_gain_m": _cumulative_at(
+                distance_m, cumulative_elevation_gain_m, target_m
+            ),
+            "cumulative_elevation_loss_m": _cumulative_at(
+                distance_m, cumulative_elevation_loss_m, target_m
+            ),
+        }
+
+    timeline: list[dict[str, object]] = [
+        {
+            "id": "start",
+            "kind": "start",
+            "stop_id": None,
+            "stop_type": None,
+            "label": "Départ",
+            "distance_km": 0.0,
+            **course_metrics(0.0),
+            "arrival_elapsed_time_s": 0.0,
+            "departure_elapsed_time_s": 0.0,
+            "arrival_time_iso": _iso_at(start_datetime, 0.0),
+            "departure_time_iso": _iso_at(start_datetime, 0.0),
+            "duration_s": 0.0,
+        }
+    ]
+
+    for order, stop in enumerate(stops):
+        stop_id = stop.get("id")
+        stop_type = str(stop.get("stop_type") or "other")
+        raw_label = stop.get("label")
+        label = str(raw_label).strip() if raw_label is not None else ""
+        distance_km = float(stop["distance_km"])
+        timeline.append(
+            {
+                "id": f"stop:{stop_id or order + 1}",
+                "kind": "stop",
+                "stop_id": str(stop_id) if stop_id is not None else None,
+                "stop_type": stop_type,
+                "label": label or RACE_STOP_LABELS.get(stop_type, "Autre"),
+                "distance_km": distance_km,
+                **course_metrics(distance_km),
+                "arrival_elapsed_time_s": float(
+                    stop["arrival_elapsed_time_s"]
+                ),
+                "departure_elapsed_time_s": float(
+                    stop["departure_elapsed_time_s"]
+                ),
+                "arrival_time_iso": stop.get("arrival_time_iso"),
+                "departure_time_iso": stop.get("departure_time_iso"),
+                "duration_s": float(stop["duration_s"]),
+            }
+        )
+
+    arrival_elapsed_s = float(cumulative_running_s[-1]) + sum(
+        float(stop["duration_s"]) for stop in stops
+    )
+    timeline.append(
+        {
+            "id": "arrival",
+            "kind": "arrival",
+            "stop_id": None,
+            "stop_type": None,
+            "label": "Arrivée",
+            "distance_km": total_distance_km,
+            **course_metrics(total_distance_km),
+            "arrival_elapsed_time_s": arrival_elapsed_s,
+            "departure_elapsed_time_s": arrival_elapsed_s,
+            "arrival_time_iso": _iso_at(start_datetime, arrival_elapsed_s),
+            "departure_time_iso": _iso_at(start_datetime, arrival_elapsed_s),
+            "duration_s": 0.0,
+        }
+    )
+
+    previous_distance_km = 0.0
+    previous_gain_m = 0.0
+    previous_loss_m = 0.0
+    for passage in timeline:
+        distance_km = float(passage["distance_km"])
+        gain_m = float(passage["cumulative_elevation_gain_m"])
+        loss_m = float(passage["cumulative_elevation_loss_m"])
+        passage["distance_from_previous_km"] = max(
+            0.0, distance_km - previous_distance_km
+        )
+        passage["elevation_gain_from_previous_m"] = max(
+            0.0, gain_m - previous_gain_m
+        )
+        passage["elevation_loss_from_previous_m"] = max(
+            0.0, loss_m - previous_loss_m
+        )
+        previous_distance_km = distance_km
+        previous_gain_m = gain_m
+        previous_loss_m = loss_m
+    return timeline
+
+
 def _resolve_start(plan: dict[str, object]) -> datetime | None:
     date_value = plan.get("race_date")
     time_value = plan.get("start_time")
@@ -358,13 +497,23 @@ def calculate_race_plan_preview(
     for order, stop in enumerate(sorted(stops or [], key=lambda item: (float(item.get("distance_km", 0.0)), int(item.get("sort_order", 0) or 0)))):
         distance_km = float(stop.get("distance_km", 0.0))
         duration_s = float(stop.get("duration_s", 0.0))
+        raw_label = stop.get("label")
+        label = str(raw_label).strip() if raw_label is not None else ""
         if not 0.0 <= distance_km <= total_distance_km:
             raise ValueError("A stop distance is outside the course")
         if duration_s < 0:
             raise ValueError("A stop duration cannot be negative")
-        normalized_stops.append({**stop, "distance_km": distance_km, "duration_s": duration_s, "sort_order": order})
+        normalized_stops.append({**stop, "label": label or None, "distance_km": distance_km, "duration_s": duration_s, "sort_order": order})
 
     distance_values = profile["distance_m"].to_numpy(dtype=float)
+    elevation_values = profile["elevation_m"].to_numpy(dtype=float)
+    elevation_diff = np.diff(elevation_values)
+    cumulative_elevation_gain = np.concatenate(
+        ([0.0], np.cumsum(np.clip(elevation_diff, 0.0, None)))
+    )
+    cumulative_elevation_loss = np.concatenate(
+        ([0.0], np.cumsum(-np.clip(elevation_diff, None, 0.0)))
+    )
     scenario_cache_hash = scenario_hash(scenario, normalized_stops)
     elapsed_stop_time_s = 0.0
     enriched_stops: list[dict[str, object]] = []
@@ -387,6 +536,17 @@ def calculate_race_plan_preview(
         )
         elapsed_stop_time_s += float(stop["duration_s"])
     normalized_stops = enriched_stops
+
+    timeline_passages = _build_timeline_passages(
+        profile=profile,
+        distance_m=distance_values,
+        cumulative_running_s=cumulative_running,
+        cumulative_elevation_gain_m=cumulative_elevation_gain,
+        cumulative_elevation_loss_m=cumulative_elevation_loss,
+        stops=normalized_stops,
+        start_datetime=start_datetime,
+        total_distance_km=total_distance_km,
+    )
 
     cumulative_elapsed = np.array(
         [running + _stop_delay_at(normalized_stops, distance_m / 1000.0) for running, distance_m in zip(cumulative_running, distance_values)],
@@ -483,7 +643,6 @@ def calculate_race_plan_preview(
         if point.get("point_type") == "custom_segment" and point.get("end_distance_km") is not None:
             segment_definitions.append({"name": point.get("label") or "Segment", "start_distance_km": point.get("distance_km"), "end_distance_km": point.get("end_distance_km"), "notes": point.get("notes")})
     segments = []
-    elevation_values = profile["elevation_m"].to_numpy(dtype=float)
     for index, segment in enumerate(segment_definitions):
         start_km = float(segment.get("start_distance_km", 0.0) or 0.0)
         end_km = float(segment.get("end_distance_km", 0.0) or 0.0)
@@ -522,9 +681,8 @@ def calculate_race_plan_preview(
     running_time_s = float(np.sum(segment_time))
     stop_time_s = float(sum(float(stop["duration_s"]) for stop in normalized_stops))
     elapsed_time_s = running_time_s + stop_time_s
-    elevation_diff = np.diff(profile["elevation_m"].to_numpy(dtype=float))
-    gain_m = float(np.clip(elevation_diff, 0.0, None).sum())
-    loss_m = float(-np.clip(elevation_diff, None, 0.0).sum())
+    gain_m = float(cumulative_elevation_gain[-1])
+    loss_m = float(cumulative_elevation_loss[-1])
     pace_histogram = build_pace_histogram(segment_pace, segment_time, base_pace)
     grade_histogram = build_grade_histogram(grades, segment_distance_km, segment_time)
     alerts = list(prepared.quality["warnings"])
@@ -577,6 +735,7 @@ def calculate_race_plan_preview(
         },
         "profile": display_profile,
         "passages": passages,
+        "timeline_passages": timeline_passages,
         "splits": splits,
         "climbs": climbs,
         "segments": segments,

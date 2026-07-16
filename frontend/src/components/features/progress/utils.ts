@@ -57,7 +57,7 @@ export function vo2maxDomain(values: number[]): [number, number] {
 
   const min = Math.min(...valid);
   const max = Math.max(...valid);
-  const lower = min * 0.8;
+  const lower = min * 0.95;
   const upperPadding = max === min ? Math.max(1, max * 0.1) : (max - min) * 0.1;
   return [lower, max + upperPadding];
 }

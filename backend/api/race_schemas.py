@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 ObjectiveType = Literal["pace", "time", "effort"]
@@ -10,19 +10,33 @@ StopType = Literal["water", "nutrition", "water_nutrition", "assistance", "other
 
 
 class RaceStopInput(BaseModel):
+    label: str | None = Field(default=None, max_length=200)
     distance_km: float = Field(ge=0)
     stop_type: StopType
     duration_s: float = Field(default=0, ge=0, le=86_400)
     notes: str | None = None
     sort_order: int = 0
 
+    @field_validator("label")
+    @classmethod
+    def normalize_label(cls, value: str | None) -> str | None:
+        normalized = value.strip() if value is not None else ""
+        return normalized or None
+
 
 class RaceStopPatch(BaseModel):
+    label: str | None = Field(default=None, max_length=200)
     distance_km: float | None = Field(default=None, ge=0)
     stop_type: StopType | None = None
     duration_s: float | None = Field(default=None, ge=0, le=86_400)
     notes: str | None = None
     sort_order: int | None = None
+
+    @field_validator("label")
+    @classmethod
+    def normalize_label(cls, value: str | None) -> str | None:
+        normalized = value.strip() if value is not None else ""
+        return normalized or None
 
 
 class RaceScenarioInput(BaseModel):
