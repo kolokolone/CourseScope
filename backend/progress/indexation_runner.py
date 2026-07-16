@@ -7,7 +7,6 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -23,6 +22,7 @@ from db.models import (
     ProgressBestEffortPoint,
     ProgressIndexationRun,
     ProgressPaceHrBin,
+    UserSettings,
     utc_now_iso,
 )
 from progress._utils import (
@@ -399,7 +399,12 @@ def _run_fast_indexation_once(
 
     _commit_with_retry(session)
     result = IndexationResult(scanned=scanned, added=added, deleted=deleted, errors=errors, skipped=skipped)
-    should_chain_slow = bool((added + deleted) > 0)
+    stale_metrics = session.execute(
+        select(ProgressActivityIndex.activity_id)
+        .where(ProgressActivityIndex.metrics_version < int(METRICS_VERSION))
+        .limit(1)
+    ).first() is not None
+    should_chain_slow = bool((added + deleted) > 0 or stale_metrics)
     return result, should_chain_slow
 
 
@@ -427,6 +432,43 @@ def _should_reindex_activity(
     return bool(missing_row or metrics_stale or fingerprint_stale or critical_missing)
 
 
+def _resolve_hr_zone_snapshot(
+    session: Session,
+    activities: list[Activity],
+    *,
+    activities_dir: Path,
+) -> tuple[float | None, str]:
+    """Resolve one HR-max value before a slow run starts computing zones."""
+
+    settings = session.get(UserSettings, 1)
+    if settings is not None and settings.hr_max_source == "manual":
+        manual = settings.hr_max_manual_bpm
+        if manual is not None and 80 <= int(manual) <= 240:
+            return float(manual), "manual"
+
+    detected: float | None = None
+    for activity in activities:
+        activity_dir = activities_dir / str(activity.id)
+        parquet_path = Path(str(activity.parquet_path)) if activity.parquet_path else (activity_dir / "df.parquet")
+        if not parquet_path.exists():
+            continue
+        try:
+            frame = pd.read_parquet(parquet_path, columns=["heart_rate"])
+            values = pd.to_numeric(frame["heart_rate"], errors="coerce").dropna()
+            if not values.empty:
+                candidate = float(values.max())
+                if candidate > 0 and (detected is None or candidate > detected):
+                    detected = candidate
+        except Exception:
+            continue
+
+    if detected is None:
+        existing = session.execute(select(ProgressActivityIndex.max_hr_bpm)).scalars().all()
+        finite = [float(value) for value in existing if value is not None and float(value) > 0]
+        detected = max(finite) if finite else None
+    return detected, "detected"
+
+
 def _run_slow_indexation_once(
     session: Session,
     *,
@@ -443,6 +485,11 @@ def _run_slow_indexation_once(
     skipped = 0
 
     activities = list(session.execute(select(Activity).order_by(Activity.created_at_utc.asc())).scalars().all())
+    hr_max_snapshot, hr_max_source = _resolve_hr_zone_snapshot(
+        session,
+        activities,
+        activities_dir=activities_dir,
+    )
     _check_deadline(deadline_ts)
     total = len(activities)
     _set_phase(MODE_SLOW, PHASE_RECOMPUTE, progress_current=0, progress_total=max(1, total))
@@ -483,6 +530,8 @@ def _run_slow_indexation_once(
                     df=df,
                     meta=meta,
                     parquet_path=parquet_path,
+                    hr_max=hr_max_snapshot,
+                    hr_max_source=hr_max_source,
                 )
                 row = session.get(ProgressActivityIndex, activity_id)
                 if row is not None:

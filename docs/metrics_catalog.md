@@ -531,6 +531,10 @@ Requête: `{ "name": "nouveau nom" }`. Retourne un `TraceItem`.
 | `active_plan` | object\|null | - | référence du plan actif |
 | `plans[]` | array<object> | - | plans et scénarios minimaux |
 
+### Fichier original (GET /traces/{trace_id}/download)
+
+Renvoie le GPX/FIT source exact avec `Content-Disposition: attachment` et le nom original assaini. Réponse `404` si la trace ou le fichier manque. Aucun chemin local n'est exposé. La route compatible `/api/traces/{trace_id}/download` a le même comportement.
+
 ### Prévisualisation (POST /traces/{trace_id}/plan-preview)
 
 Le corps accepte soit `plan_id`/`scenario_id`, soit un plan et un scénario structurés. `target_value` est exprimé en `s/km` pour `pace`, en secondes pour `time`, et en ratio pour `effort`.
@@ -545,8 +549,15 @@ Le corps accepte soit `plan_id`/`scenario_id`, soit un plan et un scénario stru
 | `profile[].distance_km` | float | km | distance d'affichage |
 | `profile[].pace_s_per_km` | float | s/km | allure issue du coût Minetti, gain descendant régularisé et lissage métrique backend |
 | `profile[].grade_robust_pct` | float | % | pente du calcul métier |
-| `passages[]` | array<object> | - | passages kilométriques et personnalisés |
-| `splits[]` | array<object> | - | splits kilométriques |
+| `passages[]` | array<object> | - | départ, passages kilométriques/personnalisés et arrivée |
+| `passages[].kind` | string | - | `start`, `kilometer`, `landmark`, `custom_segment` ou `arrival` |
+| `passages[].label` | string | - | libellé utilisateur ou libellé calculé |
+| `splits[]` | array<object> | - | vrais splits kilométriques, indépendants des points personnalisés |
+| `splits[].cumulative_running_time_s` | float | s | cumul de course à la fin du split |
+| `splits[].cumulative_stop_time_s` | float | s | cumul des pauses à la fin du split |
+| `splits[].cumulative_elapsed_time_s` | float | s | cumul course et pauses |
+| `splits[].passage_time_iso` | string\|null | - | ETA dans le fuseau du plan |
+| `splits[].is_partial` | bool | - | dernier split inférieur à 1 km |
 | `climbs[]` | array<object> | - | ascensions détectées |
 | `histograms.pace` | object | - | classes complètes/affichées et temps masqué |
 | `histograms.grade` | object | - | temps/distance par pente et temps masqué |
@@ -736,15 +747,15 @@ Query params: `year` (obligatoire, 2000-2100).
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |
 | `days[]` | array<object> | - | jours avec activite |
-| `days[].date` | string | - | YYYY-MM-DD |
+| `days[].date` | string | - | `local_date` YYYY-MM-DD, repli UTC pour les anciennes lignes |
 | `days[].has_activity` | bool | - | activite ce jour |
 | `days[].distance_km` | float | km | distance cumulee |
 | `days[].moving_time_s` | float | s | temps de mouvement cumule |
 | `days[].activity_count` | int | - | nombre d'activites |
 | `year` | int | - | annee |
 | `total_active_days` | int | - | jours actifs dans l'annee |
-| `longest_streak` | int | jours | plus longue serie consecutive |
-| `current_streak` | int | jours | serie en cours |
+| `longest_streak` | int | jours | plus longue série consécutive dans l'année affichée |
+| `current_streak` | int | jours | série globale terminant aujourd'hui ou hier, sinon zéro |
 
 ## Intensity Distribution (GET /progress/intensity-distribution)
 
@@ -752,7 +763,7 @@ Query params: `from`, `to` (dates YYYY-MM-DD), `type` (optionnel, `real` par dé
 
 Temps passé dans chaque zone de fréquence cardiaque (Z1-Z5) agrégé par semaine.
 Les activités sans données HR sont silencieusement exclues.
-Les seuils de zones sont calculés à partir de la FC max effective configurée dans les paramètres.
+Les temps et les seuils reposent sur le même snapshot de FC max effective. Une modification de valeur/source invalide les bins, déclenche une indexation lente complète et empêche l'affichage des anciens temps pendant le recalcul.
 
 | Path | Type | Unit | Description |
 | --- | --- | --- | --- |
@@ -762,7 +773,7 @@ Les seuils de zones sont calculés à partir de la FC max effective configurée 
 | `points[].z2_time_min` | float | min | temps en zone 2 (60-70% FC max) |
 | `points[].z3_time_min` | float | min | temps en zone 3 (70-80% FC max) |
 | `points[].z4_time_min` | float | min | temps en zone 4 (80-90% FC max) |
-| `points[].z5_time_min` | float | min | temps en zone 5 (>90% FC max) |
+| `points[].z5_time_min` | float | min | temps en zone 5 (≥90% FC max) |
 | `points[].total_time_min` | float | min | temps total avec HR |
 | `zone_thresholds_bpm` | object\|null | bpm | seuils de zones en bpm (null si FC max non configurée) |
 | `zone_thresholds_bpm.z1` | float | bpm | seuil Z1 |
@@ -770,6 +781,11 @@ Les seuils de zones sont calculés à partir de la FC max effective configurée 
 | `zone_thresholds_bpm.z3` | float | bpm | seuil Z3 |
 | `zone_thresholds_bpm.z4` | float | bpm | seuil Z4 |
 | `zone_thresholds_bpm.z5` | float | bpm | seuil Z5 |
+| `zone_ranges_bpm[]` | array<object>\|null | bpm/% | bornes min inclusives et max exclusives de Z1 à Z5 |
+| `hr_max_used_bpm` | float\|null | bpm | FC max utilisée par les bins |
+| `hr_max_source` | `manual`\|`detected` | - | provenance de la FC max |
+| `zones_stale` | bool | - | les lignes indexées ne correspondent pas au réglage courant |
+| `reindexation_running` | bool | - | un recalcul lent des zones est en cours |
 
 ## Long Run Dose (GET /progress/long-run-dose)
 
@@ -859,7 +875,7 @@ Query params: `query` (min 2 car.), `limit` (1-10, defaut 8), `language` (defaut
 | `grade_histogram.displayed_time_s` | float | s | temps visible dans le graphique |
 | `grade_histogram.hidden_time_s` | float | s | toujours `0`, aucun masque temporel n'est appliqué à la pente |
 
-Les champs `pace_time_bins` et `grade_time_bins` sont des alias de compatibilité des `display_classes`. Les nouvelles vues utilisent les deux objets `*_histogram`. La pente n'est plus calculée point à point et les dépassements de ±20 % sont conservés dans des classes extrêmes explicites.
+Les champs `pace_time_bins` et `grade_time_bins` sont des alias de compatibilité des `display_classes`. Les nouvelles vues utilisent les deux objets `*_histogram`. La pente n'est plus calculée point à point et les dépassements de ±20 % sont conservés dans des classes extrêmes explicites. Le composant partagé activité/trace sort ces overflows de l'échelle numérique principale et affiche séparément leur durée et leur part du temps total.
 
 ## Series (GET /activity/{id}/series/{series_name})
 

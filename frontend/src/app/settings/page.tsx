@@ -8,14 +8,12 @@ import { MaintenanceSettings } from '@/components/features/settings/MaintenanceS
 
 export default function SettingsPage() {
   return (
-    <div className="-mx-6 -mt-8 lg:-mx-8">
-      <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8 space-y-8">
-        <h1 className="display-lg text-[var(--ink)]">Parametres</h1>
-        <PersonalSettings />
-        <GarminSettings />
-        <MaintenanceSettings />
+    <div className="space-y-4">
+      <PersonalSettings />
+      <GarminSettings />
+      <MaintenanceSettings />
 
-        <Card className="rounded-2xl border border-[var(--hairline)] bg-[var(--surface-card)]">
+        <Card className="rounded-2xl">
           <CardHeader className="py-3 px-4">
             <CardTitle className="text-base">Mentions personnelles</CardTitle>
           </CardHeader>
@@ -50,8 +48,7 @@ export default function SettingsPage() {
               Fait avec amour ❤️
             </div>
           </CardContent>
-        </Card>
-      </div>
+      </Card>
     </div>
   );
 }

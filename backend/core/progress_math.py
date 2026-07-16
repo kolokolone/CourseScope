@@ -82,7 +82,11 @@ def compute_streaks(active_dates: set[str], reference_date: str) -> tuple[int, i
     except ValueError:
         return (longest_streak, 0)
 
+    # A streak ending yesterday remains current until the current day ends.
+    # This avoids displaying zero throughout a rest day that is still ongoing.
     check_date = ref_date
+    if check_date not in parsed and (check_date - timedelta(days=1)) in parsed:
+        check_date = check_date - timedelta(days=1)
     while check_date in parsed:
         current_streak += 1
         check_date = check_date - timedelta(days=1)

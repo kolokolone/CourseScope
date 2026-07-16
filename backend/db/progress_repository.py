@@ -68,6 +68,8 @@ class ProgressRepository:
         if (
             existing.fingerprint == row.fingerprint
             and existing.metrics_version == row.metrics_version
+            and existing.hr_max_used_bpm == row.hr_max_used_bpm
+            and existing.hr_max_source == row.hr_max_source
             and not (existing.vo2max is None and row.vo2max is not None)
         ):
             return

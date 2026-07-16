@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import math
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select
@@ -32,13 +32,12 @@ from db.progress_repository import ProgressRepository
 from db.models import utc_now_iso
 from progress._utils import (
     _parse_iso_datetime,
-    _to_utc,
     _format_ts_utc,
     _infer_started_at_utc_from_df,
 )
 
 
-METRICS_VERSION = 9
+METRICS_VERSION = 10
 
 
 def build_fingerprint(meta: dict[str, Any], parquet_path: Path) -> str:
@@ -88,7 +87,6 @@ def _best_value_by_duration(
     durations_s: list[int],
 ) -> "pd.DataFrame | None":
     """Compute the best (max) average value over sliding windows of target durations."""
-    import numpy as np
     if elapsed_s.size < 2 or values.size < 2:
         return None
     valid = np.isfinite(values) & np.isfinite(elapsed_s) & (elapsed_s >= 0)
@@ -544,6 +542,8 @@ def index_activity(
     df: pd.DataFrame,
     meta: dict[str, Any],
     parquet_path: Path,
+    hr_max: float | None = None,
+    hr_max_source: str | None = None,
 ) -> None:
     if df is None or df.empty:
         return
@@ -562,7 +562,8 @@ def index_activity(
         # If we can't place the activity on a timeline, skip it.
         return
 
-    local_date = start_ts_utc[:10] if len(start_ts_utc) >= 10 else None
+    local_date = started_dt.date().isoformat() if started_dt is not None else (start_ts_utc[:10] if len(start_ts_utc) >= 10 else None)
+    timezone_name = str(started_dt.tzinfo) if started_dt is not None and started_dt.tzinfo is not None else None
     activity_type = str(meta.get("activity_type") or "real")
 
     derived = compute_derived_series(df)
@@ -573,11 +574,45 @@ def index_activity(
     total_time_s = float(basic.total_time_s) if basic.total_time_s is not None else None
     elevation_gain_m = float(basic.elevation_gain_m) if basic.elevation_gain_m is not None else None
 
+    # Slow indexation passes one immutable snapshot for the whole run. Direct
+    # upload indexing resolves the best currently-known value; mismatched old
+    # rows are exposed as stale until the next slow backfill.
+    stable_snapshot_provided = hr_max is not None and hr_max_source in {"manual", "detected"}
+    if hr_max is None:
+        settings = session.get(UserSettings, 1)
+        if settings is not None and settings.hr_max_source == "manual" and settings.hr_max_manual_bpm:
+            hr_max = float(settings.hr_max_manual_bpm)
+            hr_max_source = "manual"
+        else:
+            observed_values: list[float] = []
+            existing_max = session.execute(select(func.max(ProgressActivityIndex.max_hr_bpm))).scalar_one_or_none()
+            if existing_max is not None and math.isfinite(float(existing_max)):
+                observed_values.append(float(existing_max))
+            if "heart_rate" in df.columns:
+                current_hr = pd.to_numeric(df["heart_rate"], errors="coerce").dropna()
+                if not current_hr.empty:
+                    observed_values.append(float(current_hr.max()))
+            hr_max = max(observed_values) if observed_values else None
+            hr_max_source = "detected"
+
+    if not stable_snapshot_provided and hr_max is not None and hr_max_source in {"manual", "detected"}:
+        for existing_row in session.execute(
+            select(ProgressActivityIndex).where(ProgressActivityIndex.has_hr == 1)
+        ).scalars().all():
+            existing_used = existing_row.hr_max_used_bpm
+            if (
+                existing_used is None
+                or abs(float(existing_used) - float(hr_max)) > 0.5
+                or existing_row.hr_max_source != hr_max_source
+            ):
+                existing_row.metrics_version = min(int(existing_row.metrics_version), METRICS_VERSION - 1)
+
     garmin = compute_garmin_like_stats(
         df,
         moving_mask=derived.moving_mask,
         gap_series=derived.gap_series,
         grade_series=derived.grade_series,
+        hr_max=hr_max,
     )
     summary = garmin.get("summary") if isinstance(garmin, dict) else None
     summary = summary if isinstance(summary, dict) else {}
@@ -595,7 +630,7 @@ def index_activity(
     z4_time_s: float | None = None
     z5_time_s: float | None = None
     hr_zones_df = hr.get("zones") if isinstance(hr, dict) else None
-    if hr_zones_df is not None and hasattr(hr_zones_df, "iterrows") and not hr_zones_df.empty:
+    if hr_max is not None and hr_max > 0 and hr_zones_df is not None and hasattr(hr_zones_df, "iterrows") and not hr_zones_df.empty:
         for _, zrow in hr_zones_df.iterrows():
             zone_name = str(zrow.get("zone") or "")
             time_s = float(zrow.get("time_s") or 0)
@@ -668,7 +703,7 @@ def index_activity(
         activity_type=activity_type,
         start_ts_utc=start_ts_utc,
         local_date=local_date,
-        tz=None,
+        tz=timezone_name,
         fingerprint=fingerprint,
         metrics_version=int(METRICS_VERSION),
         indexed_at_ts=indexed_at_ts,
@@ -697,6 +732,8 @@ def index_activity(
         z3_time_s=z3_time_s,
         z4_time_s=z4_time_s,
         z5_time_s=z5_time_s,
+        hr_max_used_bpm=float(hr_max) if hr_max is not None and hr_max > 0 else None,
+        hr_max_source=hr_max_source if hr_max_source in {"manual", "detected"} else None,
         elevation_loss_m=elevation_loss_m,
         pace_first_half_s_per_km=pace_first_half,
         pace_second_half_s_per_km=pace_second_half,

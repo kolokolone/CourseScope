@@ -50,3 +50,14 @@ export function paddedDomain(
   const pad = span > 0 ? span * ratio : Math.max(1, Math.abs(max || 1) * ratio);
   return [min - pad, max + pad];
 }
+
+export function vo2maxDomain(values: number[]): [number, number] {
+  const valid = values.filter((value) => Number.isFinite(value) && value > 0);
+  if (valid.length === 0) return [0, 1];
+
+  const min = Math.min(...valid);
+  const max = Math.max(...valid);
+  const lower = min * 0.8;
+  const upperPadding = max === min ? Math.max(1, max * 0.1) : (max - min) * 0.1;
+  return [lower, max + upperPadding];
+}

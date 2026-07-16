@@ -16,7 +16,7 @@ from core.time_histograms import build_grade_histogram, build_pace_histogram
 from services.weather import NullWeatherProvider, WeatherProvider
 
 
-RACE_PLANNING_PIPELINE_VERSION = "race-planning-v6"
+RACE_PLANNING_PIPELINE_VERSION = "race-planning-v7"
 MINETTI_GRADE_LIMIT_PCT = 30.0
 MINETTI_UPHILL_COMPRESSION_EXPONENT = 0.80
 DOWNHILL_GRADE_POINTS_PCT = np.array([-30.0, -25.0, -18.0, -15.0, -12.0, -10.0, -8.0, -5.0, -3.0, 0.0])
@@ -395,21 +395,43 @@ def calculate_race_plan_preview(
     if np.any(np.diff(cumulative_elapsed) < -1e-9):
         raise RuntimeError("Calculated cumulative times are not monotone")
 
-    passage_distances = list(np.arange(1.0, math.floor(total_distance_km) + 1.0, 1.0))
-    if not passage_distances or passage_distances[-1] < total_distance_km - 1e-9:
-        passage_distances.append(total_distance_km)
+    split_distances = list(np.arange(1.0, math.floor(total_distance_km) + 1.0, 1.0))
+    if not split_distances or split_distances[-1] < total_distance_km - 1e-9:
+        split_distances.append(total_distance_km)
+
+    normalized_custom_points: list[dict[str, object]] = []
     for point in custom_points or []:
         value = float(point.get("distance_km", 0.0))
         if 0 <= value <= total_distance_km:
-            passage_distances.append(value)
+            normalized_custom_points.append({**point, "distance_km": value})
+
+    passage_distances = [0.0, *split_distances, *(float(point["distance_km"]) for point in normalized_custom_points)]
     passage_distances = sorted(set(round(value, 6) for value in passage_distances))
+    custom_points_by_distance = {
+        round(float(point["distance_km"]), 6): point for point in normalized_custom_points
+    }
     passages = []
     for distance_km in passage_distances:
         running_s = _cumulative_at(distance_values, cumulative_running, distance_km * 1000.0)
-        elapsed_s = running_s + _stop_delay_at(normalized_stops, distance_km)
+        elapsed_s = 0.0 if distance_km == 0 else running_s + _stop_delay_at(normalized_stops, distance_km)
+        custom_point = custom_points_by_distance.get(round(distance_km, 6))
+        if distance_km == 0:
+            kind = "start"
+            label = str(custom_point.get("label") or "Départ") if custom_point else "Départ"
+        elif abs(distance_km - total_distance_km) <= 1e-6:
+            kind = "arrival"
+            label = "Arrivée"
+        elif custom_point is not None:
+            kind = str(custom_point.get("point_type") or "landmark")
+            label = str(custom_point.get("label") or f"Km {distance_km:g}")
+        else:
+            kind = "kilometer"
+            label = f"Km {distance_km:g}"
         passages.append(
             {
                 "distance_km": distance_km,
+                "kind": kind,
+                "label": label,
                 "running_time_s": running_s,
                 "stop_time_s": elapsed_s - running_s,
                 "elapsed_time_s": elapsed_s,
@@ -422,13 +444,13 @@ def calculate_race_plan_preview(
     previous_distance = 0.0
     previous_running = 0.0
     previous_elapsed = 0.0
-    for passage in passages:
-        distance_km = float(passage["distance_km"])
-        running_s = float(passage["running_time_s"])
-        elapsed_s = float(passage["elapsed_time_s"])
+    for distance_km in split_distances:
+        running_s = _cumulative_at(distance_values, cumulative_running, distance_km * 1000.0)
+        elapsed_s = running_s + _stop_delay_at(normalized_stops, distance_km)
         split_distance = distance_km - previous_distance
         if split_distance > 0:
             split_running = running_s - previous_running
+            split_stop = (elapsed_s - previous_elapsed) - split_running
             splits.append(
                 {
                     "index": len(splits) + 1,
@@ -436,9 +458,14 @@ def calculate_race_plan_preview(
                     "end_distance_km": distance_km,
                     "distance_km": split_distance,
                     "running_time_s": split_running,
-                    "stop_time_s": (elapsed_s - previous_elapsed) - split_running,
+                    "stop_time_s": split_stop,
                     "elapsed_time_s": elapsed_s - previous_elapsed,
                     "pace_s_per_km": split_running / split_distance,
+                    "cumulative_running_time_s": running_s,
+                    "cumulative_stop_time_s": elapsed_s - running_s,
+                    "cumulative_elapsed_time_s": elapsed_s,
+                    "passage_time_iso": _iso_at(start_datetime, elapsed_s),
+                    "is_partial": bool(split_distance < 1.0 - 1e-6),
                 }
             )
         previous_distance, previous_running, previous_elapsed = distance_km, running_s, elapsed_s

@@ -115,7 +115,7 @@ export function GarminSettings() {
   const connectLabel = canConnectWithTyped ? 'Connecter' : 'Connecter (cred stockes)';
 
   return (
-    <Card className="rounded-2xl border border-[var(--hairline)] bg-[var(--surface-card)]">
+    <Card className="rounded-2xl">
       <CardHeader className="py-3 px-4">
         <CardTitle className="text-base">Garmin</CardTitle>
       </CardHeader>

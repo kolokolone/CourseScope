@@ -82,6 +82,9 @@ describe('ProgressPage', () => {
     );
     expect(screen.getByRole('heading', { name: 'Volume hebdo' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Charge (TRIMP) par semaine' })).toBeInTheDocument();
+    expect(screen.queryByText('Répartition des séances')).not.toBeInTheDocument();
+    expect(screen.queryByText('Terrain')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sorties longues')).not.toBeInTheDocument();
     expect(await screen.findByText(/Indexation automatique en cours/i)).toBeInTheDocument();
   });
 });

@@ -361,6 +361,8 @@ export interface RaceDataQuality {
 
 export interface RacePassage {
   distance_km: number;
+  kind?: 'start' | 'arrival' | 'kilometer' | 'landmark' | 'custom_segment' | string;
+  label?: string;
   running_time_s: number;
   stop_time_s: number;
   elapsed_time_s: number;
@@ -377,6 +379,11 @@ export interface RaceSplit {
   stop_time_s: number;
   elapsed_time_s: number;
   pace_s_per_km: number;
+  cumulative_running_time_s?: number;
+  cumulative_stop_time_s?: number;
+  cumulative_elapsed_time_s?: number;
+  passage_time_iso?: string | null;
+  is_partial?: boolean;
 }
 
 export interface RaceClimb {
@@ -717,6 +724,17 @@ export interface IntensityDistributionPoint {
 export interface IntensityDistributionResponse {
   points: IntensityDistributionPoint[];
   zone_thresholds_bpm: { z1: number; z2: number; z3: number; z4: number; z5: number } | null;
+  zone_ranges_bpm: Array<{
+    zone: 'Z1' | 'Z2' | 'Z3' | 'Z4' | 'Z5';
+    min_inclusive_bpm: number;
+    max_exclusive_bpm: number | null;
+    min_percent: number;
+    max_percent: number | null;
+  }> | null;
+  hr_max_used_bpm: number | null;
+  hr_max_source: 'detected' | 'manual';
+  zones_stale: boolean;
+  reindexation_running: boolean;
 }
 
 // Long Run Dose

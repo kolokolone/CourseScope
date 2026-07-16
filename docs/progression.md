@@ -20,8 +20,8 @@ Détails : voir `docs/metrics_catalog.md` (section Progression API).
 
 ### Frontend
 
-- **Page** : `frontend/src/app/progress/page.tsx` (1206 lignes)
-- **Données** : 8 queries React Query parallèles (series, best-efforts, activities, hr-at-pace, pace-at-hr, waterfall, calendar, training-load)
+- **Page** : `frontend/src/app/progress/page.tsx`
+- **Données** : queries React Query ciblées (series, best-efforts, activities, HR/allure, waterfall, calendrier, charge et intensité)
 - **Hooks** : `frontend/src/hooks/useProgress.ts`
 - **API client** : `frontend/src/lib/api.ts` (module `progressApi`)
 
@@ -36,11 +36,15 @@ Détails : voir `docs/metrics_catalog.md` (section Progression API).
 
 Le calendrier annuel étire ses colonnes de semaines sur la largeur disponible. Les libellés des jours, les mois et les cellules utilisent une seule grille CSS à 7 lignes : leur alignement ne dépend donc plus d'une hauteur fixe ou d'un décalage manuel. Chaque cellule expose au survol ou au focus clavier une infobulle opaque, basée sur le token `--card`, avec la date, la distance, la durée et le nombre d'activités.
 
+Le rattachement d'une activité privilégie `local_date`, avec repli UTC uniquement pour les anciennes lignes. Le record reste calculé dans l'année affichée ; la série en cours traverse les changements d'année et reste active si la dernière séance date d'hier. La synthèse `jours actifs · record · série en cours` n'est affichée qu'une fois sous le titre.
+
 ### Performance
 | Graphique | Composant | Statut |
 |---|---|---|
 | Best efforts progression | Inline dans `page.tsx` | ✅ |
 | VO2max (3 derniers mois) | Inline dans `page.tsx` | ✅ |
+
+L'axe VO2max commence à `80 %` de la plus petite valeur visible et conserve une marge supérieure, y compris lorsque toutes les valeurs sont identiques.
 
 ### Efficacité / Durabilité
 | Graphique | Composant | Statut |
@@ -57,6 +61,8 @@ Le calendrier annuel étire ses colonnes de semaines sur la largeur disponible. 
 | Session taxonomy (tags) | Endpoint `/progress/session-taxonomy` | ✅ (endpoint) / ⚠️ (UI non implémentée) |
 | Tags manuels | Endpoint `/progress/tags` | ✅ (endpoint) / ⚠️ (UI non implémentée) |
 
+Les anciennes cartes « Répartition des séances », « Terrain » et « Sorties longues » ne sont plus rendues par `/progress` et ne déclenchent plus de requête. Les endpoints et tags restent disponibles pour compatibilité et pour les filtres réutilisés.
+
 ## Stratégie de calcul
 
 - **Indexation asynchrone** : après upload/sync, l'indexation est lancée en thread background
@@ -64,6 +70,10 @@ Le calendrier annuel étire ses colonnes de semaines sur la largeur disponible. 
 - **Slow** : recalcul des métriques analytiques (incrémentale ou complète)
 - **Statut** : polling `GET /progress/index/status` côté frontend
 - **Déclenchement** : automatique à l'ouverture de `/progress` + manuel dans `/settings`
+
+### Zones de fréquence cardiaque
+
+Les zones Z1 à Z5 utilisent respectivement `50–60 %`, `60–70 %`, `70–80 %`, `80–90 %` et `≥ 90 %` de la FC max effective. Une indexation lente résout un snapshot unique de FC max (`manual` ou `detected`) avant de calculer toutes les activités ; `progress_activity_index` conserve la valeur et sa provenance. Modifier la valeur manuelle ou sa source lance un recalcul complet. Tant que les lignes ne correspondent pas à la FC max courante, l'API marque les zones obsolètes et ne renvoie pas les anciens temps comme s'ils étaient actuels.
 
 ### Prétraitement Pace-HR
 

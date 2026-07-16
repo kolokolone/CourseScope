@@ -34,7 +34,12 @@ def test_trace_plan_save_reload_stops_and_comparison(tmp_path, monkeypatch):
         plan = client.get(f'/traces/{trace_id}/plans/{plan_id}').json()
         scenario_id = plan['active_scenario_id']
 
-        plan_patch = client.patch(f'/traces/{trace_id}/plans/{plan_id}', json={'race_date': '2026-07-20', 'start_time': '08:00', 'timezone': 'Europe/Paris'})
+        plan_patch = client.patch(f'/traces/{trace_id}/plans/{plan_id}', json={
+            'race_date': '2026-07-20',
+            'start_time': '08:00',
+            'timezone': 'Europe/Paris',
+            'course_points': [{'distance_km': 0.5, 'point_type': 'landmark', 'label': 'Belvédère'}],
+        })
         assert plan_patch.status_code == 200
         stop = client.post(f'/traces/{trace_id}/plans/{plan_id}/scenarios/{scenario_id}/stops', json={'distance_km': 1.0, 'stop_type': 'water_nutrition', 'duration_s': 90})
         assert stop.status_code == 201
@@ -51,6 +56,9 @@ def test_trace_plan_save_reload_stops_and_comparison(tmp_path, monkeypatch):
         assert preview_stop['departure_time_iso'] is not None
         passage_times = [row['elapsed_time_s'] for row in body['passages']]
         assert passage_times == sorted(passage_times)
+        assert any(row.get('label') == 'Belvédère' for row in body['passages'])
+        assert all(abs(float(row['end_distance_km']) - 0.5) > 1e-6 for row in body['splits'])
+        assert all('cumulative_elapsed_time_s' in row for row in body['splits'])
         assert abs(sum(row['time_s'] for row in body['histograms']['pace']['complete_classes']) - body['totals']['running_time_s']) < 1e-6
         assert abs(sum(row['time_s'] for row in body['histograms']['grade']['complete_classes']) - body['totals']['running_time_s']) < 1e-6
 
@@ -65,6 +73,31 @@ def test_trace_plan_save_reload_stops_and_comparison(tmp_path, monkeypatch):
         assert reloaded.status_code == 200
         active = next(item for item in reloaded.json()['scenarios'] if item['id'] == scenario_id)
         assert active['stops'][0]['duration_s'] == 90
+
+
+def test_trace_original_download_returns_exact_source_on_both_routes(tmp_path, monkeypatch):
+    monkeypatch.setenv('COURSESCOPE_DATA_DIR', str(tmp_path))
+    monkeypatch.delenv('COURSESCOPE_DATABASE_URL', raising=False)
+    filename, source = _fixture()
+    with TestClient(app) as client:
+        trace_id = _upload(client)['id']
+        for prefix in ('', '/api'):
+            response = client.get(f'{prefix}/traces/{trace_id}/download')
+            assert response.status_code == 200
+            assert response.content == source
+            assert filename in response.headers['content-disposition']
+            assert response.headers['content-type'].startswith('application/gpx+xml')
+
+
+def test_trace_original_download_returns_404_when_file_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv('COURSESCOPE_DATA_DIR', str(tmp_path))
+    monkeypatch.delenv('COURSESCOPE_DATABASE_URL', raising=False)
+    with TestClient(app) as client:
+        trace_id = _upload(client)['id']
+        original = next((tmp_path / 'traces' / trace_id).glob('original.*'))
+        original.unlink()
+        response = client.get(f'/traces/{trace_id}/download')
+        assert response.status_code == 404
 
 
 def test_trace_id_and_activity_id_are_not_resolved_interchangeably(tmp_path, monkeypatch):

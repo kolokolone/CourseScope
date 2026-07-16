@@ -21,12 +21,15 @@ describe('trace planning layout', () => {
 
   it('places both histogram cards before collapsible splits', () => {
     const page = source('src/components/trace-planning/TracePlanningPage.tsx');
+    const roadbook = source('src/components/trace-planning/RaceRoadbook.tsx');
     const distributionsIndex = page.indexOf('<PlanningCharts preview={preview} />');
     const splitsIndex = page.indexOf('id="decoupage"');
 
     expect(distributionsIndex).toBeGreaterThan(0);
     expect(splitsIndex).toBeGreaterThan(distributionsIndex);
-    expect(page).toContain('Splits kilométriques ({preview.splits.length})');
+    expect(page).toContain('<RaceRoadbook preview={preview} plan={plan} />');
+    expect(roadbook).toContain('aria-expanded={open}');
+    expect(roadbook).toContain('Splits kilométriques détaillés');
     expect(page).not.toContain('Creer le plan principal');
     expect(page).not.toContain('Créer le plan principal');
   });

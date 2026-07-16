@@ -8,6 +8,7 @@ from api._helpers import get_db_session_factory
 from api.schemas import PersonalSettingsPatchRequest, PersonalSettingsResponse
 from db.settings_repository import SettingsRepository
 from db.models import utc_now_iso
+from progress.indexation_runner import start_slow_indexation_in_background
 
 
 router = APIRouter()
@@ -51,6 +52,8 @@ async def patch_personal_settings(request: Request, payload: PersonalSettingsPat
     repo = SettingsRepository()
     try:
         row = repo.get_or_create(session)
+        old_hr_manual = row.hr_max_manual_bpm
+        old_hr_source = row.hr_max_source
 
         if "vma_kmh" in patch:
             vma = patch["vma_kmh"]
@@ -75,7 +78,16 @@ async def patch_personal_settings(request: Request, payload: PersonalSettingsPat
         detected = repo.get_detected_hr_max(session)
         source: Literal["detected", "manual"] = "manual" if row.hr_max_source == "manual" else "detected"
         session.commit()
-        return _to_response(row.vma_kmh, row.vo2max_lastest, row.hr_max_manual_bpm, source, detected, row.updated_at_utc)
+        response = _to_response(row.vma_kmh, row.vo2max_lastest, row.hr_max_manual_bpm, source, detected, row.updated_at_utc)
+        hr_context_changed = old_hr_manual != row.hr_max_manual_bpm or old_hr_source != row.hr_max_source
+        if hr_context_changed:
+            start_slow_indexation_in_background(
+                db_session_factory,
+                reason="hr_max_settings_changed",
+                strategy="backfill_full",
+                force=True,
+            )
+        return response
     finally:
         session.close()
 

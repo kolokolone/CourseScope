@@ -45,6 +45,30 @@ export default function ProgressIntensityDistribution({ from, to }: Props) {
     );
   }
 
+  if (data.zones_stale) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-base">Distribution d&apos;intensit&eacute; (FC)</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
+            {data.reindexation_running
+              ? 'Recalcul des zones en cours avec la nouvelle FC max…'
+              : 'Les zones doivent être réindexées avant de pouvoir afficher une distribution cohérente.'}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data.hr_max_used_bpm || !data.zone_ranges_bpm) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-base">Distribution d&apos;intensit&eacute; (FC)</CardTitle></CardHeader>
+        <CardContent><p className="text-muted-foreground">Aucune FC max stable disponible pour calculer les zones.</p></CardContent>
+      </Card>
+    );
+  }
+
   if (data.points.length === 0) {
     return (
       <Card>
@@ -54,17 +78,25 @@ export default function ProgressIntensityDistribution({ from, to }: Props) {
     );
   }
 
-  const thresholdsLabel = data.zone_thresholds_bpm
-    ? `Z1: <${data.zone_thresholds_bpm.z1} bpm \u00b7 Z2: ${data.zone_thresholds_bpm.z1}\u2013${data.zone_thresholds_bpm.z2} \u00b7 Z3: ${data.zone_thresholds_bpm.z2}\u2013${data.zone_thresholds_bpm.z3} \u00b7 Z4: ${data.zone_thresholds_bpm.z3}\u2013${data.zone_thresholds_bpm.z4} \u00b7 Z5: >${data.zone_thresholds_bpm.z4}`
-    : null;
+  const rangesLabel = data.zone_ranges_bpm.map((range) => {
+    const percent = range.max_percent === null
+      ? `≥${range.min_percent} %`
+      : `${range.min_percent}–${range.max_percent} %`;
+    const bpm = range.max_exclusive_bpm === null
+      ? `FC ≥ ${range.min_inclusive_bpm} bpm`
+      : `${range.min_inclusive_bpm} ≤ FC < ${range.max_exclusive_bpm} bpm`;
+    return `${range.zone} ${percent} (${bpm})`;
+  }).join(' · ');
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Distribution d&apos;intensit&eacute; (FC)</CardTitle>
-        {thresholdsLabel && (
-          <p className="text-xs text-muted-foreground mt-1">{thresholdsLabel}</p>
-        )}
+        <p className="mt-1 text-xs text-muted-foreground">{rangesLabel}</p>
+        <p className="text-xs text-muted-foreground">
+          FC max utilisée : <span className="tabular-nums">{formatNumber(data.hr_max_used_bpm, { decimals: 0 })} bpm</span>
+          {' '}({data.hr_max_source === 'manual' ? 'manuelle' : 'détectée'})
+        </p>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={280}>
@@ -82,18 +114,18 @@ export default function ProgressIntensityDistribution({ from, to }: Props) {
               label={{ value: 'min', position: 'insideLeft', offset: -5, style: { fontSize: 11 } }}
             />
             <Tooltip
-              formatter={(value: any, name: any) => {
+              formatter={(value, name) => {
                 const n = finiteNumber(value);
                 return [n === null ? '\u2014' : `${formatNumber(n, { decimals: 0 })} min`, name];
               }}
-              labelFormatter={(l: any) => formatBucketLabel(String(l))}
+              labelFormatter={(label) => formatBucketLabel(String(label))}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} iconType="rect" />
-            <Bar stackId="zone" dataKey="z1_time_min" fill={Z1_COLOR} name="Z1" isAnimationActive={false} />
-            <Bar stackId="zone" dataKey="z2_time_min" fill={Z2_COLOR} name="Z2" isAnimationActive={false} />
-            <Bar stackId="zone" dataKey="z3_time_min" fill={Z3_COLOR} name="Z3" isAnimationActive={false} />
-            <Bar stackId="zone" dataKey="z4_time_min" fill={Z4_COLOR} name="Z4" isAnimationActive={false} />
-            <Bar stackId="zone" dataKey="z5_time_min" fill={Z5_COLOR} name="Z5" isAnimationActive={false} />
+            <Bar stackId="zone" dataKey="z1_time_min" fill={Z1_COLOR} name="Z1 · 50–60 %" isAnimationActive={false} />
+            <Bar stackId="zone" dataKey="z2_time_min" fill={Z2_COLOR} name="Z2 · 60–70 %" isAnimationActive={false} />
+            <Bar stackId="zone" dataKey="z3_time_min" fill={Z3_COLOR} name="Z3 · 70–80 %" isAnimationActive={false} />
+            <Bar stackId="zone" dataKey="z4_time_min" fill={Z4_COLOR} name="Z4 · 80–90 %" isAnimationActive={false} />
+            <Bar stackId="zone" dataKey="z5_time_min" fill={Z5_COLOR} name="Z5 · ≥90 %" isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

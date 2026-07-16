@@ -155,22 +155,6 @@ export default function CalendarHeatmap() {
       </CardHeader>
 
       <CardContent>
-        {/* KPIs */}
-        <div className="mb-5 grid grid-cols-3 gap-3">
-          {[
-            { label: 'Jours actifs', value: total_active_days, unit: null },
-            { label: 'Série max', value: longest_streak, unit: 'j' },
-            { label: 'Série actuelle', value: current_streak, unit: 'j' },
-          ].map(({ label, value, unit }) => (
-            <div key={label} className="rounded-lg border p-3">
-              <div className="text-[11px] font-semibold uppercase text-muted-foreground">{label}</div>
-              <div className="mt-1 text-2xl font-light tabular-nums">
-                {value}{unit ? <span className="text-sm text-muted-foreground ml-0.5">{unit}</span> : null}
-              </div>
-            </div>
-          ))}
-        </div>
-
         {/* Jours, mois et cellules partagent la meme grille pour rester alignes. */}
         <div className="overflow-x-auto">
           <div

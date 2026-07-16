@@ -320,6 +320,8 @@ class ProgressActivityIndex(Base):
     z3_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
     z4_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
     z5_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hr_max_used_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hr_max_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     # New columns (P2 — audit SQLite)
     elevation_loss_m: Mapped[float | None] = mapped_column(Float, nullable=True)

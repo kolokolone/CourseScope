@@ -1,7 +1,7 @@
 """Service layer for progress/analytics business logic."""
 
 import math
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from core.progress_math import interp_linear, compute_streaks
 from core.utils import bucket_start
@@ -387,19 +387,36 @@ class ProgressService:
     # (h) Calendar — day-level heatmap aggregation
     # ------------------------------------------------------------------
     @staticmethod
-    def compute_calendar(rows, year: int) -> dict:
+    def compute_calendar(rows, year: int, *, reference_date: str | None = None) -> dict:
         """Aggregate activity rows into a calendar heatmap for a given year.
 
-        Each row must expose ``.start_ts_utc``, ``.distance_m``, ``.moving_time_s``.
+        ``local_date`` is authoritative when present. UTC is only a fallback for
+        legacy rows. Rows from other years are retained solely for the global
+        current-streak calculation.
         """
         by_day: dict[str, dict] = {}
-        active_dates: set[str] = set()
+        active_dates_for_year: set[str] = set()
+        all_active_dates: set[str] = set()
 
         for r in rows:
-            if r.start_ts_utc is None:
+            raw_local_date = getattr(r, "local_date", None)
+            day_key = str(raw_local_date or "")[:10]
+            try:
+                parsed_day = datetime.strptime(day_key, "%Y-%m-%d").date()
+            except ValueError:
+                start_ts_utc = getattr(r, "start_ts_utc", None)
+                if start_ts_utc is None:
+                    continue
+                day_key = str(start_ts_utc)[:10]
+                try:
+                    parsed_day = datetime.strptime(day_key, "%Y-%m-%d").date()
+                except ValueError:
+                    continue
+
+            all_active_dates.add(day_key)
+            if parsed_day.year != int(year):
                 continue
-            day_key = str(r.start_ts_utc)[:10]
-            active_dates.add(day_key)
+            active_dates_for_year.add(day_key)
 
             if day_key not in by_day:
                 by_day[day_key] = {"distance_km": 0.0, "moving_time_s": 0.0, "activity_count": 0}
@@ -424,13 +441,14 @@ class ProgressService:
                 "activity_count": entry["activity_count"],
             })
 
-        today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        longest_streak, current_streak = compute_streaks(active_dates, today_iso)
+        today_iso = reference_date or datetime.now().date().isoformat()
+        longest_streak, _ = compute_streaks(active_dates_for_year, today_iso)
+        _, current_streak = compute_streaks(all_active_dates, today_iso)
 
         return {
             "days": days,
             "year": year,
-            "total_active_days": len(active_dates),
+            "total_active_days": len(active_dates_for_year),
             "longest_streak": longest_streak,
             "current_streak": current_streak,
         }

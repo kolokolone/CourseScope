@@ -123,6 +123,9 @@ describe('SettingsPage', () => {
       </QueryClientProvider>
     );
 
+    expect(screen.queryByRole('heading', { level: 1, name: 'Parametres' })).not.toBeInTheDocument();
+    expect(screen.getByText('Donnees personnelles').closest('.bg-card')).not.toBeNull();
+
     const button = await screen.findByRole('button', { name: 'Indexation complete' });
     fireEvent.click(button);
 

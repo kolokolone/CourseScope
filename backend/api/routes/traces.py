@@ -5,10 +5,12 @@ import logging
 from pathlib import Path
 import uuid
 from typing import Any
+from urllib.parse import quote
 
 import numpy as np
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, Request, UploadFile
+from starlette.responses import Response
 
 from api._helpers import get_db_session_factory
 from api.race_schemas import (
@@ -244,6 +246,36 @@ async def upload_trace(
         session.rollback()
         store.delete_trace(trace_id) if "trace_id" in locals() else None
         raise HTTPException(status_code=500, detail=f"Failed to upload trace: {exc}") from exc
+    finally:
+        session.close()
+
+
+@router.get("/traces/{trace_id}/download")
+async def download_trace_original(request: Request, trace_id: str):
+    session = get_db_session_factory(request)()
+    try:
+        row = _require_trace(session, trace_id)
+        try:
+            stored_name, raw = _get_trace_store(request).load_trace_bytes(trace_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Original trace file not found") from exc
+
+        requested_name = "".join(
+            character
+            for character in str(row.original_filename or stored_name)
+            if ord(character) >= 32 and ord(character) != 127
+        )
+        filename = Path(requested_name).name or stored_name
+        suffix = Path(filename).suffix.lower()
+        media_type = "application/gpx+xml" if suffix == ".gpx" else "application/octet-stream"
+        ascii_name = filename.encode("ascii", "ignore").decode("ascii").replace('"', "").replace("\\", "_")
+        ascii_name = ascii_name or f"trace{suffix or '.gpx'}"
+        disposition = f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename, safe='')}"
+        return Response(
+            content=raw,
+            media_type=media_type,
+            headers={"Content-Disposition": disposition},
+        )
     finally:
         session.close()
 

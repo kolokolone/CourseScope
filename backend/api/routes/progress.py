@@ -7,6 +7,7 @@ from starlette.responses import JSONResponse
 
 from api._helpers import get_db_session_factory
 from core.pace_hr import PACE_HR_BIN_STEPS_S_PER_KM
+from core.metrics import HR_ZONES
 from core.utils import (
     parse_ts_utc as _parse_ts_utc_core,
     parse_csv_floats as _parse_csv_floats,
@@ -128,8 +129,6 @@ async def trigger_slow_indexation(request: Request, payload: dict | None = None)
 
 @router.get("/progress/index/status")
 async def get_progress_index_status(request: Request):
-    db_session_factory = get_db_session_factory(request)
-
     state = get_indexation_state()
     return _to_indexation_status_payload(state)
 
@@ -532,27 +531,63 @@ async def get_intensity_distribution(
     finally:
         session.close()
 
-    points = ProgressService.compute_intensity_distribution(rows)
-
-    # Fetch HR max for zone thresholds
-    hr_max: float | None = None
+    context_session = db_session_factory()
     try:
-        from services.analysis_service import AnalysisService
-        hr_max = AnalysisService.resolve_hr_max_effective(request)
-    except Exception:
-        pass
+        settings_repo = SettingsRepository()
+        settings = settings_repo.get_or_create(context_session)
+        detected = settings_repo.get_detected_hr_max(context_session)
+        hr_max_source = "manual" if settings.hr_max_source == "manual" else "detected"
+        hr_max = (
+            float(settings.hr_max_manual_bpm)
+            if hr_max_source == "manual" and settings.hr_max_manual_bpm is not None
+            else (float(detected) if detected is not None else None)
+        )
+    finally:
+        context_session.close()
+
+    hr_rows = [row for row in rows if bool(getattr(row, "has_hr", 0))]
+    zones_stale = bool(
+        hr_max is not None
+        and any(
+            getattr(row, "hr_max_used_bpm", None) is None
+            or abs(float(getattr(row, "hr_max_used_bpm")) - hr_max) > 0.5
+            or getattr(row, "hr_max_source", None) != hr_max_source
+            for row in hr_rows
+        )
+    )
+    points = [] if zones_stale or hr_max is None else ProgressService.compute_intensity_distribution(rows)
 
     zone_thresholds = None
+    zone_ranges = None
     if hr_max is not None and hr_max > 0:
         zone_thresholds = {
-            "z1": round(hr_max * 0.50, 0),
-            "z2": round(hr_max * 0.60, 0),
-            "z3": round(hr_max * 0.70, 0),
-            "z4": round(hr_max * 0.80, 0),
-            "z5": round(hr_max * 0.90, 0),
+            "z1": int(round(hr_max * 0.50)),
+            "z2": int(round(hr_max * 0.60)),
+            "z3": int(round(hr_max * 0.70)),
+            "z4": int(round(hr_max * 0.80)),
+            "z5": int(round(hr_max * 0.90)),
         }
+        zone_ranges = [
+            {
+                "zone": zone,
+                "min_inclusive_bpm": int(round(hr_max * low)),
+                "max_exclusive_bpm": None if high == float("inf") else int(round(hr_max * high)),
+                "min_percent": int(round(low * 100)),
+                "max_percent": None if high == float("inf") else int(round(high * 100)),
+            }
+            for zone, low, high in HR_ZONES
+        ]
 
-    return {"points": points, "zone_thresholds_bpm": zone_thresholds}
+    state = get_indexation_state()
+    return {
+        "points": points,
+        "zone_thresholds_bpm": zone_thresholds,
+        "zone_ranges_bpm": zone_ranges,
+        "hr_max_used_bpm": hr_max,
+        "hr_max_source": hr_max_source,
+        "zones_stale": zones_stale,
+        "reindexation_running": bool(state.running and state.mode == "slow"),
+    }
 
 
 @router.get("/progress/long-run-dose")
@@ -622,16 +657,13 @@ async def get_calendar(
     """Données de heatmap calendrier pour une année donnée."""
     db_session_factory = get_db_session_factory(request)
 
-    from_ts = f"{year}-01-01T00:00:00Z"
-    to_ts = f"{year}-12-31T23:59:59Z"
-
     repo = ProgressRepository()
     session = db_session_factory()
     try:
         rows = repo.list_activity_rows(
             session,
-            from_ts_utc=from_ts,
-            to_ts_utc=to_ts,
+            from_ts_utc=None,
+            to_ts_utc=None,
             activity_type="real",
             limit=None,
         )

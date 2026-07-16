@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import importlib
-from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -122,6 +121,10 @@ def init_db(engine: Engine) -> None:
                     conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN z4_time_s REAL"))
                 if "z5_time_s" not in progress_cols:
                     conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN z5_time_s REAL"))
+                if "hr_max_used_bpm" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN hr_max_used_bpm REAL"))
+                if "hr_max_source" not in progress_cols:
+                    conn.execute(text("ALTER TABLE progress_activity_index ADD COLUMN hr_max_source TEXT"))
                 # P1: drop redundant column cardiac_drift_pct
                 try:
                     conn.execute(text("ALTER TABLE progress_activity_index DROP COLUMN cardiac_drift_pct"))

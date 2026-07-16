@@ -13,8 +13,8 @@ import {
   useProgressSeries,
 } from '@/hooks/useProgress';
 import { progressApi } from '@/lib/api';
-import { formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
-import { type HistoryRange, isoDateUtc, weekStartUtc, shiftRangeStart, formatDateLabel } from '@/lib/dateUtils';
+import { formatPaceSecondsPerKm } from '@/lib/metricsFormat';
+import { type HistoryRange, isoDateUtc, weekStartUtc, shiftRangeStart } from '@/lib/dateUtils';
 import { rollingMean } from '@/lib/chartUtils';
 import type {
   ProgressActivity,
@@ -22,9 +22,7 @@ import type {
 } from '@/types/api';
 import CalendarHeatmap from '@/components/features/progress/CalendarHeatmap';
 import TrainingLoadChart from '@/components/features/progress/TrainingLoadChart';
-import ProgressSessionTaxonomy from '@/components/features/progress/ProgressSessionTaxonomy';
 import ProgressIntensityDistribution from '@/components/features/progress/ProgressIntensityDistribution';
-import ProgressLongRunDose from '@/components/features/progress/ProgressLongRunDose';
 import ProgressVamTrend from '@/components/features/progress/ProgressVamTrend';
 import { ProgressIndexationBanner } from '@/components/features/progress/ProgressIndexationBanner';
 import { ProgressVolumeChart } from '@/components/features/progress/ProgressVolumeChart';
@@ -38,9 +36,8 @@ import {
   VOLUME_METRICS,
   HR_AT_PACE_REFS,
   PACE_AT_HR_REFS,
-  type VolumeMetricSpec,
 } from '@/components/features/progress/constants';
-import { parseBucketStartMs, finiteNumber, paddedDomain } from '@/components/features/progress/utils';
+import { parseBucketStartMs, finiteNumber, paddedDomain, vo2maxDomain as buildVo2maxDomain } from '@/components/features/progress/utils';
 
 export default function ProgressPage() {
   const queryClient = useQueryClient();
@@ -325,10 +322,7 @@ export default function ProgressPage() {
   }, [activitiesQuery.data?.activities]);
 
   const vo2maxDomain = React.useMemo<[number, number]>(() => {
-    if (vo2maxData.length === 0) return [0, 1];
-    const maxValue = Math.max(...vo2maxData.map((p) => p.vo2max));
-    const top = maxValue > 0 ? maxValue * 1.15 : 1;
-    return [0, top];
+    return buildVo2maxDomain(vo2maxData.map((point) => point.vo2max));
   }, [vo2maxData]);
 
   return (
@@ -358,11 +352,7 @@ export default function ProgressPage() {
 
       <TrainingLoadChart />
 
-      <ProgressSessionTaxonomy from={from} to={to} />
-
       <ProgressIntensityDistribution from={from} to={to} />
-
-      <ProgressLongRunDose from={from} to={to} />
 
       <ProgressVamTrend from={from} to={to} />
 

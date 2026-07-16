@@ -9,13 +9,12 @@ import { MiniMetric } from '@/components/analysis/MiniMetric';
 import { Button } from '@/components/ui/button';
 import { useCompareScenarios, useUpdatePlan, useUpdateScenario } from '@/hooks/useTraces';
 import { useTracePlanning } from '@/hooks/useTracePlanning';
-import { formatDurationSeconds, formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
+import { formatDurationSeconds, formatNumber } from '@/lib/metricsFormat';
 import type {
   RaceCoursePoint,
   RaceEquipmentItem,
   RaceNutritionItem,
   RacePlan,
-  RacePlanPreview,
   RaceScenario,
   RaceStrategySegment,
   TraceId,
@@ -25,6 +24,7 @@ import { PlanningSettings } from './PlanningSettings';
 import { StopsEditor } from './StopsEditor';
 import { SynchronizedCourseView } from './SynchronizedCourseView';
 import { TracePlanningHero } from './TracePlanningHero';
+import { RaceRoadbook } from './RaceRoadbook';
 
 const nav = [
   { id: 'parametres', label: 'Paramètres' },
@@ -39,74 +39,6 @@ const nav = [
   { id: 'comparaison', label: 'Scénarios' },
   { id: 'qualite', label: 'Qualité' },
 ] as const;
-
-function PassageTables({ preview }: { preview: RacePlanPreview }) {
-  return (
-    <div className="space-y-4">
-      <details className="rounded-lg border p-3">
-        <summary className="cursor-pointer font-medium">
-          Splits kilométriques ({preview.splits.length})
-        </summary>
-        <div className="mt-3 overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-muted/40">
-              <tr>
-                <th className="p-2 text-left">Km</th>
-                <th className="p-2 text-right">Allure</th>
-                <th className="p-2 text-right">Course</th>
-                <th className="p-2 text-right">Pause</th>
-                <th className="p-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {preview.splits.map((split) => (
-                <tr key={split.index} className="border-t">
-                  <td className="p-2 font-medium tabular-nums">{split.index} km</td>
-                  <td className="p-2 text-right tabular-nums">{formatPaceSecondsPerKm(split.pace_s_per_km)}/km</td>
-                  <td className="p-2 text-right tabular-nums">{formatDurationSeconds(split.running_time_s)}</td>
-                  <td className="p-2 text-right tabular-nums">{formatDurationSeconds(split.stop_time_s)}</td>
-                  <td className="p-2 text-right tabular-nums">{formatDurationSeconds(split.elapsed_time_s)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
-
-      <details className="rounded-lg border p-3">
-        <summary className="cursor-pointer font-medium">Heures de passage et ascensions</summary>
-        <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="max-h-80 overflow-auto">
-            <table className="w-full text-sm">
-              <tbody>
-                {preview.passages.map((passage) => (
-                  <tr key={passage.distance_km} className="border-b">
-                    <td className="py-2">Km {passage.distance_km.toFixed(1)}</td>
-                    <td className="py-2 text-right tabular-nums">
-                      {passage.passage_time_iso
-                        ? new Date(passage.passage_time_iso).toLocaleTimeString()
-                        : formatDurationSeconds(passage.elapsed_time_s)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div>
-            {preview.climbs.length ? preview.climbs.map((climb) => (
-              <div key={climb.id} className="mb-2 rounded-md bg-muted/40 p-3 text-sm">
-                <strong>{climb.start_distance_km.toFixed(1)}–{climb.end_distance_km.toFixed(1)} km</strong>
-                <div className="text-muted-foreground">
-                  {climb.elevation_gain_m.toFixed(0)} m D+ · {climb.average_grade_pct.toFixed(1)} % · {formatDurationSeconds(climb.running_time_s)}
-                </div>
-              </div>
-            )) : <EmptyState message="Aucune ascension significative détectée." />}
-          </div>
-        </div>
-      </details>
-    </div>
-  );
-}
 
 function EditablePlanningLists({ traceId, plan, scenario }: { traceId: TraceId; plan: RacePlan; scenario: RaceScenario }) {
   const updatePlan = useUpdatePlan(traceId, plan.id);
@@ -345,10 +277,10 @@ export function TracePlanningPage({ traceId }: { traceId: TraceId }) {
 
           <AnalysisCard
             id="decoupage"
-            title="Splits, ascensions et passages"
+            title="Préparation de course"
             description="Tous les cumuls incluent exactement les pauses situées en amont."
           >
-            <PassageTables preview={preview} />
+            <RaceRoadbook preview={preview} plan={plan} />
           </AnalysisCard>
 
           <AnalysisCard

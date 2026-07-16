@@ -1,12 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { CalendarClock, Pencil, Route } from 'lucide-react';
+import { CalendarClock, Download, Pencil, Route } from 'lucide-react';
 
 import { MiniMetric } from '@/components/analysis/MiniMetric';
 import { Button } from '@/components/ui/button';
 import { useRenameTrace } from '@/hooks/useTraces';
 import { formatDurationSeconds, formatNumber, formatPaceSecondsPerKm } from '@/lib/metricsFormat';
+import { buildUrl } from '@/lib/api';
 import type { RacePlanPreview, TraceItem } from '@/types/api';
 
 export function TracePlanningHero({ trace, preview }: { trace: TraceItem; preview?: RacePlanPreview }) {
@@ -23,7 +24,19 @@ export function TracePlanningHero({ trace, preview }: { trace: TraceItem; previe
           <div className="min-w-0">
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary"><Route className="h-4 w-4" />Preparation de course</div>
             {editing ? <div className="flex flex-wrap gap-2"><input className="h-10 min-w-64 rounded-md border bg-background px-3 text-xl font-semibold" value={name} onChange={(event) => setName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') save(); if (event.key === 'Escape') setEditing(false); }} /><Button onClick={save} disabled={rename.isPending}>Enregistrer</Button></div> : <button className="flex items-center gap-2 text-left text-2xl font-bold tracking-tight sm:text-3xl" onClick={() => setEditing(true)}>{name}<Pencil className="h-4 w-4 text-muted-foreground" /></button>}
-            <p className="mt-2 text-sm text-muted-foreground">{trace.original_filename}</p>
+            {trace.original_filename ? (
+              <a
+                className="mt-2 inline-flex max-w-full items-center gap-1.5 break-all text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                href={buildUrl(`/traces/${trace.id}/download`)}
+                download={trace.original_filename}
+                aria-label={`Télécharger le fichier original ${trace.original_filename}`}
+              >
+                <Download className="h-4 w-4 shrink-0" />
+                <span>{trace.original_filename}</span>
+              </a>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">Fichier source indisponible</p>
+            )}
           </div>
           <div className="flex items-center gap-2 rounded-lg border border-border bg-background/70 px-3 py-2 text-sm text-muted-foreground"><CalendarClock className="h-4 w-4" />{totals?.arrival_time_iso ? `Arrivee ${new Date(totals.arrival_time_iso).toLocaleString()}` : 'Definissez une heure de depart'}</div>
         </div>

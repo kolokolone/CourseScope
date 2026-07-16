@@ -6,9 +6,9 @@ Ce document décrit le domaine des traces théoriques, la page `/traces/{trace_i
 
 ## Périmètre
 
-Sont couverts : import GPX/FIT d'une trace, stockage Parquet, profil terrain, objectifs, plans, scénarios, pauses, passages, graphiques et comparaison. Les activités réellement enregistrées restent documentées séparément dans `docs/metrics_catalog.md`.
+Sont couverts : import GPX/FIT d'une trace, stockage Parquet, téléchargement de l'original, profil terrain, objectifs, plans, scénarios, pauses, roadbook, passages, graphiques et comparaison. Les activités réellement enregistrées restent documentées séparément dans `docs/metrics_catalog.md`.
 
-Ne sont volontairement pas pris en charge : export montre, roadbook, impression, export CSV, fourchettes d'incertitude, fatigue progressive, stratégie positive/négative et modélisation du terrain ou de la surface.
+Ne sont volontairement pas pris en charge : export montre, impression, export CSV, fourchettes d'incertitude, fatigue progressive, stratégie positive/négative et modélisation du terrain ou de la surface.
 
 ## Deux domaines et deux identifiants
 
@@ -64,6 +64,8 @@ Le GPX/FIT original n'est reparsé que si le Parquet est absent, illisible, inco
 
 `GET /traces/{trace_id}` expose `file.parquet_source` (`parquet` ou `rebuilt`) et `file.parquet_rebuild_reason`.
 
+`GET /traces/{trace_id}/download` renvoie les octets exacts du GPX/FIT importé avec son nom d'origine. Le chemin local n'est jamais exposé ; une trace ou un original absent répond `404`. Comme les autres routes, l'endpoint existe aussi sous `/api/traces/{trace_id}/download`.
+
 ## Profil terrain canonique
 
 Le module `backend/core/course_profile.py` est la source commune du profil théorique.
@@ -118,7 +120,7 @@ Pour un temps cible, une dichotomie résout l'allure de base afin que la somme d
 
 Le polynôme Minetti brut décrit un coût énergétique. Sur les pentes positives, CourseScope conserve sa forme mais compresse son effet avec `ratio_corrigé = ratio_minetti ** 0.80`. Le coefficient `0.80` est un exposant, pas une réduction de `0,80 %`.
 
-Sur les pentes négatives, le pipeline `race-planning-v6` n'utilise pas Minetti. Il interpole linéairement une courbe empirique stable entre les couples pente/ratio suivants : `0/1,00`, `−3/0,97`, `−5/0,94`, `−8/0,90`, `−10/0,88`, `−12/0,90`, `−15/0,95`, `−18/1,00`, `−25/1,10`, `−30/1,20`. L'interpolation linéaire est continue et n'introduit aucune oscillation de spline. Elle modélise un avantage maximal vers `−10 %`, nul vers `−18 %`, puis un ralentissement dans les descentes très raides. Les entrées sont bornées à `−30 % / +30 %`.
+Sur les pentes négatives, le pipeline `race-planning-v7` n'utilise pas Minetti. Il interpole linéairement une courbe empirique stable entre les couples pente/ratio suivants : `0/1,00`, `−3/0,97`, `−5/0,94`, `−8/0,90`, `−10/0,88`, `−12/0,90`, `−15/0,95`, `−18/1,00`, `−25/1,10`, `−30/1,20`. L'interpolation linéaire est continue et n'introduit aucune oscillation de spline. Elle modélise un avantage maximal vers `−10 %`, nul vers `−18 %`, puis un ralentissement dans les descentes très raides. Les entrées sont bornées à `−30 % / +30 %`.
 
 Le polynôme et son interprétation énergétique proviennent de Minetti et al., *Energy cost of walking and running at extreme uphill and downhill slopes*, Journal of Applied Physiology 93(3), 2002 ([DOI 10.1152/japplphysiol.01177.2001](https://doi.org/10.1152/japplphysiol.01177.2001)). L'exposant montant et la courbe descendante sont des hypothèses de planification propres à CourseScope.
 
@@ -146,6 +148,8 @@ Pour une pause à la distance `d` :
 
 Si le plan contient `race_date`, `start_time` et un fuseau valide, les passages et l'arrivée reçoivent une date ISO avec fuseau.
 
+Les `splits[]` utilisent uniquement les kilomètres entiers et le reliquat final : un point remarquable à `5,5 km` ne découpe donc plus le split `5–6 km`. Chaque split ajoute des cumuls rétrocompatibles (`cumulative_running_time_s`, `cumulative_stop_time_s`, `cumulative_elapsed_time_s`), une `passage_time_iso` éventuelle et `is_partial` pour le dernier intervalle incomplet. Les passages personnalisés conservent leur `label` et leur `kind`.
+
 ## Trois graphiques calculés côté backend
 
 ### Allure vs distance
@@ -167,7 +171,7 @@ Le frontend ne recalcule ni l'allure métier, ni les temps. Le downsampling back
 
 `histograms.grade` utilise `grade_robust_pct`. Les classes complètes conservent temps, distance et pourcentage du temps total. Aucun seuil temporel n'est appliqué : `display_classes` est identique à `complete_classes`, `display_min_time_s` et `hidden_time_s` valent zéro. Les extrêmes restent regroupés sous `≤ −20 %` et `≥ +20 %`.
 
-Le graphique frontend élimine uniquement les classes dont le temps vaut zéro, calcule une plage dynamique autour des classes restantes et impose un domaine symétrique autour de `0 %`. Une largeur de barre explicite évite les barres sous-pixel sur les longues traces contenant de nombreuses classes. La plage reste bornée à `−20 % / +20 %`, et `0 %` reste donc exactement au centre sans réserver d'espace inutile à des classes vides.
+Le graphique frontend élimine uniquement les classes dont le temps vaut zéro. Son axe symétrique est calculé exclusivement à partir des bins réguliers. Les overflows `≤ −20 %` et `≥ +20 %` restent auditables dans deux indicateurs hors axe avec durée et pourcentage du temps total ; ils n'étirent donc plus artificiellement le domaine central. Un parcours composé uniquement d'overflows conserve ces indicateurs et affiche un état explicite à la place du graphique central.
 
 ## Routes API
 
@@ -175,6 +179,7 @@ Le graphique frontend élimine uniquement les classes dont le temps vaut zéro, 
 |---|---|---|
 | `POST` | `/traces/upload` | Import partagé GPX/FIT |
 | `GET` | `/traces/{trace_id}` | Trace, fichier, qualité et plans minimaux |
+| `GET` | `/traces/{trace_id}/download` | Téléchargement exact du GPX/FIT original |
 | `POST` | `/traces/{trace_id}/plan-preview` | Calcul pur d'un aperçu |
 | `GET` | `/traces/{trace_id}/calibration` | Suggestion à partir des activités réelles comparables |
 | `GET/POST` | `/traces/{trace_id}/plans` | Liste et création |
@@ -229,7 +234,7 @@ Exemple de calcul pur sans persistance préalable :
 
 La page route ne fait que convertir le paramètre en `TraceId` et rendre `TracePlanningPage`. `useTracePlanning` charge la trace, le plan actif, le scénario sélectionné et le preview.
 
-Sections : hero/KPI, paramètres, aperçu, carte et allure synchronisées, histogrammes d'allure et de pente, splits/ascensions/passages, pauses, stratégie, nutrition, matériel, comparaison et qualité. Les splits et le bloc passages/ascensions sont deux panneaux repliables indépendants.
+Sections : hero/KPI, paramètres, aperçu, carte et allure synchronisées, histogrammes d'allure et de pente, roadbook, pauses, stratégie, nutrition, matériel, comparaison et qualité. Le roadbook est fermé par défaut et utilise un disclosure accessible. À l'ouverture, il présente les passages clés et ascensions avant les splits kilométriques détaillés, avec une représentation mobile dédiée.
 
 La date est conservée localement pendant la saisie afin qu'un rafraîchissement React Query ne remplace pas une année partiellement saisie. Une date ISO complète ou le choix « Aujourd'hui » du calendrier natif déclenche la persistance.
 

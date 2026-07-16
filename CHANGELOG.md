@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [1.2.17] - 2026-07-16
+
+### Added
+- **Roadbook de course** : panneau accessible fermé par défaut, passages clés et ascensions en premier, splits kilométriques détaillés et cumuls/ETA explicites.
+- **Téléchargement des traces** : le nom source du hero télécharge désormais les octets GPX/FIT originaux via `/traces/{trace_id}/download` et sa route `/api` compatible.
+
+### Changed
+- **Progression** : calendrier basé sur la date locale, série courante tolérant une dernière activité hier, KPI dédupliqués, trois cartes secondaires retirées et axe VO₂max démarrant à 80 % du minimum visible.
+- **Zones FC** : snapshot stable de FC max manuelle ou détectée pour toute l'indexation, provenance persistée, plages Z1–Z5 corrigées et ancienne distribution masquée pendant un recalcul requis.
+- **Splits de trace** : les points remarquables ne fragmentent plus les kilomètres ; les splits exposent temps du split, cumuls, ETA et reliquat final.
+- **Histogramme de pente** : les overflows `≤ −20 %` et `≥ +20 %` restent visibles hors axe avec durée et pourcentage sans dilater le graphique central.
+- **Paramètres** : retour au shell global et aux surfaces tokenisées `Card`/`bg-card`, sans titre ni container local.
+
+### Fixed
+- **Cohérence des zones FC** : les temps indexés et les plages annoncées utilisent désormais la même FC max effective ; changer le réglage déclenche une réindexation complète.
+
 ## [1.2.16] - 2026-07-16
 
 ### Changed
